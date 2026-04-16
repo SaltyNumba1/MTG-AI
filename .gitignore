@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs / release binaries
+mtg-collection/frontend/release/
+mtg-collection/frontend/build/
+mtg-collection/backend/build/
+mtg-collection/backend/dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Database files
+*.db
+*.db-journal
+
+# Electron dist
+mtg-collection/frontend/node_modules/
