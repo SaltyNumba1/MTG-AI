@@ -148,6 +148,7 @@ export default function DeckBuilder() {
     if (!selectedCommander || !prompt.trim()) return;
     setBuilding(true);
     setError("");
+    setSaveMessage(null);
     setResult(null);
     setBuildStatus({
       active: true,
@@ -164,6 +165,7 @@ export default function DeckBuilder() {
         prompt,
       });
       setResult(data);
+      await saveDeckWithName(data, data.commander.name, true);
       try {
         const status = await api.get<BuildStatus>("/deck/build-status");
         setBuildStatus(status.data);
@@ -193,32 +195,57 @@ export default function DeckBuilder() {
     URL.revokeObjectURL(url);
   };
 
-  const saveDeckToFolder = async () => {
-    if (!result) return;
-
-    const suggestedName = `${result.commander.name} Deck`;
-    const deckName = window.prompt("Save deck as:", suggestedName);
-    if (deckName === null) return;
-
+  const saveDeckWithName = async (
+    deckResult: DeckResult,
+    deckName: string,
+    autoSave = false,
+  ) => {
     setSaving(true);
     setSaveMessage(null);
     try {
       const { data } = await api.post("/deck/save", {
         name: deckName,
         prompt,
-        commander: result.commander,
-        deck: result.deck,
-        description: result.description,
+        commander: deckResult.commander,
+        deck: deckResult.deck,
+        description: deckResult.description,
       });
-      setSaveMessage({
-        type: "success",
-        text: `Saved as ${data.json_file} and ${data.txt_file} in ${data.folder}`,
-      });
+
+      if (autoSave) {
+        setSaveMessage({
+          type: "success",
+          text: `Auto-saved to My Decks as ${deckResult.commander.name}`,
+        });
+      } else {
+        setSaveMessage({
+          type: "success",
+          text: `Saved as ${data.json_file} and ${data.txt_file} in ${data.folder}`,
+        });
+      }
     } catch (err: any) {
-      setSaveMessage({ type: "error", text: err.response?.data?.detail || "Failed to save deck" });
+      if (autoSave) {
+        setSaveMessage({
+          type: "error",
+          text: err.response?.data?.detail || "Deck built, but auto-save failed",
+        });
+      } else {
+        setSaveMessage({
+          type: "error",
+          text: err.response?.data?.detail || "Failed to save deck",
+        });
+      }
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveDeckToFolder = async () => {
+    if (!result) return;
+
+    const suggestedName = result.commander.name;
+    const deckName = window.prompt("Save deck as:", suggestedName);
+    if (deckName === null) return;
+    await saveDeckWithName(result, deckName, false);
   };
 
   const groups = result ? groupByType(result.deck) : {};

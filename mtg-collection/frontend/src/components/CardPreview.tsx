@@ -73,6 +73,17 @@ export default function CardPreview({
         <small style={{ color: "#64748b", display: "block", marginBottom: 6 }}>{zoomHint}</small>
         {children}
       </div>
+      {imageUri && (
+        <div className="card-popout" aria-hidden="true">
+          <div className="card-popout-frame">
+            <img src={imageUri} alt="" loading="lazy" />
+            <div className="card-popout-caption">
+              <strong>{name}</strong>
+              <span>{formatPrice(tcgplayerPrice)}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
