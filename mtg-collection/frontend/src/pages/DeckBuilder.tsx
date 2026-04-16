@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import api from "../api";
+import CardPreview from "../components/CardPreview";
 
 interface Commander {
   id: string;
   name: string;
   color_identity: string[];
   image_uri: string;
+  tcgplayer_price?: string | null;
 }
 
 interface CardEntry {
@@ -15,6 +17,7 @@ interface CardEntry {
   cmc: number;
   image_uri: string;
   color_identity: string[];
+  tcgplayer_price?: string | null;
 }
 
 interface DeckResult {
@@ -23,12 +26,18 @@ interface DeckResult {
   description: string;
 }
 
-interface SavedDeckSummary {
-  file: string;
-  name: string;
-  saved_at: string | null;
-  commander: string;
-  card_count: number;
+interface BuildThought {
+  time: string;
+  message: string;
+}
+
+interface BuildStatus {
+  active: boolean;
+  phase: string;
+  message: string;
+  started_at: string | null;
+  finished_at: string | null;
+  thoughts: BuildThought[];
 }
 
 const COLOR_SYMBOLS: Record<string, string> = {
@@ -112,33 +121,55 @@ export default function DeckBuilder() {
   const [result, setResult] = useState<DeckResult | null>(null);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [savedDecks, setSavedDecks] = useState<SavedDeckSummary[]>([]);
-
-  const loadSavedDecks = async () => {
-    try {
-      const { data } = await api.get<SavedDeckSummary[]>("/deck/saved");
-      setSavedDecks(data);
-    } catch {
-      // Ignore saved deck listing errors so builder still works.
-    }
-  };
+  const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
 
   useEffect(() => {
     api.get<Commander[]>("/deck/commanders").then(({ data }) => setCommanders(data));
-    loadSavedDecks();
   }, []);
+
+  useEffect(() => {
+    if (!building) return;
+
+    const pollStatus = async () => {
+      try {
+        const { data } = await api.get<BuildStatus>("/deck/build-status");
+        setBuildStatus(data);
+      } catch {
+        // Keep deck build running even if status polling fails.
+      }
+    };
+
+    pollStatus();
+    const timer = window.setInterval(pollStatus, 1200);
+    return () => window.clearInterval(timer);
+  }, [building]);
 
   const handleBuild = async () => {
     if (!selectedCommander || !prompt.trim()) return;
     setBuilding(true);
     setError("");
     setResult(null);
+    setBuildStatus({
+      active: true,
+      phase: "starting",
+      message: "Preparing deck build",
+      started_at: null,
+      finished_at: null,
+      thoughts: [],
+    });
+
     try {
       const { data } = await api.post<DeckResult>("/deck/build", {
         commander_name: selectedCommander,
         prompt,
       });
       setResult(data);
+      try {
+        const status = await api.get<BuildStatus>("/deck/build-status");
+        setBuildStatus(status.data);
+      } catch {
+        // Ignore final status fetch failures.
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || "Deck generation failed");
     } finally {
@@ -183,7 +214,6 @@ export default function DeckBuilder() {
         type: "success",
         text: `Saved as ${data.json_file} and ${data.txt_file} in ${data.folder}`,
       });
-      await loadSavedDecks();
     } catch (err: any) {
       setSaveMessage({ type: "error", text: err.response?.data?.detail || "Failed to save deck" });
     } finally {
@@ -197,6 +227,8 @@ export default function DeckBuilder() {
   const basics = colors ? suggestBasics(colors, 37) : [];
   const curveMax = curve ? Math.max(...Object.values(curve), 1) : 1;
   const colorMax = colors ? Math.max(...Object.values(colors), 1) : 1;
+  const totalGeneratedCount = result ? result.deck.length + 1 : 0;
+  const missingCount = Math.max(0, 100 - totalGeneratedCount);
 
   return (
     <div className="page">
@@ -212,7 +244,7 @@ export default function DeckBuilder() {
             value={selectedCommander}
             onChange={(e) => setSelectedCommander(e.target.value)}
           >
-            <option value="">— Select a commander —</option>
+            <option value="">- Select a commander -</option>
             {commanders.map((c) => (
               <option key={c.id} value={c.name}>
                 {c.name} {(c.color_identity || []).map((x) => COLOR_SYMBOLS[x] || x).join("")}
@@ -221,7 +253,7 @@ export default function DeckBuilder() {
           </select>
           {commanders.length === 0 && (
             <small style={{ color: "#64748b" }}>
-              No legendary creatures found in your collection.
+              No legal legendary commanders found in your collection.
             </small>
           )}
         </div>
@@ -251,16 +283,31 @@ export default function DeckBuilder() {
       {error && <div className="alert alert-error">{error}</div>}
       {saveMessage && <div className={`alert alert-${saveMessage.type}`}>{saveMessage.text}</div>}
 
+      {(building || (buildStatus?.thoughts?.length ?? 0) > 0) && (
+        <div className="alert alert-info" style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>AI Build Process</div>
+          <small style={{ display: "block", marginBottom: 8, color: "#cbd5e1" }}>
+            {buildStatus?.message || "Deck builder is working..."}
+          </small>
+          <div style={{ display: "grid", gap: 4, maxHeight: 170, overflowY: "auto" }}>
+            {(buildStatus?.thoughts || []).map((thought, idx) => (
+              <small key={`${thought.time}-${idx}`} style={{ color: "#a5b4fc" }}>
+                {new Date(thought.time).toLocaleTimeString()} - {thought.message}
+              </small>
+            ))}
+          </div>
+        </div>
+      )}
+
       {result && (
         <div>
           <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap" }}>
-            {result.commander.image_uri && (
-              <img
-                src={result.commander.image_uri}
-                alt={result.commander.name}
-                style={{ width: 180, borderRadius: 8 }}
-              />
-            )}
+            <CardPreview
+              name={result.commander.name}
+              imageUri={result.commander.image_uri}
+              subtitle="Commander"
+              tcgplayerPrice={result.commander.tcgplayer_price}
+            />
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", marginBottom: 8 }}>
                 {result.commander.name} Commander Deck
@@ -268,6 +315,10 @@ export default function DeckBuilder() {
               <p style={{ color: "#94a3b8", marginBottom: 12, maxWidth: 500 }}>
                 {result.description}
               </p>
+              <div style={{ color: missingCount === 0 ? "#86efac" : "#fca5a5", marginBottom: 10, fontSize: 13 }}>
+                Total Cards: {totalGeneratedCount}/100
+                {missingCount > 0 ? ` (${missingCount} missing)` : " (complete)"}
+              </div>
               <button className="btn-secondary" onClick={exportDecklist}>
                 Export Decklist (.txt)
               </button>
@@ -343,68 +394,19 @@ export default function DeckBuilder() {
                 </h3>
                 <div className="card-grid">
                   {cards.map((card) => (
-                    <div key={card.id + card.name} className="mtg-card">
-                      {card.image_uri ? (
-                        <img src={card.image_uri} alt={card.name} loading="lazy" />
-                      ) : (
-                        <div
-                          style={{
-                            height: 100,
-                            background: "#0f172a",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 11,
-                            color: "#64748b",
-                          }}
-                        >
-                          No image
-                        </div>
-                      )}
-                      <div className="card-info">
-                        <div className="card-name">{card.name}</div>
-                        <div style={{ color: "#94a3b8", fontSize: 11 }}>CMC {card.cmc}</div>
-                      </div>
-                    </div>
+                    <CardPreview
+                      key={card.id + card.name}
+                      name={card.name}
+                      imageUri={card.image_uri}
+                      subtitle={`CMC ${card.cmc}`}
+                      tcgplayerPrice={card.tcgplayer_price}
+                    />
                   ))}
                 </div>
               </div>
             ))}
         </div>
       )}
-
-      <div style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 18, color: "#c4b5fd", marginBottom: 10 }}>Saved Decks</h2>
-        {savedDecks.length === 0 ? (
-          <small style={{ color: "#94a3b8" }}>No saved decks yet.</small>
-        ) : (
-          <div style={{ display: "grid", gap: 8, maxWidth: 820 }}>
-            {savedDecks.map((deck) => (
-              <div
-                key={deck.file}
-                style={{
-                  border: "1px solid #334155",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  background: "#16213e",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700 }}>{deck.name}</div>
-                  <small style={{ color: "#94a3b8" }}>
-                    Commander: {deck.commander || "Unknown"} | Cards: {deck.card_count}
-                  </small>
-                </div>
-                <small style={{ color: "#94a3b8" }}>{deck.saved_at || ""}</small>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

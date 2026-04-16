@@ -10,16 +10,20 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from database import DATABASE_URL, get_db
 from models import Card
-from services.scryfall import fetch_card_by_name, extract_card_fields
+from services.scryfall import fetch_card_by_name, fetch_card_by_id, extract_card_fields
 
 router = APIRouter(prefix="/collection", tags=["collection"])
 
 COMMON_NAME_COLUMNS = ["name", "card name", "cardname", "card_name", "Name"]
 COMMON_QTY_COLUMNS = ["quantity", "qty", "count", "amount", "Quantity", "Count"]
+COMMON_SCRYFALL_ID_COLUMNS = ["scryfall id", "scryfall_id", "scryfallid", "Scryfall ID"]
 
 IMPORT_STATUS_LOCK = Lock()
+IMPORT_CANCEL_LOCK = Lock()
+IMPORT_CANCEL_REQUESTED = False
 IMPORT_STATUS = {
     "active": False,
     "source": None,
@@ -40,6 +44,7 @@ IMPORT_STATUS = {
 class RetryImportItem(BaseModel):
     name: str
     quantity: int = 1
+    scryfall_id: str | None = None
 
 
 class RetryImportRequest(BaseModel):
@@ -63,6 +68,17 @@ class RestoreBackupRequest(BaseModel):
 def _set_import_status(**kwargs):
     with IMPORT_STATUS_LOCK:
         IMPORT_STATUS.update(kwargs)
+
+
+def _set_import_cancel_requested(value: bool):
+    global IMPORT_CANCEL_REQUESTED
+    with IMPORT_CANCEL_LOCK:
+        IMPORT_CANCEL_REQUESTED = value
+
+
+def _is_import_cancel_requested() -> bool:
+    with IMPORT_CANCEL_LOCK:
+        return IMPORT_CANCEL_REQUESTED
 
 
 def _get_import_status_snapshot() -> dict:
@@ -108,21 +124,115 @@ def parse_quantity(value) -> int:
         return 1
 
 
-async def upsert_card_by_name(db: AsyncSession, card_name: str, quantity: int) -> tuple[str, str | None]:
+def parse_scryfall_id(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and pd.isna(value):
+        return None
+    raw = str(value).strip()
+    if not raw or raw.lower() == "nan":
+        return None
+    return raw
+
+
+def normalized_name_candidates(card_name: str) -> list[str]:
+    name = (card_name or "").strip()
+    if not name:
+        return []
+
+    candidates = [name]
+    if " // " in name:
+        first_face = name.split(" // ")[0].strip()
+        if first_face:
+            candidates.append(first_face)
+    if " / " in name and " // " not in name:
+        first_half = name.split(" / ")[0].strip()
+        if first_half:
+            candidates.append(first_half)
+
+    deduped = []
+    seen = set()
+    for candidate in candidates:
+        key = candidate.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(candidate)
+    return deduped
+
+
+async def commit_with_retry(db: AsyncSession, *, retries: int = 3, base_delay: float = 0.2) -> tuple[bool, str | None]:
+    for attempt in range(retries):
+        try:
+            await db.commit()
+            return True, None
+        except OperationalError as exc:
+            await db.rollback()
+            # SQLite can throw transient lock errors during concurrent writes.
+            if "database is locked" in str(exc).lower() and attempt < retries - 1:
+                await asyncio.sleep(base_delay * (attempt + 1))
+                continue
+            return False, str(exc)
+        except SQLAlchemyError as exc:
+            await db.rollback()
+            return False, str(exc)
+
+    return False, "Unknown commit failure"
+
+
+async def upsert_card(db: AsyncSession, card_name: str, quantity: int, scryfall_id: str | None = None) -> tuple[str, str | None]:
     """
     Returns tuple(status, reason)
     status in {"imported", "updated", "failed"}
     """
-    existing = await db.execute(select(Card).where(Card.name == card_name))
-    existing_card = existing.scalar_one_or_none()
+    name_candidates = normalized_name_candidates(card_name)
+    primary_name = name_candidates[0] if name_candidates else ""
 
-    if existing_card:
-        existing_card.quantity += quantity
-        return "updated", None
+    # Keep historical behavior: if the card exists by name, adjust quantity directly.
+    if primary_name:
+        existing = await db.execute(select(Card).where(Card.name == primary_name))
+        existing_card = existing.scalar_one_or_none()
+        if existing_card:
+            existing_card.quantity += quantity
+            return "updated", None
 
-    data = await fetch_card_by_name(card_name)
+    # Prefer an exact ID match when CSV provides one.
+    if scryfall_id:
+        existing_by_id = await db.execute(select(Card).where(Card.id == scryfall_id))
+        existing_id_card = existing_by_id.scalar_one_or_none()
+        if existing_id_card:
+            existing_id_card.quantity += quantity
+            return "updated", None
+
+    data = None
+    if scryfall_id:
+        data = await fetch_card_by_id(scryfall_id)
+
+    if data is None:
+        for candidate in name_candidates:
+            data = await fetch_card_by_name(candidate)
+            if data:
+                break
+
     if not data:
+        if scryfall_id:
+            return "failed", f"Card not found on Scryfall by ID or name ({scryfall_id})"
         return "failed", "Card not found on Scryfall"
+
+    # If Scryfall resolves to an existing name, update that row instead of inserting duplicates.
+    canonical_name = data.get("name", "").strip()
+    if canonical_name:
+        existing_canonical = await db.execute(select(Card).where(Card.name == canonical_name))
+        canonical_card = existing_canonical.scalar_one_or_none()
+        if canonical_card:
+            canonical_card.quantity += quantity
+            return "updated", None
+
+    existing_resolved_id = await db.execute(select(Card).where(Card.id == data["id"]))
+    resolved_card = existing_resolved_id.scalar_one_or_none()
+    if resolved_card:
+        resolved_card.quantity += quantity
+        return "updated", None
 
     fields = extract_card_fields(data)
     fields["quantity"] = quantity
@@ -147,6 +257,7 @@ async def list_cards(db: AsyncSession = Depends(get_db)):
             "image_uri": c.image_uri,
             "rarity": c.rarity,
             "set_code": c.set_code,
+            "tcgplayer_price": c.tcgplayer_price,
         }
         for c in cards
     ]
@@ -155,6 +266,30 @@ async def list_cards(db: AsyncSession = Depends(get_db)):
 @router.get("/import-status")
 async def import_status():
     return _get_import_status_snapshot()
+
+
+async def _cancel_import_impl():
+    status = _get_import_status_snapshot()
+    if not status.get("active"):
+        return {"cancel_requested": False, "message": "No active import"}
+    _set_import_cancel_requested(True)
+    _set_import_status(message="Cancel requested. Stopping import...")
+    return {"cancel_requested": True}
+
+
+@router.post("/import-cancel")
+async def cancel_import_post():
+    return await _cancel_import_impl()
+
+
+@router.delete("/import-cancel")
+async def cancel_import_delete():
+    return await _cancel_import_impl()
+
+
+@router.post("/import/cancel")
+async def cancel_import_post_alias():
+    return await _cancel_import_impl()
 
 
 @router.post("/import")
@@ -178,6 +313,7 @@ async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(ge
         )
 
     qty_col = detect_column(df, COMMON_QTY_COLUMNS)
+    scryfall_id_col = detect_column(df, COMMON_SCRYFALL_ID_COLUMNS)
 
     results = {
         "imported": 0,
@@ -203,19 +339,30 @@ async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(ge
         started_at=datetime.utcnow().isoformat(),
         finished_at=None,
     )
+    _set_import_cancel_requested(False)
 
     rows = [row for _, row in df.iterrows()]
     commit_every = 25
     for idx, row in enumerate(rows):
-        card_name = str(row[name_col]).strip()
-        quantity = parse_quantity(row.get(qty_col)) if qty_col else 1
+        if _is_import_cancel_requested():
+            _set_import_status(
+                active=False,
+                message="Import canceled by user",
+                finished_at=datetime.utcnow().isoformat(),
+            )
+            await commit_with_retry(db)
+            return results
 
-        if not card_name or card_name.lower() == "nan":
+        card_name = str(row[name_col]).strip() if name_col else ""
+        quantity = parse_quantity(row.get(qty_col)) if qty_col else 1
+        scryfall_id = parse_scryfall_id(row.get(scryfall_id_col)) if scryfall_id_col else None
+
+        if (not card_name or card_name.lower() == "nan") and not scryfall_id:
             _set_import_status(processed=idx + 1, percent=round(((idx + 1) / max(len(rows), 1)) * 100))
             continue
 
         try:
-            state, reason = await upsert_card_by_name(db, card_name, quantity)
+            state, reason = await upsert_card(db, card_name, quantity, scryfall_id=scryfall_id)
             if state == "imported":
                 results["imported"] += 1
                 results["touched_names"].append(card_name)
@@ -225,16 +372,33 @@ async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(ge
             else:
                 results["failed"].append(card_name)
                 results["failed_details"].append(
-                    {"name": card_name, "quantity": quantity, "reason": reason or "Unknown error"}
+                    {
+                        "name": card_name,
+                        "quantity": quantity,
+                        "scryfall_id": scryfall_id,
+                        "reason": reason or "Unknown error",
+                    }
                 )
         except Exception as exc:
             results["failed"].append(card_name)
             results["failed_details"].append(
-                {"name": card_name, "quantity": quantity, "reason": str(exc)}
+                {
+                    "name": card_name,
+                    "quantity": quantity,
+                    "scryfall_id": scryfall_id,
+                    "reason": str(exc),
+                }
             )
 
         if (idx + 1) % commit_every == 0:
-            await db.commit()
+            ok, reason = await commit_with_retry(db)
+            if not ok:
+                _set_import_status(
+                    active=False,
+                    message=f"Import aborted: commit failed ({reason})",
+                    finished_at=datetime.utcnow().isoformat(),
+                )
+                return results
 
         _set_import_status(
             processed=idx + 1,
@@ -248,7 +412,17 @@ async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(ge
             await asyncio.sleep(0.1)
 
     # Commit any remaining changes.
-    await db.commit()
+    ok, reason = await commit_with_retry(db)
+    if not ok:
+        _set_import_status(
+            active=False,
+            message=f"Import aborted: final commit failed ({reason})",
+            finished_at=datetime.utcnow().isoformat(),
+            imported=results["imported"],
+            updated=results["updated"],
+            failed=len(results["failed"]),
+        )
+        return results
 
     _set_import_status(
         active=False,
@@ -292,16 +466,27 @@ async def retry_failed_import(payload: RetryImportRequest, db: AsyncSession = De
         started_at=datetime.utcnow().isoformat(),
         finished_at=None,
     )
+    _set_import_cancel_requested(False)
 
     for idx, item in enumerate(payload.items):
+        if _is_import_cancel_requested():
+            _set_import_status(
+                active=False,
+                message="Retry canceled by user",
+                finished_at=datetime.utcnow().isoformat(),
+            )
+            await commit_with_retry(db)
+            return results
+
         name = item.name.strip()
         quantity = item.quantity if item.quantity > 0 else 1
-        if not name:
+        scryfall_id = parse_scryfall_id(item.scryfall_id)
+        if not name and not scryfall_id:
             _set_import_status(processed=idx + 1, percent=round(((idx + 1) / max(len(payload.items), 1)) * 100))
             continue
 
         try:
-            state, reason = await upsert_card_by_name(db, name, quantity)
+            state, reason = await upsert_card(db, name, quantity, scryfall_id=scryfall_id)
             if state == "imported":
                 results["imported"] += 1
                 results["touched_names"].append(name)
@@ -310,13 +495,29 @@ async def retry_failed_import(payload: RetryImportRequest, db: AsyncSession = De
                 results["touched_names"].append(name)
             else:
                 results["failed"].append(name)
-                results["failed_details"].append({"name": name, "quantity": quantity, "reason": reason or "Unknown error"})
+                results["failed_details"].append(
+                    {
+                        "name": name,
+                        "quantity": quantity,
+                        "scryfall_id": scryfall_id,
+                        "reason": reason or "Unknown error",
+                    }
+                )
         except Exception as exc:
             results["failed"].append(name)
-            results["failed_details"].append({"name": name, "quantity": quantity, "reason": str(exc)})
+            results["failed_details"].append(
+                {"name": name, "quantity": quantity, "scryfall_id": scryfall_id, "reason": str(exc)}
+            )
 
         if (idx + 1) % 25 == 0:
-            await db.commit()
+            ok, reason = await commit_with_retry(db)
+            if not ok:
+                _set_import_status(
+                    active=False,
+                    message=f"Retry aborted: commit failed ({reason})",
+                    finished_at=datetime.utcnow().isoformat(),
+                )
+                return results
 
         _set_import_status(
             processed=idx + 1,
@@ -329,7 +530,17 @@ async def retry_failed_import(payload: RetryImportRequest, db: AsyncSession = De
         if idx + 1 < len(payload.items):
             await asyncio.sleep(0.05)
 
-    await db.commit()
+    ok, reason = await commit_with_retry(db)
+    if not ok:
+        _set_import_status(
+            active=False,
+            message=f"Retry aborted: final commit failed ({reason})",
+            finished_at=datetime.utcnow().isoformat(),
+            imported=results["imported"],
+            updated=results["updated"],
+            failed=len(results["failed"]),
+        )
+        return results
 
     _set_import_status(
         active=False,

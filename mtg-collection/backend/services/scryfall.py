@@ -28,11 +28,15 @@ async def fetch_card_by_id(scryfall_id: str) -> Optional[dict]:
 def extract_card_fields(data: dict) -> dict:
     """Normalize Scryfall card data into our DB schema."""
     image_uri = None
+    tcgplayer_price = None
     if "image_uris" in data:
         image_uri = data["image_uris"].get("normal")
     elif "card_faces" in data and data["card_faces"]:
         face = data["card_faces"][0]
         image_uri = face.get("image_uris", {}).get("normal")
+
+    prices = data.get("prices") or {}
+    tcgplayer_price = prices.get("usd") or prices.get("usd_foil") or prices.get("usd_etched")
 
     return {
         "id": data["id"],
@@ -53,6 +57,7 @@ def extract_card_fields(data: dict) -> dict:
         "loyalty": data.get("loyalty"),
         "set_code": data.get("set"),
         "rarity": data.get("rarity"),
+        "tcgplayer_price": tcgplayer_price,
         "image_uri": image_uri,
         "legalities": data.get("legalities", {}),
     }

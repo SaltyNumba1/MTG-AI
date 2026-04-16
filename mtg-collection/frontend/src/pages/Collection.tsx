@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
+import CardPreview from "../components/CardPreview";
 
 interface CardEntry {
   id: string;
@@ -13,6 +14,7 @@ interface CardEntry {
   image_uri: string;
   rarity: string;
   set_code: string;
+  tcgplayer_price?: string | null;
 }
 
 interface ImportStatus {
@@ -34,6 +36,7 @@ interface ImportStatus {
 interface FailedDetail {
   name: string;
   quantity: number;
+  scryfall_id?: string;
   reason: string;
 }
 
@@ -187,6 +190,24 @@ export default function Collection() {
     }
   };
 
+  const cancelImport = async () => {
+    try {
+      await api.post("/collection/import-cancel");
+      setMessage({ type: "info", text: "Cancel requested. Import will stop shortly." });
+    } catch (err: any) {
+      try {
+        if (err?.response?.status === 405) {
+          await api.delete("/collection/import-cancel");
+          setMessage({ type: "info", text: "Cancel requested. Import will stop shortly." });
+          return;
+        }
+      } catch {
+        // Fall through to generic error message.
+      }
+      setMessage({ type: "error", text: err.response?.data?.detail || "Failed to cancel import" });
+    }
+  };
+
   const handleDelete = async (id: string) => {
     await api.delete(`/collection/${id}`);
     setCards((prev) => prev.filter((c) => c.id !== id));
@@ -234,7 +255,9 @@ export default function Collection() {
     if (failedRows.length === 0) return;
     setImporting(true);
     try {
-      const payload = { items: failedRows.map((x) => ({ name: x.name, quantity: x.quantity })) };
+      const payload = {
+        items: failedRows.map((x) => ({ name: x.name, quantity: x.quantity, scryfall_id: x.scryfall_id })),
+      };
       const { data } = await api.post<ImportResponse>("/collection/import/retry-failed", payload);
       setFailedRows(data.failed_details || []);
       if (data.touched_names?.length) {
@@ -356,6 +379,7 @@ export default function Collection() {
   }, [cards, search, colorFilter, typeFilter, rarityFilter, setFilter, sortBy, lastImportedNames]);
 
   const selectedCount = selectedIds.size;
+  const totalCardCount = cards.reduce((acc, card) => acc + (card.quantity || 0), 0);
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
@@ -381,7 +405,7 @@ export default function Collection() {
 
   return (
     <div className="page">
-      <h1 className="page-title">My Collection ({cards.length} unique cards)</h1>
+      <h1 className="page-title">My Collection ({cards.length} unique cards | {totalCardCount} total cards)</h1>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <input
@@ -442,6 +466,13 @@ export default function Collection() {
             onChange={handleImport}
           />
         </label>
+        <button
+          className="btn-secondary"
+          onClick={cancelImport}
+          disabled={!importStatus?.active}
+        >
+          Cancel Import
+        </button>
         <button
           className="btn-danger"
           onClick={handleClearCollection}
@@ -563,52 +594,35 @@ export default function Collection() {
       ) : (
         <div className="card-grid">
           {filtered.map((card) => (
-            <div key={card.id} className="mtg-card">
-              {card.image_uri ? (
-                <img src={card.image_uri} alt={card.name} loading="lazy" />
-              ) : (
-                <div
-                  style={{
-                    height: 120,
-                    background: "#0f172a",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 12,
-                    color: "#64748b",
-                  }}
+            <CardPreview
+              key={card.id}
+              name={card.name}
+              imageUri={card.image_uri}
+              subtitle={`${card.type_line} | ${card.rarity || "-"} | ${(card.set_code || "-").toUpperCase()}`}
+              quantity={card.quantity}
+              tcgplayerPrice={card.tcgplayer_price}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>
+                  {(card.color_identity || []).map((c) => COLOR_SYMBOLS[c] || c).join("")}
+                </span>
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${card.name}`}
+                  title={`Select ${card.name}`}
+                  checked={selectedIds.has(card.id)}
+                  onChange={() => toggleSelected(card.id)}
+                  style={{ width: 16, height: 16 }}
+                />
+                <button
+                  className="btn-danger"
+                  style={{ padding: "2px 8px", fontSize: 11 }}
+                  onClick={() => handleDelete(card.id)}
                 >
-                  No image
-                </div>
-              )}
-              <div className="card-info">
-                <div className="card-name">{card.name}</div>
-                <div style={{ color: "#94a3b8", fontSize: 11, marginBottom: 4 }}>
-                  {card.type_line} | {card.rarity || "-"} | {(card.set_code || "-").toUpperCase()}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="card-qty">×{card.quantity}</span>
-                  <span>
-                    {(card.color_identity || []).map((c) => COLOR_SYMBOLS[c] || c).join("")}
-                  </span>
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${card.name}`}
-                    title={`Select ${card.name}`}
-                    checked={selectedIds.has(card.id)}
-                    onChange={() => toggleSelected(card.id)}
-                    style={{ width: 16, height: 16 }}
-                  />
-                  <button
-                    className="btn-danger"
-                    style={{ padding: "2px 8px", fontSize: 11 }}
-                    onClick={() => handleDelete(card.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
+                  ✕
+                </button>
               </div>
-            </div>
+            </CardPreview>
           ))}
         </div>
       )}

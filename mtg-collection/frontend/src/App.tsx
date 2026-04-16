@@ -1,13 +1,18 @@
-import { useEffect } from "react";
-import { Routes, Route, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Collection from "./pages/Collection";
 import DeckBuilder from "./pages/DeckBuilder";
+import MyDecks from "./pages/MyDecks";
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const restoredRoute = useRef(false);
 
   useEffect(() => {
+    if (restoredRoute.current) return;
+    restoredRoute.current = true;
+
     const saved = localStorage.getItem("mtg.lastRoute");
     if (location.pathname === "/" && saved && saved !== "/") {
       navigate(saved, { replace: true });
@@ -22,12 +27,15 @@ export default function App() {
     <>
       <nav>
         <span className="logo">🃏 MTG Deck Builder</span>
-        <NavLink to="/">Collection</NavLink>
+        <NavLink to="/collection">Collection</NavLink>
         <NavLink to="/deck">Build Deck</NavLink>
+        <NavLink to="/my-decks">My Decks</NavLink>
       </nav>
       <Routes>
-        <Route path="/" element={<Collection />} />
+        <Route path="/" element={<Navigate to="/collection" replace />} />
+        <Route path="/collection" element={<Collection />} />
         <Route path="/deck" element={<DeckBuilder />} />
+        <Route path="/my-decks" element={<MyDecks />} />
       </Routes>
     </>
   );
