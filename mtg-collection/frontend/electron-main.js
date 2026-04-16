@@ -9,6 +9,30 @@ const backendDir = path.join(__dirname, "..", "backend");
 const packagedBackendDir = path.join(process.resourcesPath || __dirname, "backend");
 let backendProcess = null;
 let isQuitting = false;
+let mainWindow = null;
+
+function getWindowStatePath() {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
+
+function loadWindowState() {
+  try {
+    const p = getWindowStatePath();
+    if (!fs.existsSync(p)) return {};
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveWindowState(win) {
+  try {
+    const bounds = win.getBounds();
+    fs.writeFileSync(getWindowStatePath(), JSON.stringify(bounds));
+  } catch {
+    // ignore persistence failures
+  }
+}
 
 function resolvePythonExecutable() {
   const winPython = path.join(backendDir, ".venv", "Scripts", "python.exe");
@@ -122,15 +146,28 @@ function startBackend() {
 
 function createWindow() {
   const iconPath = path.join(__dirname, "build", "icon.ico");
+  const state = loadWindowState();
   const win = new BrowserWindow({
-    width: 1200,
-    height: 860,
+    width: state.width || 1200,
+    height: state.height || 860,
+    x: state.x,
+    y: state.y,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
     },
   });
+  mainWindow = win;
+
+  let saveTimer = null;
+  const queueSave = () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveWindowState(win), 150);
+  };
+  win.on("resize", queueSave);
+  win.on("move", queueSave);
+  win.on("close", () => saveWindowState(win));
 
   win.webContents.on("did-fail-load", (_e, code, desc) => {
     logStartup(`Window failed to load: ${code} ${desc}`);
@@ -193,6 +230,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  if (mainWindow) saveWindowState(mainWindow);
   if (backendProcess) {
     backendProcess.kill();
   }
