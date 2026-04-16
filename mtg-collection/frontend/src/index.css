@@ -54,7 +54,7 @@ input:focus, select:focus, textarea:focus {
   overflow: visible;
   transition: transform 0.15s;
 }
-.mtg-card:hover { transform: translateY(-3px); }
+.mtg-card:hover { transform: translateY(-3px); z-index: 30; }
 .mtg-card img { width: 100%; display: block; transition: transform 0.2s ease; transform-origin: center center; }
 .mtg-card .card-info { padding: 8px; font-size: 12px; }
 .mtg-card .card-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
