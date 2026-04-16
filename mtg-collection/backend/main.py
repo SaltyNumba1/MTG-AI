@@ -35,4 +35,5 @@ async def health():
 
 if __name__ == "__main__":
     # Entry point used for standalone packaged backend executable.
-    uvicorn.run("main:app", host="127.0.0.1", port=8000)
+    # Pass app directly instead of module string for PyInstaller compatibility
+    uvicorn.run(app, host="127.0.0.1", port=8000)
