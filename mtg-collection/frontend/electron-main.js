@@ -11,6 +11,29 @@ let backendProcess = null;
 let isQuitting = false;
 let mainWindow = null;
 
+async function checkBackendHealth(url = "http://127.0.0.1:8000/health", requestTimeoutMs = 1200) {
+  const http = require("http");
+  try {
+    await new Promise((resolve, reject) => {
+      const req = http.get(url, (res) => {
+        res.resume();
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) {
+          resolve(true);
+        } else {
+          reject(new Error(`status ${res.statusCode}`));
+        }
+      });
+      req.on("error", reject);
+      req.setTimeout(requestTimeoutMs, () => {
+        req.destroy(new Error("timeout"));
+      });
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getWindowStatePath() {
   return path.join(app.getPath("userData"), "window-state.json");
 }
@@ -133,7 +156,13 @@ function startBackend() {
     logStartup(`Backend exited with code ${code}`);
     backendProcess = null;
     if (!isQuitting) {
-      app.quit();
+      checkBackendHealth().then((alive) => {
+        if (alive) {
+          logStartup("Backend process exited but health endpoint is still reachable; keeping app open.");
+          return;
+        }
+        app.quit();
+      });
     }
   });
 
@@ -206,7 +235,14 @@ async function waitForBackend(url, timeoutMs = 15000) {
 }
 
 app.whenReady().then(async () => {
-  startBackend();
+  const backendAlreadyRunning = await checkBackendHealth();
+  logStartup(`Backend already running before launch: ${backendAlreadyRunning}`);
+  if (!backendAlreadyRunning) {
+    startBackend();
+  } else {
+    logStartup("Reusing existing backend on port 8000.");
+  }
+
   logStartup("Waiting for backend to be ready...");
   const ready = await waitForBackend("http://127.0.0.1:8000/health");
   logStartup(`Backend ready: ${ready}`);
