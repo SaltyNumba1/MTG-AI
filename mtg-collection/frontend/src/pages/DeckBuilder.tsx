@@ -35,6 +35,14 @@ const COLOR_SYMBOLS: Record<string, string> = {
   W: "☀️", U: "💧", B: "💀", R: "🔥", G: "🌲",
 };
 
+const COLOR_NAMES: Record<string, string> = {
+  W: "Plains",
+  U: "Island",
+  B: "Swamp",
+  R: "Mountain",
+  G: "Forest",
+};
+
 function groupByType(cards: CardEntry[]): Record<string, CardEntry[]> {
   const groups: Record<string, CardEntry[]> = {};
   for (const card of cards) {
@@ -43,6 +51,56 @@ function groupByType(cards: CardEntry[]): Record<string, CardEntry[]> {
     groups[type].push(card);
   }
   return groups;
+}
+
+function manaCurve(cards: CardEntry[]) {
+  const buckets: Record<string, number> = {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 0,
+    "6": 0,
+    "7+": 0,
+  };
+  for (const card of cards) {
+    const cmc = Number(card.cmc || 0);
+    if (cmc >= 7) buckets["7+"] += 1;
+    else buckets[String(Math.max(0, Math.floor(cmc)))] += 1;
+  }
+  return buckets;
+}
+
+function colorDistribution(cards: CardEntry[]) {
+  const dist: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  for (const card of cards) {
+    for (const color of card.color_identity || []) {
+      if (dist[color] !== undefined) dist[color] += 1;
+    }
+  }
+  return dist;
+}
+
+function suggestBasics(dist: Record<string, number>, totalLands = 37) {
+  const total = Object.values(dist).reduce((acc, n) => acc + n, 0);
+  if (total === 0) return [{ name: "Wastes", count: totalLands }];
+
+  const entries = Object.entries(dist).filter(([, v]) => v > 0);
+  const base = entries.map(([c, v]) => ({ color: c, exact: (v / total) * totalLands }));
+  const floored = base.map((x) => ({ color: x.color, count: Math.floor(x.exact), frac: x.exact - Math.floor(x.exact) }));
+  let used = floored.reduce((acc, x) => acc + x.count, 0);
+  let remain = totalLands - used;
+
+  floored.sort((a, b) => b.frac - a.frac);
+  for (let i = 0; i < floored.length && remain > 0; i += 1) {
+    floored[i].count += 1;
+    remain -= 1;
+  }
+
+  return floored
+    .filter((x) => x.count > 0)
+    .map((x) => ({ name: COLOR_NAMES[x.color] || x.color, count: x.count }));
 }
 
 export default function DeckBuilder() {
@@ -134,6 +192,11 @@ export default function DeckBuilder() {
   };
 
   const groups = result ? groupByType(result.deck) : {};
+  const curve = result ? manaCurve(result.deck) : null;
+  const colors = result ? colorDistribution(result.deck) : null;
+  const basics = colors ? suggestBasics(colors, 37) : [];
+  const curveMax = curve ? Math.max(...Object.values(curve), 1) : 1;
+  const colorMax = colors ? Math.max(...Object.values(colors), 1) : 1;
 
   return (
     <div className="page">
@@ -216,6 +279,58 @@ export default function DeckBuilder() {
               >
                 {saving ? "Saving..." : "Save Deck"}
               </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: 24 }}>
+            <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#16213e" }}>
+              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Mana Curve</h3>
+              {curve && Object.entries(curve).map(([bucket, count]) => (
+                <div key={bucket} style={{ display: "grid", gridTemplateColumns: "30px 1fr 26px", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, color: "#94a3b8" }}>{bucket}</span>
+                  <div style={{ height: 10, borderRadius: 999, background: "#0f172a", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${(count / curveMax) * 100}%`,
+                        background: "linear-gradient(90deg, #22c55e, #14b8a6)",
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 12, color: "#e2e8f0", textAlign: "right" }}>{count}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#16213e" }}>
+              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Color Distribution</h3>
+              {colors && Object.entries(colors).filter(([, v]) => v > 0).map(([color, count]) => (
+                <div key={color} style={{ display: "grid", gridTemplateColumns: "30px 1fr 26px", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, color: "#94a3b8" }}>{COLOR_SYMBOLS[color] || color}</span>
+                  <div style={{ height: 10, borderRadius: 999, background: "#0f172a", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${(count / colorMax) * 100}%`,
+                        background: "linear-gradient(90deg, #f59e0b, #ef4444)",
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 12, color: "#e2e8f0", textAlign: "right" }}>{count}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#16213e" }}>
+              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Suggested Basic Lands (37)</h3>
+              <div style={{ display: "grid", gap: 6 }}>
+                {basics.map((b) => (
+                  <div key={b.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span>{b.name}</span>
+                    <strong>{b.count}</strong>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

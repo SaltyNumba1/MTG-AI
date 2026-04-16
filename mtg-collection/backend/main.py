@@ -3,6 +3,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 from database import init_db
 from routes.collection import router as collection_router
 from routes.deckbuilder import router as deck_router
@@ -30,3 +31,8 @@ app.include_router(deck_router)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    # Entry point used for standalone packaged backend executable.
+    uvicorn.run("main:app", host="127.0.0.1", port=8000)
