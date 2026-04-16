@@ -54,10 +54,19 @@ input:focus, select:focus, textarea:focus {
   transition: transform 0.15s;
 }
 .mtg-card:hover { transform: translateY(-3px); }
-.mtg-card img { width: 100%; display: block; }
+.mtg-card img { width: 100%; display: block; transition: transform 0.2s ease; transform-origin: center center; }
 .mtg-card .card-info { padding: 8px; font-size: 12px; }
 .mtg-card .card-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
 .mtg-card .card-qty { color: #a78bfa; }
+
+.card-image-shell {
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.card-image-shell:hover img {
+  transform: scale(1.08);
+}
 
 .page { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
 .page-title { font-size: 24px; font-weight: 700; margin-bottom: 20px; color: #a78bfa; }

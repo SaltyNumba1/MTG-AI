@@ -20,5 +20,6 @@ class Card(Base):
     loyalty = Column(String, nullable=True)
     set_code = Column(String, nullable=True)
     rarity = Column(String, nullable=True)
+    tcgplayer_price = Column(String, nullable=True)
     image_uri = Column(String, nullable=True)
     legalities = Column(JSON, nullable=True)

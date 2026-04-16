@@ -10,7 +10,7 @@ Default model is configurable via OLLAMA_MODEL env var (default: mistral).
 import json
 import os
 import re
-from typing import Optional
+from typing import Callable, Optional
 import ollama
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
@@ -79,11 +79,15 @@ def build_deck_with_llm(
     commander: dict,
     candidates: list[dict],
     max_candidates: int = 300,
+    progress_callback: Optional[Callable[[str], None]] = None,
 ) -> dict:
     """
     Ask the local Ollama model to pick 99 cards from candidates.
     Returns {"commander": ..., "deck": [...], "description": "..."}
     """
+    if progress_callback:
+        progress_callback("Preparing candidate pool for AI model")
+
     # Prioritize non-lands to stay within context window
     non_lands = [c for c in candidates if "land" not in (c.get("type_line") or "").lower()]
     lands = [c for c in candidates if "land" in (c.get("type_line") or "").lower()]
@@ -108,6 +112,9 @@ def build_deck_with_llm(
         f"Available cards:\n{card_list_text}"
     )
 
+    if progress_callback:
+        progress_callback(f"Asking AI to select 99 cards from {len(trimmed)} candidates")
+
     response = ollama.chat(
         model=OLLAMA_MODEL,
         messages=[
@@ -118,6 +125,9 @@ def build_deck_with_llm(
     )
 
     raw = response["message"]["content"]
+    if progress_callback:
+        progress_callback("Parsing AI response and validating card picks")
+
     result = extract_json(raw)
 
     indices = result.get("card_indices", [])[:99]
@@ -125,9 +135,14 @@ def build_deck_with_llm(
 
     # Pad with basic lands if the model returned fewer than 99
     if len(selected) < 99:
+        if progress_callback:
+            progress_callback("AI returned fewer than 99 cards, padding with legal basic lands")
         basics_needed = 99 - len(selected)
         basic_lands = [c for c in lands if is_basic_land(c)]
         selected += (basic_lands * 10)[:basics_needed]
+
+    if progress_callback:
+        progress_callback("Deck assembly complete")
 
     return {
         "commander": commander,
@@ -141,8 +156,12 @@ def generate_deck(
     commander_name: str,
     collection: list[dict],
     commander_override: Optional[dict] = None,
+    progress_callback: Optional[Callable[[str], None]] = None,
 ) -> dict:
     """Main entry point for deck generation."""
+    if progress_callback:
+        progress_callback("Validating selected commander")
+
     commander = commander_override
     if not commander:
         for card in collection:
@@ -154,6 +173,9 @@ def generate_deck(
         raise ValueError(f"Commander '{commander_name}' not found in your collection.")
 
     identity = commander.get("color_identity", [])
+    if progress_callback:
+        progress_callback("Filtering collection by commander color identity and legality")
+
     candidates = rule_based_filter(collection, identity, commander["id"])
 
     if len(candidates) < 20:
@@ -162,4 +184,9 @@ def generate_deck(
             f"Found only {len(candidates)} candidates."
         )
 
-    return build_deck_with_llm(prompt, commander, candidates)
+    return build_deck_with_llm(
+        prompt,
+        commander,
+        candidates,
+        progress_callback=progress_callback,
+    )
