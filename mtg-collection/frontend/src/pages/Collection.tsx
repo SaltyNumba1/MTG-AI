@@ -46,6 +46,8 @@ interface ImportResponse {
   failed: string[];
   failed_details?: FailedDetail[];
   touched_names?: string[];
+  detected_source?: string;
+  matched_columns?: Record<string, string>;
   total: number;
 }
 
@@ -177,7 +179,7 @@ export default function Collection() {
 
       setMessage({
         type: "success",
-        text: `Imported ${data.imported} new cards, updated ${data.updated}. ${
+        text: `${data.detected_source ? `Detected ${data.detected_source} format. ` : ""}Imported ${data.imported} new cards, updated ${data.updated}. ${
           data.failed.length ? `Failed: ${data.failed.join(", ")}` : ""
         }`,
       });
@@ -589,7 +591,7 @@ export default function Collection() {
         <div className="alert alert-info">
           No cards yet. Import a CSV to get started.
           <br />
-          <small>Supported formats: Moxfield, Archidekt, or any CSV with a "name" column.</small>
+          <small>Supported formats: Moxfield, Archidekt, ManaBox, or any CSV with a "name" column.</small>
         </div>
       ) : (
         <div className="card-grid">
