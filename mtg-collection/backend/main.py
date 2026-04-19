@@ -1,10 +1,14 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from database import init_db
+
+logger = logging.getLogger(__name__)
+
 from routes.collection import router as collection_router
 from routes.deckbuilder import router as deck_router
 
@@ -21,7 +25,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    await init_db()
+    try:
+        await init_db()
+    except Exception:
+        logger.exception("Database initialization failed")
+        raise
 
 
 app.include_router(collection_router)

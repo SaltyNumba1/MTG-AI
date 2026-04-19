@@ -18,6 +18,18 @@ BASIC_LAND_NAMES = {
     "snow-covered forest",
 }
 
+# Cards that are Commander-legal in multiples (special rules / Gatherer errata)
+MULTI_COPY_LEGAL = {
+    "relentless rats",
+    "shadowborn apostle",
+    "dragon's approach",
+    "rat colony",
+    "persistent petitioners",
+    "seven dwarves",
+    "slime against humanity",
+    "nazgul",
+}
+
 SYSTEM_PROMPT = (
     "You are an expert Magic: The Gathering Commander deck builder. "
     "Given a commander and deck goal, produce a coherent 99-card decklist that matches the strategy."
@@ -81,16 +93,18 @@ def validate_deck(deck: list[dict], example_index: int) -> list[dict]:
 
     seen_non_basics = set()
     for card in normalized:
-        name_key = card["name"].strip().lower()
-        if card["quantity"] > 1 and name_key not in BASIC_LAND_NAMES:
+        import unicodedata
+        name_key = unicodedata.normalize("NFKD", card["name"].strip().lower()).encode("ascii", "ignore").decode()
+        is_allowed_multi = name_key in BASIC_LAND_NAMES or name_key in MULTI_COPY_LEGAL
+        if card["quantity"] > 1 and not is_allowed_multi:
             raise ValueError(
                 f"Example {example_index}: duplicate non-basic card '{card['name']}' is not Commander legal."
             )
-        if name_key in seen_non_basics and name_key not in BASIC_LAND_NAMES:
+        if name_key in seen_non_basics and not is_allowed_multi:
             raise ValueError(
                 f"Example {example_index}: repeated non-basic card '{card['name']}' should be merged into one entry."
             )
-        if name_key not in BASIC_LAND_NAMES:
+        if not is_allowed_multi:
             seen_non_basics.add(name_key)
 
     return sorted(normalized, key=lambda card: (card["name"].lower(), card["quantity"]))

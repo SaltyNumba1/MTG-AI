@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import io
 import re
-from typing import Any
+from typing import Any, Generator
 
 import pandas as pd
 
@@ -318,3 +318,49 @@ def parse_collection_csv(content: bytes, filename: str | None = None) -> ImportP
             return adapter.parse(dataframe, filename)
 
     raise ValueError(f"Could not find a supported card name column. Columns found: {list(dataframe.columns)}")
+
+
+def estimate_csv_row_count(content: bytes) -> int:
+    """Fast approximate row count by counting newlines (minus header)."""
+    count = content.count(b"\n")
+    if content and not content.endswith(b"\n"):
+        count += 1
+    return max(count - 1, 0)
+
+
+def parse_collection_csv_chunked(
+    content: bytes,
+    filename: str | None = None,
+    chunk_size: int = 500,
+) -> tuple[str, dict[str, str], Generator[list[CanonicalImportRow], None, None]]:
+    """
+    Parse a large CSV in chunks to reduce peak memory usage.
+
+    Returns (source_name, matched_columns, row_batch_generator).
+    Each yielded batch is a list of CanonicalImportRow (up to *chunk_size* rows).
+    """
+    try:
+        header_df = pd.read_csv(io.BytesIO(content), nrows=5)
+    except Exception as exc:
+        raise ValueError(f"Could not parse CSV: {exc}") from exc
+
+    adapter = None
+    for a in ADAPTERS:
+        if a.supports(header_df, filename):
+            adapter = a
+            break
+
+    if adapter is None:
+        raise ValueError(
+            f"Could not find a supported card name column. Columns found: {list(header_df.columns)}"
+        )
+
+    lookup = _column_lookup(header_df)
+    matched_columns = adapter._matched_columns(lookup)
+
+    def _generate():
+        for chunk_df in pd.read_csv(io.BytesIO(content), chunksize=chunk_size):
+            result = adapter.parse(chunk_df, filename)
+            yield result.rows
+
+    return adapter.source, matched_columns, _generate()

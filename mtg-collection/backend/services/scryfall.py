@@ -1,27 +1,47 @@
+import logging
+
 import httpx
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 SCRYFALL_BASE = "https://api.scryfall.com"
 
 
 async def fetch_card_by_name(name: str) -> Optional[dict]:
     """Fetch card data from Scryfall by exact or fuzzy name."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{SCRYFALL_BASE}/cards/named",
-            params={"fuzzy": name},
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            return resp.json()
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SCRYFALL_BASE}/cards/named",
+                params={"fuzzy": name},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("Scryfall lookup failed for '%s': HTTP %d", name, resp.status_code)
+            return None
+    except httpx.TimeoutException:
+        logger.warning("Scryfall request timed out for '%s'", name)
+        return None
+    except httpx.HTTPError as exc:
+        logger.warning("Scryfall request error for '%s': %s", name, exc)
         return None
 
 
 async def fetch_card_by_id(scryfall_id: str) -> Optional[dict]:
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(f"{SCRYFALL_BASE}/cards/{scryfall_id}", timeout=10)
-        if resp.status_code == 200:
-            return resp.json()
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{SCRYFALL_BASE}/cards/{scryfall_id}", timeout=10)
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("Scryfall ID lookup failed for '%s': HTTP %d", scryfall_id, resp.status_code)
+            return None
+    except httpx.TimeoutException:
+        logger.warning("Scryfall request timed out for ID '%s'", scryfall_id)
+        return None
+    except httpx.HTTPError as exc:
+        logger.warning("Scryfall request error for ID '%s': %s", scryfall_id, exc)
         return None
 
 

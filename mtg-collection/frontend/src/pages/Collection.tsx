@@ -328,13 +328,13 @@ export default function Collection() {
     }
   };
 
-  const colorOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of cards) {
-      for (const code of c.color_identity || []) s.add(code);
-    }
-    return Array.from(s).sort();
-  }, [cards]);
+  const colorOptions: { code: string; label: string }[] = [
+    { code: "W", label: "⚪ White" },
+    { code: "U", label: "💧 Blue" },
+    { code: "B", label: "💀 Black" },
+    { code: "R", label: "🔥 Red" },
+    { code: "G", label: "🌲 Green" },
+  ];
 
   const rarityOptions = useMemo(() => {
     const s = new Set(cards.map((c) => c.rarity).filter(Boolean));
@@ -419,7 +419,7 @@ export default function Collection() {
         <select aria-label="Color filter" title="Color filter" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)} style={{ maxWidth: 120 }}>
           <option value="all">All Colors</option>
           {colorOptions.map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c.code} value={c.code}>{c.label}</option>
           ))}
         </select>
         <select aria-label="Type filter" title="Type filter" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ maxWidth: 220 }}>

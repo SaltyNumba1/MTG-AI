@@ -13,7 +13,8 @@ import re
 from typing import Callable, Optional
 import ollama
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mtg-commander")
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))  # seconds
 
 
 def is_commander_legal(card: dict) -> bool:
@@ -50,11 +51,23 @@ def rule_based_filter(
 
 
 def card_summary(card: dict) -> str:
-    return (
-        f"{card['name']} | {card.get('type_line', '')} | "
-        f"CMC:{card.get('cmc', 0)} | "
-        f"{(card.get('oracle_text') or '')[:100].replace(chr(10), ' ')}"
-    )
+    """Compact card summary to minimize prompt tokens while preserving selection-relevant info."""
+    keywords = card.get("keywords") or []
+    keyword_str = ",".join(keywords[:4]) if keywords else ""
+    parts = [card["name"], card.get("type_line") or "", f"CMC:{card.get('cmc', 0)}"]
+    if keyword_str:
+        parts.append(keyword_str)
+    return " | ".join(parts)
+
+
+def card_summary_full(card: dict) -> str:
+    """Extended summary including oracle text, used only when candidate pool is small."""
+    base = card_summary(card)
+    oracle = (card.get("oracle_text") or "")[:80].replace(chr(10), " ")
+    return f"{base} | {oracle}" if oracle else base
+
+
+MAX_COMPACT_CANDIDATES = 200
 
 
 def extract_json(text: str) -> dict:
@@ -78,7 +91,6 @@ def build_deck_with_llm(
     prompt: str,
     commander: dict,
     candidates: list[dict],
-    max_candidates: int = 300,
     progress_callback: Optional[Callable[[str], None]] = None,
 ) -> dict:
     """
@@ -88,13 +100,16 @@ def build_deck_with_llm(
     if progress_callback:
         progress_callback("Preparing candidate pool for AI model")
 
-    # Prioritize non-lands to stay within context window
+    # Non-lands first, then lands — no truncation; use the full filtered collection
     non_lands = [c for c in candidates if "land" not in (c.get("type_line") or "").lower()]
     lands = [c for c in candidates if "land" in (c.get("type_line") or "").lower()]
-    trimmed = (non_lands + lands)[:max_candidates]
+    trimmed = non_lands + lands
+
+    # Use compact summaries for large pools to stay within context limits
+    summarize = card_summary_full if len(trimmed) <= MAX_COMPACT_CANDIDATES else card_summary
 
     card_list_text = "\n".join(
-        f"{i + 1}. {card_summary(c)}" for i, c in enumerate(trimmed)
+        f"{i + 1}. {summarize(c)}" for i, c in enumerate(trimmed)
     )
 
     system_prompt = (
@@ -115,7 +130,8 @@ def build_deck_with_llm(
     if progress_callback:
         progress_callback(f"Asking AI to select 99 cards from {len(trimmed)} candidates")
 
-    response = ollama.chat(
+    client = ollama.Client(timeout=OLLAMA_TIMEOUT)
+    response = client.chat(
         model=OLLAMA_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},

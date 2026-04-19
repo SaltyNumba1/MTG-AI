@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm:dev\" \"wait-on http://localhost:5173 && electron .\"",
     "desktop:dev": "concurrently \"cd ..\\backend && .venv\\Scripts\\python.exe -m uvicorn main:app --reload\" \"npm:dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "desktop:build": "cd ..\\backend && call .\\package_standalone.bat && cd ..\\frontend && if exist release rmdir /s /q release && electron-builder",
+    "build:frontend": "tsc && vite build",
+    "desktop:build": "cd ..\\backend && call .\\package_standalone.bat && cd ..\\frontend && npm run build:frontend && npx electron-builder --win --config",
     "desktop:package": "npm run build && electron-packager . \"MTG Collection\" --platform=win32 --arch=x64 --icon=build/icon.ico --out release --overwrite --prune=true && mkdir \"release\\MTG Collection-win32-x64\\resources\\backend\\dist\" 2>nul && copy \"..\\backend\\dist\\mtg-collection.exe\" \"release\\MTG Collection-win32-x64\\resources\\backend\\dist\\\"",
     "electron:build": "npm run build && electron-builder"
   },
@@ -38,7 +39,7 @@
     "forceCodeSigning": false,
     "win": {
       "icon": "build/icon.ico",
-      "target": ["nsis"]
+      "target": ["dir"]
     },
     "files": [
       "dist/**/*",

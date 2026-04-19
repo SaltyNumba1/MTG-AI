@@ -4,6 +4,7 @@ node_modules/
 # Build outputs / release binaries
 mtg-collection/frontend/release/
 mtg-collection/frontend/build/
+mtg-collection/frontend/dist/
 mtg-collection/backend/build/
 mtg-collection/backend/dist/
 
@@ -11,10 +12,30 @@ mtg-collection/backend/dist/
 __pycache__/
 *.pyc
 *.pyo
+.venv/
 
 # Database files
 *.db
 *.db-journal
 
-# Electron dist
+# Electron dist / packaged app
 mtg-collection/frontend/node_modules/
+
+# Large model / training files (too big for GitHub)
+*.safetensors
+*.gguf
+*.zip
+*.bin
+tokenizer.json
+tokenizer_config.json
+
+# Training LoRA output
+mtg-collection/training/mistral-commander-lora.zip
+mtg-collection/training/adapter_model.safetensors
+mtg-collection/training/mistral-commander-q4.gguf
+
+# Build logs
+*.log
+
+# Large CSV exports
+archidekt-collection-export-*

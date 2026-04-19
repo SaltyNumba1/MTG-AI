@@ -1,0 +1,1149 @@
+Sampling 800 Archidekt deck IDs (range 1,000,000–5,200,000, min views: 50)...
+[1/800] Deck #4426903 ...     HTTP 400
+not found / error
+[2/800] Deck #3881736 ...     HTTP 400
+not found / error
+[3/800] Deck #1253051 ... OK  [Obuun, Mul Daya Ancestor]  99 cards  views=85
+[4/800] Deck #3459604 ...     HTTP 400
+not found / error
+[5/800] Deck #4192205 ...     HTTP 400
+not found / error
+[6/800] Deck #3547760 ... OK  [Urza, Chief Artificer]  99 cards  views=66
+[7/800] Deck #3339968 ... not found / error
+[8/800] Deck #2662179 ... skip (incomplete deck / low views)
+[9/800] Deck #1999887 ...     HTTP 400
+not found / error
+[10/800] Deck #1068722 ... skip (incomplete deck / low views)
+[11/800] Deck #5093463 ...     HTTP 400
+not found / error
+[12/800] Deck #4562235 ...     HTTP 400
+not found / error
+[13/800] Deck #2483152 ... not found / error
+[14/800] Deck #3888288 ... OK  [Rosheen Meanderer]  99 cards  views=63
+[15/800] Deck #1514371 ...     HTTP 400
+not found / error
+[16/800] Deck #3646584 ... OK  [Nemata, Primeval Warden]  99 cards  views=139
+[17/800] Deck #1931189 ...     HTTP 400
+not found / error
+[18/800] Deck #1163030 ... OK  [Jaya Ballard, Task Mage]  99 cards  views=143
+[19/800] Deck #1967949 ... not found / error
+[20/800] Deck #3317338 ... skip (incomplete deck / low views)
+[21/800] Deck #4338600 ...     HTTP 400
+not found / error
+[22/800] Deck #4981542 ... skip (format 2)
+[23/800] Deck #2821156 ...     HTTP 400
+not found / error
+[24/800] Deck #5140512 ... skip (incomplete deck / low views)
+[25/800] Deck #3047211 ... not found / error
+[26/800] Deck #1093830 ...     HTTP 400
+not found / error
+[27/800] Deck #1956047 ... OK  [Malik, Grim Manipulator]  99 cards  views=93
+[28/800] Deck #2677889 ... skip (format 2)
+[29/800] Deck #3157567 ...     HTTP 400
+not found / error
+[30/800] Deck #2519235 ... skip (incomplete deck / low views)
+[31/800] Deck #1165504 ... not found / error
+[32/800] Deck #2721060 ... not found / error
+[33/800] Deck #3503664 ... not found / error
+[34/800] Deck #2037228 ... not found / error
+[35/800] Deck #3267185 ...     HTTP 400
+not found / error
+[36/800] Deck #3146252 ... OK  [Teysa, Orzhov Scion]  99 cards  views=234
+[37/800] Deck #2371004 ... not found / error
+[38/800] Deck #4324949 ... skip (incomplete deck / low views)
+[39/800] Deck #3028370 ... not found / error
+[40/800] Deck #2687412 ... not found / error
+[41/800] Deck #2205152 ... OK  [Edgar Markov]  99 cards  views=626
+[42/800] Deck #2478274 ... not found / error
+[43/800] Deck #1424748 ... skip (incomplete deck / low views)
+[44/800] Deck #4472239 ...     HTTP 400
+not found / error
+[45/800] Deck #2071972 ... not found / error
+[46/800] Deck #2197409 ... OK  [Zacama, Primal Calamity]  99 cards  views=224
+[47/800] Deck #1583477 ...     HTTP 400
+not found / error
+[48/800] Deck #3491192 ...     HTTP 400
+not found / error
+[49/800] Deck #1727322 ... skip (incomplete deck / low views)
+[50/800] Deck #1711251 ...     HTTP 400
+not found / error
+[51/800] Deck #2715237 ... not found / error
+[52/800] Deck #1631743 ...     HTTP 400
+not found / error
+[53/800] Deck #2663553 ...     HTTP 400
+not found / error
+[54/800] Deck #1561483 ...     HTTP 400
+not found / error
+[55/800] Deck #1423711 ... OK  [Kess, Dissident Mage]  99 cards  views=103
+[56/800] Deck #3259725 ...     HTTP 400
+not found / error
+[57/800] Deck #1971971 ... skip (incomplete deck / low views)
+[58/800] Deck #2942929 ...     HTTP 400
+not found / error
+[59/800] Deck #1459015 ... OK  [Brokkos, Apex of Forever]  99 cards  views=170
+[60/800] Deck #1562551 ... not found / error
+[61/800] Deck #4149200 ... not found / error
+[62/800] Deck #4754474 ... OK  [Prosper, Tome-Bound]  99 cards  views=92
+[63/800] Deck #2167600 ...     HTTP 400
+not found / error
+[64/800] Deck #1728369 ...     HTTP 400
+not found / error
+[65/800] Deck #3320917 ... OK  [Aesi, Tyrant of Gyre Strait]  99 cards  views=175
+[66/800] Deck #1504421 ... skip (format 7)
+[67/800] Deck #3185363 ... skip (incomplete deck / low views)
+[68/800] Deck #4314131 ... skip (incomplete deck / low views)
+[69/800] Deck #4267124 ... not found / error
+[70/800] Deck #2149193 ...     HTTP 400
+not found / error
+[71/800] Deck #4781914 ... OK  [Garth One-Eye]  99 cards  views=378
+[72/800] Deck #2258945 ... skip (incomplete deck / low views)
+[73/800] Deck #5090762 ... skip (incomplete deck / low views)
+[74/800] Deck #1523365 ...     HTTP 400
+not found / error
+[75/800] Deck #4275700 ... OK  [Urtet, Remnant of Memnarch]  99 cards  views=177
+[76/800] Deck #2676562 ... OK  [Rhys the Redeemed]  99 cards  views=58
+[77/800] Deck #2555962 ...     HTTP 400
+not found / error
+[78/800] Deck #5006019 ... skip (format 13)
+[79/800] Deck #5107757 ... skip (incomplete deck / low views)
+[80/800] Deck #3773297 ...     HTTP 400
+not found / error
+[81/800] Deck #5089469 ... skip (incomplete deck / low views)
+[82/800] Deck #5033062 ...     HTTP 400
+not found / error
+[83/800] Deck #3586422 ... skip (incomplete deck / low views)
+[84/800] Deck #4440368 ...     HTTP 400
+not found / error
+[85/800] Deck #3795810 ...     HTTP 400
+not found / error
+[86/800] Deck #1562874 ... skip (incomplete deck / low views)
+[87/800] Deck #3272055 ... skip (incomplete deck / low views)
+[88/800] Deck #1654950 ...     HTTP 400
+not found / error
+[89/800] Deck #4462953 ...     HTTP 400
+not found / error
+[90/800] Deck #3961651 ...     HTTP 400
+not found / error
+[91/800] Deck #1753470 ... skip (format 2)
+[92/800] Deck #1745261 ...     HTTP 400
+not found / error
+[93/800] Deck #3638436 ...     HTTP 400
+not found / error
+[94/800] Deck #1503122 ... OK  [The Gitrog Monster]  99 cards  views=83
+[95/800] Deck #1572577 ... not found / error
+[96/800] Deck #2812628 ... skip (incomplete deck / low views)
+[97/800] Deck #1026734 ... skip (incomplete deck / low views)
+[98/800] Deck #2822079 ...     HTTP 400
+not found / error
+[99/800] Deck #3362472 ...     HTTP 400
+not found / error
+[100/800] Deck #4339704 ... OK  [Saskia the Unyielding]  99 cards  views=119
+[101/800] Deck #3612031 ...     HTTP 400
+not found / error
+[102/800] Deck #2040771 ...     HTTP 400
+not found / error
+[103/800] Deck #4345570 ... not found / error
+[104/800] Deck #3196715 ... OK  [Arcades, the Strategist]  99 cards  views=60
+[105/800] Deck #3551637 ... OK  [Morophon, the Boundless]  99 cards  views=224
+[106/800] Deck #2593709 ... skip (incomplete deck / low views)
+[107/800] Deck #3475655 ...     HTTP 400
+not found / error
+[108/800] Deck #3127827 ... skip (incomplete deck / low views)
+[109/800] Deck #1016881 ...     HTTP 400
+not found / error
+[110/800] Deck #1962338 ...     HTTP 400
+not found / error
+[111/800] Deck #5039685 ...     HTTP 400
+not found / error
+[112/800] Deck #4442082 ... skip (incomplete deck / low views)
+[113/800] Deck #3358617 ...     HTTP 400
+not found / error
+[114/800] Deck #4364698 ... not found / error
+[115/800] Deck #2852240 ... not found / error
+[116/800] Deck #3540716 ... skip (incomplete deck / low views)
+[117/800] Deck #4393120 ... skip (format 1)
+[118/800] Deck #5133064 ... OK  [Gisa, Glorious Resurrector]  99 cards  views=104
+[119/800] Deck #3215816 ... OK  [Duke Ulder Ravengard]  99 cards  views=175
+[120/800] Deck #1292061 ...     HTTP 400
+not found / error
+[121/800] Deck #2051013 ... skip (incomplete deck / low views)
+[122/800] Deck #1129645 ...     HTTP 400
+not found / error
+[123/800] Deck #4210202 ... OK  [Velomachus Lorehold]  99 cards  views=196
+[124/800] Deck #1388606 ... not found / error
+[125/800] Deck #1011264 ...     HTTP 400
+not found / error
+[126/800] Deck #1965631 ...     HTTP 400
+not found / error
+[127/800] Deck #1544717 ... skip (incomplete deck / low views)
+[128/800] Deck #3855625 ... not found / error
+[129/800] Deck #3074460 ... not found / error
+[130/800] Deck #5026460 ... not found / error
+[131/800] Deck #1408466 ...     HTTP 400
+not found / error
+[132/800] Deck #3394639 ...     HTTP 400
+not found / error
+[133/800] Deck #5016591 ... not found / error
+[134/800] Deck #1399720 ...     HTTP 400
+not found / error
+[135/800] Deck #2221005 ...     HTTP 400
+not found / error
+[136/800] Deck #4750802 ... skip (format 2)
+[137/800] Deck #4447966 ... not found / error
+[138/800] Deck #2950167 ... not found / error
+[139/800] Deck #2630792 ... skip (incomplete deck / low views)
+[140/800] Deck #1263520 ...     HTTP 400
+not found / error
+[141/800] Deck #1534734 ...     HTTP 400
+not found / error
+[142/800] Deck #1664180 ...     HTTP 400
+not found / error
+[143/800] Deck #4666991 ... skip (incomplete deck / low views)
+[144/800] Deck #4659677 ...     HTTP 400
+not found / error
+[145/800] Deck #3804996 ...     HTTP 400
+not found / error
+[146/800] Deck #3247285 ...     HTTP 400
+not found / error
+[147/800] Deck #1519805 ...     HTTP 400
+not found / error
+[148/800] Deck #4811487 ...     HTTP 400
+not found / error
+[149/800] Deck #3692994 ...     HTTP 400
+not found / error
+[150/800] Deck #2676318 ...     HTTP 400
+not found / error
+[151/800] Deck #4600878 ...     HTTP 400
+not found / error
+[152/800] Deck #4294294 ...     HTTP 400
+not found / error
+[153/800] Deck #4698858 ...     HTTP 400
+not found / error
+[154/800] Deck #4089686 ... skip (incomplete deck / low views)
+[155/800] Deck #3897369 ...     HTTP 400
+not found / error
+[156/800] Deck #1560197 ...     HTTP 400
+not found / error
+[157/800] Deck #4266501 ... OK  [Nocturno of Myra's Marvels]  99 cards  views=2054
+[158/800] Deck #5109765 ...     HTTP 400
+not found / error
+[159/800] Deck #1540686 ... not found / error
+[160/800] Deck #3486729 ... skip (incomplete deck / low views)
+[161/800] Deck #2328947 ... skip (incomplete deck / low views)
+[162/800] Deck #4490883 ... OK  [Wilhelt, the Rotcleaver]  99 cards  views=109
+[163/800] Deck #4489069 ...     HTTP 400
+not found / error
+[164/800] Deck #1311045 ... not found / error
+[165/800] Deck #1865763 ... skip (incomplete deck / low views)
+[166/800] Deck #3068534 ...     HTTP 400
+not found / error
+[167/800] Deck #3254550 ... OK  [Willowdusk, Essence Seer]  99 cards  views=100
+[168/800] Deck #3477140 ... OK  [Breena, the Demagogue]  99 cards  views=351
+[169/800] Deck #1370589 ... OK  [Akim, the Soaring Wind]  99 cards  views=194
+[170/800] Deck #1779800 ...     HTTP 400
+not found / error
+[171/800] Deck #3112732 ... not found / error
+[172/800] Deck #3269209 ... skip (format 7)
+[173/800] Deck #1477503 ... skip (incomplete deck / low views)
+[174/800] Deck #1010593 ...     HTTP 400
+not found / error
+[175/800] Deck #5110588 ... not found / error
+[176/800] Deck #1245817 ... skip (incomplete deck / low views)
+[177/800] Deck #3955259 ... skip (incomplete deck / low views)
+[178/800] Deck #2258138 ... skip (incomplete deck / low views)
+[179/800] Deck #3866704 ... skip (incomplete deck / low views)
+[180/800] Deck #1366394 ...     HTTP 400
+not found / error
+[181/800] Deck #4021413 ... not found / error
+[182/800] Deck #2775130 ... not found / error
+[183/800] Deck #2865752 ... not found / error
+[184/800] Deck #3724642 ... skip (format 15)
+[185/800] Deck #5047341 ...     HTTP 400
+not found / error
+[186/800] Deck #4284815 ...     HTTP 400
+not found / error
+[187/800] Deck #2730067 ... OK  [Talrand, Sky Summoner]  99 cards  views=90
+[188/800] Deck #4472751 ... not found / error
+[189/800] Deck #1635435 ... OK  [Acererak the Archlich]  99 cards  views=120
+[190/800] Deck #1415130 ...     HTTP 400
+not found / error
+[191/800] Deck #2707305 ...     HTTP 400
+not found / error
+[192/800] Deck #3409632 ...     HTTP 400
+not found / error
+[193/800] Deck #1564482 ...     HTTP 400
+not found / error
+[194/800] Deck #1713183 ... skip (incomplete deck / low views)
+[195/800] Deck #4580428 ...     HTTP 400
+not found / error
+[196/800] Deck #1340384 ... skip (incomplete deck / low views)
+[197/800] Deck #1290298 ... OK  [Alesha, Who Smiles at Death]  99 cards  views=58
+[198/800] Deck #4906438 ...     HTTP 400
+not found / error
+[199/800] Deck #3819449 ... not found / error
+[200/800] Deck #2455795 ... skip (incomplete deck / low views)
+[201/800] Deck #4989843 ... not found / error
+[202/800] Deck #4616025 ...     HTTP 400
+not found / error
+[203/800] Deck #4915703 ... not found / error
+[204/800] Deck #4368561 ... not found / error
+[205/800] Deck #1274171 ... skip (incomplete deck / low views)
+[206/800] Deck #1322394 ... OK  [Esika, God of the Tree // The Prismatic Bridge]  99 cards  views=118
+[207/800] Deck #3025431 ... OK  [Muldrotha, the Gravetide]  99 cards  views=160
+[208/800] Deck #5151156 ...     HTTP 400
+not found / error
+[209/800] Deck #4352403 ...     HTTP 400
+not found / error
+[210/800] Deck #2484151 ... skip (incomplete deck / low views)
+[211/800] Deck #1104863 ...     HTTP 400
+not found / error
+[212/800] Deck #4371956 ...     HTTP 400
+not found / error
+[213/800] Deck #4277128 ... not found / error
+[214/800] Deck #2294420 ... skip (incomplete deck / low views)
+[215/800] Deck #3329057 ...     HTTP 400
+not found / error
+[216/800] Deck #1289956 ... not found / error
+[217/800] Deck #4577418 ... not found / error
+[218/800] Deck #1160239 ... OK  [Adeliz, the Cinder Wind]  99 cards  views=87
+[219/800] Deck #4524438 ...     HTTP 400
+not found / error
+[220/800] Deck #3499013 ... not found / error
+[221/800] Deck #4371516 ... skip (format 1)
+[222/800] Deck #3563013 ...     HTTP 400
+not found / error
+[223/800] Deck #3497297 ... skip (incomplete deck / low views)
+[224/800] Deck #4667988 ...     HTTP 400
+not found / error
+[225/800] Deck #3364926 ... skip (format 7)
+[226/800] Deck #2732847 ...     HTTP 400
+not found / error
+[227/800] Deck #1174515 ...     HTTP 400
+not found / error
+[228/800] Deck #1001240 ... skip (format 6)
+[229/800] Deck #3719802 ...     HTTP 400
+not found / error
+[230/800] Deck #2221785 ...     HTTP 400
+not found / error
+[231/800] Deck #5122857 ...     HTTP 400
+not found / error
+[232/800] Deck #5120460 ...     HTTP 400
+not found / error
+[233/800] Deck #1547954 ... skip (format 2)
+[234/800] Deck #4812898 ...     HTTP 400
+not found / error
+[235/800] Deck #4938483 ... skip (format 7)
+[236/800] Deck #3214375 ... not found / error
+[237/800] Deck #2622875 ... not found / error
+[238/800] Deck #4411227 ...     HTTP 400
+not found / error
+[239/800] Deck #4589682 ...     HTTP 400
+not found / error
+[240/800] Deck #2735696 ...     HTTP 400
+not found / error
+[241/800] Deck #4097463 ...     HTTP 400
+not found / error
+[242/800] Deck #2351827 ... skip (incomplete deck / low views)
+[243/800] Deck #3073344 ... not found / error
+[244/800] Deck #3115504 ...     HTTP 400
+not found / error
+[245/800] Deck #1838993 ... skip (incomplete deck / low views)
+[246/800] Deck #2407941 ... not found / error
+[247/800] Deck #4813143 ...     HTTP 400
+not found / error
+[248/800] Deck #3703822 ... skip (format 2)
+[249/800] Deck #4267910 ...     HTTP 400
+not found / error
+[250/800] Deck #1812429 ...     HTTP 400
+not found / error
+[251/800] Deck #3488970 ...     HTTP 400
+not found / error
+[252/800] Deck #1465157 ...     HTTP 400
+not found / error
+[253/800] Deck #4147069 ... skip (incomplete deck / low views)
+[254/800] Deck #1157583 ... skip (incomplete deck / low views)
+[255/800] Deck #2450599 ... skip (incomplete deck / low views)
+[256/800] Deck #2049723 ...     HTTP 400
+not found / error
+[257/800] Deck #5097523 ... OK  [Bruvac the Grandiloquent]  99 cards  views=368
+[258/800] Deck #2674752 ... skip (incomplete deck / low views)
+[259/800] Deck #2746584 ... skip (incomplete deck / low views)
+[260/800] Deck #4432677 ... not found / error
+[261/800] Deck #1171035 ...     HTTP 400
+not found / error
+[262/800] Deck #1061198 ...     HTTP 400
+not found / error
+[263/800] Deck #2114689 ... skip (incomplete deck / low views)
+[264/800] Deck #4268390 ...     HTTP 400
+not found / error
+[265/800] Deck #5181691 ... skip (incomplete deck / low views)
+[266/800] Deck #5042477 ... not found / error
+[267/800] Deck #2563827 ... not found / error
+[268/800] Deck #2205940 ... not found / error
+[269/800] Deck #2656023 ... skip (incomplete deck / low views)
+[270/800] Deck #1000490 ... not found / error
+[271/800] Deck #2671702 ... skip (incomplete deck / low views)
+[272/800] Deck #4776813 ... OK  [Fynn, the Fangbearer]  99 cards  views=118
+[273/800] Deck #4019819 ... not found / error
+[274/800] Deck #1139732 ...     HTTP 400
+not found / error
+[275/800] Deck #3702634 ... not found / error
+[276/800] Deck #2323993 ... skip (incomplete deck / low views)
+[277/800] Deck #3479333 ...     HTTP 400
+not found / error
+[278/800] Deck #1847357 ...     HTTP 400
+not found / error
+[279/800] Deck #2624085 ... OK  [Linessa, Zephyr Mage]  99 cards  views=1393
+[280/800] Deck #2892134 ...     HTTP 400
+not found / error
+[281/800] Deck #4078003 ... OK  [Tovolar, Dire Overlord // Tovolar, the Midnight Scourge]  99 cards  views=133
+[282/800] Deck #2567604 ... not found / error
+[283/800] Deck #1407080 ...     HTTP 400
+not found / error
+[284/800] Deck #2216560 ...     HTTP 400
+not found / error
+[285/800] Deck #3334075 ... OK  [Gyruda, Doom of Depths]  99 cards  views=1012
+[286/800] Deck #3439201 ...     HTTP 400
+not found / error
+[287/800] Deck #4901856 ...     HTTP 400
+not found / error
+[288/800] Deck #3010387 ...     HTTP 400
+not found / error
+[289/800] Deck #4984420 ... not found / error
+[290/800] Deck #2389762 ...     HTTP 400
+not found / error
+[291/800] Deck #1246220 ...     HTTP 400
+not found / error
+[292/800] Deck #2587729 ...     HTTP 400
+not found / error
+[293/800] Deck #3794420 ... skip (format 7)
+[294/800] Deck #4619365 ... not found / error
+[295/800] Deck #1633470 ... not found / error
+[296/800] Deck #2848635 ...     HTTP 400
+not found / error
+[297/800] Deck #3452895 ...     HTTP 400
+not found / error
+[298/800] Deck #1137643 ... skip (format 11)
+[299/800] Deck #3291789 ...     HTTP 400
+not found / error
+[300/800] Deck #4449711 ... skip (incomplete deck / low views)
+[301/800] Deck #2306612 ... OK  [Pramikon, Sky Rampart]  99 cards  views=407
+[302/800] Deck #2150486 ... skip (incomplete deck / low views)
+[303/800] Deck #2569107 ...     HTTP 400
+not found / error
+[304/800] Deck #3106604 ... skip (format 7)
+[305/800] Deck #1817079 ... OK  [Morophon, the Boundless]  99 cards  views=58
+[306/800] Deck #4790512 ... OK  [Nekusar, the Mindrazer]  99 cards  views=422
+[307/800] Deck #2947227 ... skip (format 5)
+[308/800] Deck #4890464 ... not found / error
+[309/800] Deck #1976312 ... skip (incomplete deck / low views)
+[310/800] Deck #3190447 ...     HTTP 400
+not found / error
+[311/800] Deck #4424713 ... OK  [The Ur-Dragon]  99 cards  views=123
+[312/800] Deck #1981537 ...     HTTP 400
+not found / error
+[313/800] Deck #4723656 ...     HTTP 400
+not found / error
+[314/800] Deck #1544647 ...     HTTP 400
+not found / error
+[315/800] Deck #2101103 ...     HTTP 400
+not found / error
+[316/800] Deck #1378233 ... skip (incomplete deck / low views)
+[317/800] Deck #4588077 ...     HTTP 400
+not found / error
+[318/800] Deck #4420409 ...     HTTP 400
+not found / error
+[319/800] Deck #4656425 ... not found / error
+[320/800] Deck #5167944 ...     HTTP 400
+not found / error
+[321/800] Deck #1289298 ... OK  [Korvold, Fae-Cursed King]  99 cards  views=66
+[322/800] Deck #4199149 ...     HTTP 400
+not found / error
+[323/800] Deck #3716918 ...     HTTP 400
+not found / error
+[324/800] Deck #4133542 ...     HTTP 400
+not found / error
+[325/800] Deck #2190109 ...     HTTP 400
+not found / error
+[326/800] Deck #1938630 ...     HTTP 400
+not found / error
+[327/800] Deck #2574882 ...     HTTP 400
+not found / error
+[328/800] Deck #3228751 ...     HTTP 400
+not found / error
+[329/800] Deck #2351863 ... skip (incomplete deck / low views)
+[330/800] Deck #2332947 ...     HTTP 400
+not found / error
+[331/800] Deck #2716498 ... skip (incomplete deck / low views)
+[332/800] Deck #2563787 ... OK  [Trostani, Selesnya's Voice]  99 cards  views=62
+[333/800] Deck #4262990 ... OK  [Frodo, Sauron's Bane]  99 cards  views=930
+[334/800] Deck #4273834 ...     HTTP 400
+not found / error
+[335/800] Deck #1737988 ...     HTTP 400
+not found / error
+[336/800] Deck #1552177 ... skip (format 13)
+[337/800] Deck #3481866 ...     HTTP 400
+not found / error
+[338/800] Deck #1130273 ... OK  [Gisela, Blade of Goldnight]  99 cards  views=144
+[339/800] Deck #2312296 ...     HTTP 400
+not found / error
+[340/800] Deck #2980562 ... not found / error
+[341/800] Deck #3556248 ... not found / error
+[342/800] Deck #3572375 ...     HTTP 400
+not found / error
+[343/800] Deck #4029722 ... skip (incomplete deck / low views)
+[344/800] Deck #2313549 ... OK  [Yarok, the Desecrated]  99 cards  views=81
+[345/800] Deck #4244967 ... skip (incomplete deck / low views)
+[346/800] Deck #5169882 ...     HTTP 400
+not found / error
+[347/800] Deck #3354085 ... not found / error
+[348/800] Deck #4142649 ... not found / error
+[349/800] Deck #1243702 ... skip (format 2)
+[350/800] Deck #1899827 ... skip (incomplete deck / low views)
+[351/800] Deck #3912534 ...     HTTP 400
+not found / error
+[352/800] Deck #1070050 ...     HTTP 400
+not found / error
+[353/800] Deck #2184195 ... not found / error
+[354/800] Deck #3418157 ... skip (format 6)
+[355/800] Deck #4111704 ... not found / error
+[356/800] Deck #1006874 ... skip (format 14)
+[357/800] Deck #3899547 ... skip (incomplete deck / low views)
+[358/800] Deck #3465357 ...     HTTP 400
+not found / error
+[359/800] Deck #3522738 ... skip (incomplete deck / low views)
+[360/800] Deck #4847268 ... skip (format 2)
+[361/800] Deck #1492257 ... skip (incomplete deck / low views)
+[362/800] Deck #4143080 ... skip (incomplete deck / low views)
+[363/800] Deck #4720855 ...     HTTP 400
+not found / error
+[364/800] Deck #4112106 ...     HTTP 400
+not found / error
+[365/800] Deck #1892236 ... skip (incomplete deck / low views)
+[366/800] Deck #4612753 ... skip (incomplete deck / low views)
+[367/800] Deck #2148759 ...     HTTP 400
+not found / error
+[368/800] Deck #2429562 ... skip (format 7)
+[369/800] Deck #2614881 ... OK  [Feldon of the Third Path]  99 cards  views=54
+[370/800] Deck #2989536 ...     HTTP 400
+not found / error
+[371/800] Deck #1064512 ... not found / error
+[372/800] Deck #4221972 ... not found / error
+[373/800] Deck #2589421 ... skip (incomplete deck / low views)
+[374/800] Deck #3200728 ... skip (format 2)
+[375/800] Deck #3070220 ... OK  [Grenzo, Havoc Raiser]  99 cards  views=158
+[376/800] Deck #2715899 ... skip (incomplete deck / low views)
+[377/800] Deck #2792375 ... skip (format 4)
+[378/800] Deck #1841725 ... not found / error
+[379/800] Deck #4089252 ... not found / error
+[380/800] Deck #3775018 ...     HTTP 400
+not found / error
+[381/800] Deck #5119430 ...     HTTP 400
+not found / error
+[382/800] Deck #3877821 ... skip (incomplete deck / low views)
+[383/800] Deck #4214498 ...     HTTP 400
+not found / error
+[384/800] Deck #1515632 ... not found / error
+[385/800] Deck #4966617 ... not found / error
+[386/800] Deck #1126011 ... not found / error
+[387/800] Deck #1165922 ... OK  [Aegar, the Freezing Flame]  99 cards  views=98
+[388/800] Deck #4777852 ... skip (incomplete deck / low views)
+[389/800] Deck #1954144 ...     HTTP 400
+not found / error
+[390/800] Deck #3541994 ...     HTTP 400
+not found / error
+[391/800] Deck #1589194 ... not found / error
+[392/800] Deck #1387088 ...     HTTP 400
+not found / error
+[393/800] Deck #4492446 ... skip (incomplete deck / low views)
+[394/800] Deck #1475813 ... not found / error
+[395/800] Deck #3569978 ...     HTTP 400
+not found / error
+[396/800] Deck #3486427 ...     HTTP 400
+not found / error
+[397/800] Deck #2955785 ... skip (incomplete deck / low views)
+[398/800] Deck #4530639 ... not found / error
+[399/800] Deck #2148650 ... not found / error
+[400/800] Deck #3570844 ... skip (incomplete deck / low views)
+[401/800] Deck #2079976 ... OK  [Volrath, the Shapestealer]  99 cards  views=201
+[402/800] Deck #2459561 ...     HTTP 400
+not found / error
+[403/800] Deck #4165504 ...     HTTP 400
+not found / error
+[404/800] Deck #4071113 ... not found / error
+[405/800] Deck #3848231 ... not found / error
+[406/800] Deck #3601605 ...     HTTP 400
+not found / error
+[407/800] Deck #3291470 ...     HTTP 400
+not found / error
+[408/800] Deck #1676208 ... skip (incomplete deck / low views)
+[409/800] Deck #2779709 ...     HTTP 400
+not found / error
+[410/800] Deck #3852088 ... skip (incomplete deck / low views)
+[411/800] Deck #1468234 ... OK  [Mazirek, Kraul Death Priest]  99 cards  views=67
+[412/800] Deck #3784913 ... skip (incomplete deck / low views)
+[413/800] Deck #2438360 ...     HTTP 400
+not found / error
+[414/800] Deck #1523713 ...     HTTP 400
+not found / error
+[415/800] Deck #4764650 ... OK  [Tasha, the Witch Queen]  99 cards  views=168
+[416/800] Deck #4634944 ... not found / error
+[417/800] Deck #4502136 ...     HTTP 400
+not found / error
+[418/800] Deck #4139640 ...     HTTP 400
+not found / error
+[419/800] Deck #1004444 ... not found / error
+[420/800] Deck #3020347 ... skip (incomplete deck / low views)
+[421/800] Deck #5014655 ...     HTTP 400
+not found / error
+[422/800] Deck #3312131 ... not found / error
+[423/800] Deck #1299131 ...     HTTP 400
+not found / error
+[424/800] Deck #4085377 ...     HTTP 400
+not found / error
+[425/800] Deck #1041493 ... OK  [Nekusar, the Mindrazer]  99 cards  views=69
+[426/800] Deck #5141055 ... skip (format 4)
+[427/800] Deck #3832860 ... skip (incomplete deck / low views)
+[428/800] Deck #3606156 ...     HTTP 400
+not found / error
+[429/800] Deck #1210477 ... skip (incomplete deck / low views)
+[430/800] Deck #2899133 ...     HTTP 400
+not found / error
+[431/800] Deck #2081470 ... OK  [Kykar, Wind's Fury]  99 cards  views=61
+[432/800] Deck #3807529 ...     HTTP 400
+not found / error
+[433/800] Deck #4327364 ...     HTTP 400
+not found / error
+[434/800] Deck #5020452 ... not found / error
+[435/800] Deck #5026414 ... skip (incomplete deck / low views)
+[436/800] Deck #2898022 ... OK  [Farideh, Devil's Chosen]  99 cards  views=84
+[437/800] Deck #1510915 ... not found / error
+[438/800] Deck #4022837 ...     HTTP 400
+not found / error
+[439/800] Deck #4739826 ...     HTTP 400
+not found / error
+[440/800] Deck #1343791 ...     HTTP 400
+not found / error
+[441/800] Deck #2672073 ...     HTTP 400
+not found / error
+[442/800] Deck #3681666 ... skip (incomplete deck / low views)
+[443/800] Deck #3955085 ...     HTTP 400
+not found / error
+[444/800] Deck #1517694 ...     HTTP 400
+not found / error
+[445/800] Deck #1170696 ...     HTTP 400
+not found / error
+[446/800] Deck #3355011 ... skip (incomplete deck / low views)
+[447/800] Deck #3184978 ...     HTTP 400
+not found / error
+[448/800] Deck #1326415 ...     HTTP 400
+not found / error
+[449/800] Deck #3288598 ... not found / error
+[450/800] Deck #1487494 ...     HTTP 400
+not found / error
+[451/800] Deck #2022257 ...     HTTP 400
+not found / error
+[452/800] Deck #2041066 ...     HTTP 400
+not found / error
+[453/800] Deck #4317598 ... OK  [Anafenza, Kin-Tree Spirit]  99 cards  views=671
+[454/800] Deck #1173312 ... skip (format 2)
+[455/800] Deck #3045900 ... not found / error
+[456/800] Deck #4134288 ... skip (incomplete deck / low views)
+[457/800] Deck #3682696 ... skip (incomplete deck / low views)
+[458/800] Deck #1376491 ... not found / error
+[459/800] Deck #1668533 ... OK  [Yarok, the Desecrated]  99 cards  views=89
+[460/800] Deck #3970717 ... skip (incomplete deck / low views)
+[461/800] Deck #1926539 ...     HTTP 400
+not found / error
+[462/800] Deck #3809696 ...     HTTP 400
+not found / error
+[463/800] Deck #2183380 ...     HTTP 400
+not found / error
+[464/800] Deck #1547134 ... not found / error
+[465/800] Deck #3115143 ... skip (incomplete deck / low views)
+[466/800] Deck #4651682 ...     HTTP 400
+not found / error
+[467/800] Deck #1854891 ... OK  [Krenko, Mob Boss]  99 cards  views=74
+[468/800] Deck #2063295 ...     HTTP 400
+not found / error
+[469/800] Deck #4050942 ...     HTTP 400
+not found / error
+[470/800] Deck #2713205 ...     HTTP 400
+not found / error
+[471/800] Deck #3434465 ... skip (incomplete deck / low views)
+[472/800] Deck #3778422 ...     HTTP 400
+not found / error
+[473/800] Deck #4141501 ... skip (incomplete deck / low views)
+[474/800] Deck #2779745 ...     HTTP 400
+not found / error
+[475/800] Deck #3796450 ...     HTTP 400
+not found / error
+[476/800] Deck #1733272 ...     HTTP 400
+not found / error
+[477/800] Deck #1833023 ... not found / error
+[478/800] Deck #4249348 ... skip (incomplete deck / low views)
+[479/800] Deck #1365186 ...     HTTP 400
+not found / error
+[480/800] Deck #2847222 ... OK  [Volrath, the Shapestealer]  99 cards  views=206
+[481/800] Deck #1299050 ... skip (incomplete deck / low views)
+[482/800] Deck #2405930 ... OK  [Kess, Dissident Mage]  99 cards  views=173
+[483/800] Deck #1263064 ...     HTTP 400
+not found / error
+[484/800] Deck #2060669 ... skip (format 7)
+[485/800] Deck #2732827 ...     HTTP 400
+not found / error
+[486/800] Deck #4331829 ...     HTTP 400
+not found / error
+[487/800] Deck #3455847 ... not found / error
+[488/800] Deck #4783271 ...     HTTP 400
+not found / error
+[489/800] Deck #1265404 ...     HTTP 400
+not found / error
+[490/800] Deck #3918622 ... OK  [Rin and Seri, Inseparable]  99 cards  views=374
+[491/800] Deck #1053543 ...     HTTP 400
+not found / error
+[492/800] Deck #5027578 ... not found / error
+[493/800] Deck #2244113 ...     HTTP 400
+not found / error
+[494/800] Deck #2301312 ...     HTTP 400
+not found / error
+[495/800] Deck #4235712 ... not found / error
+[496/800] Deck #4145490 ... skip (incomplete deck / low views)
+[497/800] Deck #3871280 ...     HTTP 400
+not found / error
+[498/800] Deck #1565345 ...     HTTP 400
+not found / error
+[499/800] Deck #1970134 ... skip (incomplete deck / low views)
+[500/800] Deck #4898318 ...     HTTP 400
+not found / error
+[501/800] Deck #2439431 ...     HTTP 400
+not found / error
+[502/800] Deck #3811664 ... skip (format 1)
+[503/800] Deck #2594969 ...     HTTP 400
+not found / error
+[504/800] Deck #4415704 ...     HTTP 400
+not found / error
+[505/800] Deck #1475998 ...     HTTP 400
+not found / error
+[506/800] Deck #2321958 ... not found / error
+[507/800] Deck #3773331 ... OK  [Isshin, Two Heavens as One]  99 cards  views=75
+[508/800] Deck #5033953 ...     HTTP 400
+not found / error
+[509/800] Deck #3847469 ...     HTTP 400
+not found / error
+[510/800] Deck #4199831 ... skip (format 4)
+[511/800] Deck #2411654 ... not found / error
+[512/800] Deck #1676190 ... skip (incomplete deck / low views)
+[513/800] Deck #1926604 ... OK  [Liesa, Shroud of Dusk]  99 cards  views=88
+[514/800] Deck #1390720 ... skip (incomplete deck / low views)
+[515/800] Deck #1912064 ...     HTTP 400
+not found / error
+[516/800] Deck #1958725 ...     HTTP 400
+not found / error
+[517/800] Deck #3042544 ... skip (incomplete deck / low views)
+[518/800] Deck #3437836 ...     HTTP 400
+not found / error
+[519/800] Deck #4165765 ... skip (format 1)
+[520/800] Deck #2466733 ...     HTTP 400
+not found / error
+[521/800] Deck #4487576 ... OK  [Cromat]  99 cards  views=355
+[522/800] Deck #1454864 ... not found / error
+[523/800] Deck #1498493 ... not found / error
+[524/800] Deck #2466629 ... not found / error
+[525/800] Deck #5014801 ...     HTTP 400
+not found / error
+[526/800] Deck #1267596 ...     HTTP 400
+not found / error
+[527/800] Deck #5091880 ...     HTTP 400
+not found / error
+[528/800] Deck #2345236 ... not found / error
+[529/800] Deck #2350519 ... skip (incomplete deck / low views)
+[530/800] Deck #3825594 ... OK  [Megatron, Tyrant // Megatron, Destructive Force]  99 cards  views=161
+[531/800] Deck #2647261 ...     HTTP 400
+not found / error
+[532/800] Deck #3961911 ... skip (incomplete deck / low views)
+[533/800] Deck #2494257 ... skip (incomplete deck / low views)
+[534/800] Deck #2437314 ...     HTTP 400
+not found / error
+[535/800] Deck #2768430 ...     HTTP 400
+not found / error
+[536/800] Deck #2153395 ...     HTTP 400
+not found / error
+[537/800] Deck #2275527 ...     HTTP 400
+not found / error
+[538/800] Deck #4448141 ... not found / error
+[539/800] Deck #4684197 ...     HTTP 400
+not found / error
+[540/800] Deck #2862911 ... OK  [Imoti, Celebrant of Bounty]  99 cards  views=111
+[541/800] Deck #5152925 ... OK  [Liberator, Urza's Battlethopter]  99 cards  views=169
+[542/800] Deck #4252903 ... not found / error
+[543/800] Deck #3058554 ... skip (incomplete deck / low views)
+[544/800] Deck #2654621 ... skip (incomplete deck / low views)
+[545/800] Deck #4514095 ...     HTTP 400
+not found / error
+[546/800] Deck #1964861 ...     HTTP 400
+not found / error
+[547/800] Deck #1060045 ... not found / error
+[548/800] Deck #4550095 ... skip (incomplete deck / low views)
+[549/800] Deck #4055771 ... skip (incomplete deck / low views)
+[550/800] Deck #2517155 ...     HTTP 400
+not found / error
+[551/800] Deck #2713534 ... not found / error
+[552/800] Deck #3903109 ...     HTTP 400
+not found / error
+[553/800] Deck #3076695 ... skip (incomplete deck / low views)
+[554/800] Deck #2223802 ...     HTTP 400
+not found / error
+[555/800] Deck #3407954 ...     HTTP 400
+not found / error
+[556/800] Deck #2341819 ... skip (incomplete deck / low views)
+[557/800] Deck #1283859 ... skip (incomplete deck / low views)
+[558/800] Deck #2749094 ...     HTTP 400
+not found / error
+[559/800] Deck #1608372 ...     HTTP 400
+not found / error
+[560/800] Deck #4521964 ... not found / error
+[561/800] Deck #3352788 ... OK  [Ramos, Dragon Engine]  99 cards  views=68
+[562/800] Deck #2783780 ... skip (incomplete deck / low views)
+[563/800] Deck #3858038 ... not found / error
+[564/800] Deck #3939004 ...     HTTP 400
+not found / error
+[565/800] Deck #3056754 ...     HTTP 400
+not found / error
+[566/800] Deck #3603968 ...     HTTP 400
+not found / error
+[567/800] Deck #5056551 ... OK  [Emmara, Soul of the Accord]  99 cards  views=108
+[568/800] Deck #5023153 ... not found / error
+[569/800] Deck #2221555 ... OK  [Obosh, the Preypiercer]  99 cards  views=109
+[570/800] Deck #1897869 ... skip (incomplete deck / low views)
+[571/800] Deck #3355536 ...     HTTP 400
+not found / error
+[572/800] Deck #1019068 ... not found / error
+[573/800] Deck #2694385 ... skip (incomplete deck / low views)
+[574/800] Deck #3893036 ...     HTTP 400
+not found / error
+[575/800] Deck #5013836 ... not found / error
+[576/800] Deck #1554667 ...     HTTP 400
+not found / error
+[577/800] Deck #2761685 ...     HTTP 400
+not found / error
+[578/800] Deck #2660761 ... skip (incomplete deck / low views)
+[579/800] Deck #4444473 ...     HTTP 400
+not found / error
+[580/800] Deck #3639837 ...     HTTP 400
+not found / error
+[581/800] Deck #1450365 ...     HTTP 400
+not found / error
+[582/800] Deck #1109504 ...     HTTP 400
+not found / error
+[583/800] Deck #4708744 ...     HTTP 400
+not found / error
+[584/800] Deck #2130975 ...     HTTP 400
+not found / error
+[585/800] Deck #2985698 ... skip (incomplete deck / low views)
+[586/800] Deck #1705449 ... OK  [Klauth, Unrivaled Ancient]  99 cards  views=198
+[587/800] Deck #1284798 ...     HTTP 400
+not found / error
+[588/800] Deck #2114768 ... OK  [Runo Stromkirk // Krothuss, Lord of the Deep]  99 cards  views=443
+[589/800] Deck #3559074 ...     HTTP 400
+not found / error
+[590/800] Deck #4139588 ...     HTTP 400
+not found / error
+[591/800] Deck #2624876 ...     HTTP 400
+not found / error
+[592/800] Deck #2443621 ...     HTTP 400
+not found / error
+[593/800] Deck #1048793 ...     HTTP 400
+not found / error
+[594/800] Deck #3276000 ...     HTTP 400
+not found / error
+[595/800] Deck #4879445 ...     HTTP 400
+not found / error
+[596/800] Deck #3880912 ... skip (incomplete deck / low views)
+[597/800] Deck #2171718 ... not found / error
+[598/800] Deck #4488735 ... not found / error
+[599/800] Deck #3437603 ... not found / error
+[600/800] Deck #4709150 ...     HTTP 400
+not found / error
+[601/800] Deck #1602669 ...     HTTP 400
+not found / error
+[602/800] Deck #5107680 ... skip (incomplete deck / low views)
+[603/800] Deck #3082044 ...     HTTP 400
+not found / error
+[604/800] Deck #1072538 ... skip (incomplete deck / low views)
+[605/800] Deck #2407430 ... not found / error
+[606/800] Deck #2454838 ... skip (incomplete deck / low views)
+[607/800] Deck #5111148 ... skip (format 15)
+[608/800] Deck #2540861 ...     HTTP 400
+not found / error
+[609/800] Deck #4784023 ... OK  [Phabine, Boss's Confidant]  99 cards  views=67
+[610/800] Deck #3487501 ...     HTTP 400
+not found / error
+[611/800] Deck #3522428 ... skip (incomplete deck / low views)
+[612/800] Deck #3085448 ... skip (incomplete deck / low views)
+[613/800] Deck #1215878 ...     HTTP 400
+not found / error
+[614/800] Deck #1549367 ... OK  [Anje Falkenrath]  99 cards  views=192
+[615/800] Deck #4279961 ... skip (incomplete deck / low views)
+[616/800] Deck #3093255 ...     HTTP 400
+not found / error
+[617/800] Deck #1125651 ... skip (incomplete deck / low views)
+[618/800] Deck #3098046 ... skip (incomplete deck / low views)
+[619/800] Deck #2680329 ...     HTTP 400
+not found / error
+[620/800] Deck #1745994 ... skip (incomplete deck / low views)
+[621/800] Deck #1932724 ... skip (incomplete deck / low views)
+[622/800] Deck #2994100 ...     HTTP 400
+not found / error
+[623/800] Deck #5171178 ... OK  [Kadena, Slinking Sorcerer]  99 cards  views=81
+[624/800] Deck #4150958 ... not found / error
+[625/800] Deck #2961032 ... skip (incomplete deck / low views)
+[626/800] Deck #5149549 ... not found / error
+[627/800] Deck #3631345 ... skip (incomplete deck / low views)
+[628/800] Deck #2970990 ... skip (format 17)
+[629/800] Deck #3629770 ...     HTTP 400
+not found / error
+[630/800] Deck #5070416 ... skip (format 7)
+[631/800] Deck #5097065 ...     HTTP 400
+not found / error
+[632/800] Deck #1073053 ... skip (incomplete deck / low views)
+[633/800] Deck #1436332 ...     HTTP 400
+not found / error
+[634/800] Deck #2902512 ... skip (incomplete deck / low views)
+[635/800] Deck #1781343 ... skip (incomplete deck / low views)
+[636/800] Deck #4570883 ... not found / error
+[637/800] Deck #1667943 ...     HTTP 400
+not found / error
+[638/800] Deck #4548388 ... skip (incomplete deck / low views)
+[639/800] Deck #3086871 ... skip (format 7)
+[640/800] Deck #4740470 ... skip (incomplete deck / low views)
+[641/800] Deck #1966146 ...     HTTP 400
+not found / error
+[642/800] Deck #4804254 ... not found / error
+[643/800] Deck #4467863 ... OK  [Muldrotha, the Gravetide]  99 cards  views=74
+[644/800] Deck #2549074 ...     HTTP 400
+not found / error
+[645/800] Deck #4249138 ... skip (incomplete deck / low views)
+[646/800] Deck #1723913 ... not found / error
+[647/800] Deck #4884562 ... OK  [Damia, Sage of Stone]  99 cards  views=238
+[648/800] Deck #2191405 ... not found / error
+[649/800] Deck #3970866 ...     HTTP 400
+not found / error
+[650/800] Deck #3001419 ...     HTTP 400
+not found / error
+[651/800] Deck #4859736 ... skip (incomplete deck / low views)
+[652/800] Deck #2385233 ... skip (incomplete deck / low views)
+[653/800] Deck #3580254 ...     HTTP 400
+not found / error
+[654/800] Deck #2211770 ...     HTTP 400
+not found / error
+[655/800] Deck #1337085 ... OK  [Karador, Ghost Chieftain]  99 cards  views=77
+[656/800] Deck #4447175 ... skip (incomplete deck / low views)
+[657/800] Deck #2413840 ...     HTTP 400
+not found / error
+[658/800] Deck #3660518 ... not found / error
+[659/800] Deck #3362692 ... not found / error
+[660/800] Deck #4980706 ... OK  [Tibor and Lumia]  99 cards  views=150
+[661/800] Deck #1926955 ...     HTTP 400
+not found / error
+[662/800] Deck #1782312 ...     HTTP 400
+not found / error
+[663/800] Deck #3786997 ...     HTTP 400
+not found / error
+[664/800] Deck #1400628 ... not found / error
+[665/800] Deck #4528577 ... OK  [Vaevictis Asmadi, the Dire]  99 cards  views=357
+[666/800] Deck #3777554 ...     HTTP 400
+not found / error
+[667/800] Deck #1074533 ...     HTTP 400
+not found / error
+[668/800] Deck #2885434 ...     HTTP 400
+not found / error
+[669/800] Deck #2983350 ...     HTTP 400
+not found / error
+[670/800] Deck #4832546 ... skip (format 7)
+[671/800] Deck #4003048 ... not found / error
+[672/800] Deck #4307028 ... not found / error
+[673/800] Deck #2640023 ... not found / error
+[674/800] Deck #3399351 ...     HTTP 400
+not found / error
+[675/800] Deck #3148589 ... not found / error
+[676/800] Deck #5177479 ...     HTTP 400
+not found / error
+[677/800] Deck #2576630 ... skip (incomplete deck / low views)
+[678/800] Deck #4141154 ...     HTTP 400
+not found / error
+[679/800] Deck #3707807 ... skip (incomplete deck / low views)
+[680/800] Deck #3032723 ...     HTTP 400
+not found / error
+[681/800] Deck #4456801 ...     HTTP 400
+not found / error
+[682/800] Deck #3321183 ...     HTTP 400
+not found / error
+[683/800] Deck #1515695 ...     HTTP 400
+not found / error
+[684/800] Deck #2411314 ... skip (incomplete deck / low views)
+[685/800] Deck #4790479 ... skip (format 2)
+[686/800] Deck #3089467 ... OK  [Satoru Umezawa]  99 cards  views=305
+[687/800] Deck #1074702 ... not found / error
+[688/800] Deck #1360863 ... skip (incomplete deck / low views)
+[689/800] Deck #1754438 ... not found / error
+[690/800] Deck #1257996 ... skip (incomplete deck / low views)
+[691/800] Deck #1473096 ...     HTTP 400
+not found / error
+[692/800] Deck #1175889 ...     HTTP 400
+not found / error
+[693/800] Deck #1488094 ...     HTTP 400
+not found / error
+[694/800] Deck #4960335 ...     HTTP 400
+not found / error
+[695/800] Deck #4107217 ... OK  [Ranar the Ever-Watchful]  99 cards  views=123
+[696/800] Deck #3364914 ... not found / error
+[697/800] Deck #1966759 ...     HTTP 400
+not found / error
+[698/800] Deck #1565355 ... OK  [Esika, God of the Tree // The Prismatic Bridge]  99 cards  views=114
+[699/800] Deck #4146968 ... skip (incomplete deck / low views)
+[700/800] Deck #4406433 ...     HTTP 400
+not found / error
+[701/800] Deck #3074061 ...     HTTP 400
+not found / error
+[702/800] Deck #1043587 ...     HTTP 400
+not found / error
+[703/800] Deck #1760626 ... skip (incomplete deck / low views)
+[704/800] Deck #4111999 ...     HTTP 400
+not found / error
+[705/800] Deck #2416670 ...     HTTP 400
+not found / error
+[706/800] Deck #1622426 ... skip (incomplete deck / low views)
+[707/800] Deck #1400425 ...     HTTP 400
+not found / error
+[708/800] Deck #2739418 ...     HTTP 400
+not found / error
+[709/800] Deck #2669491 ...     HTTP 400
+not found / error
+[710/800] Deck #1255013 ... OK  [Oloro, Ageless Ascetic]  99 cards  views=108
+[711/800] Deck #2406205 ... skip (incomplete deck / low views)
+[712/800] Deck #3904029 ... skip (incomplete deck / low views)
+[713/800] Deck #3736613 ... not found / error
+[714/800] Deck #3643920 ... skip (incomplete deck / low views)
+[715/800] Deck #5190432 ... skip (incomplete deck / low views)
+[716/800] Deck #2555591 ... skip (incomplete deck / low views)
+[717/800] Deck #1542791 ...     HTTP 400
+not found / error
+[718/800] Deck #3949043 ... skip (format 4)
+[719/800] Deck #2165489 ...     HTTP 400
+not found / error
+[720/800] Deck #3951190 ... not found / error
+[721/800] Deck #2741208 ... not found / error
+[722/800] Deck #3463844 ...     HTTP 400
+not found / error
+[723/800] Deck #1435991 ... not found / error
+[724/800] Deck #1234599 ...     HTTP 400
+not found / error
+[725/800] Deck #4931597 ...     HTTP 400
+not found / error
+[726/800] Deck #1329449 ...     HTTP 400
+not found / error
+[727/800] Deck #4061308 ... skip (incomplete deck / low views)
+[728/800] Deck #4057752 ... not found / error
+[729/800] Deck #4208659 ... skip (incomplete deck / low views)
+[730/800] Deck #2638166 ... not found / error
+[731/800] Deck #4076348 ... skip (incomplete deck / low views)
+[732/800] Deck #3175164 ...     HTTP 400
+not found / error
+[733/800] Deck #2533482 ... OK  [Lathril, Blade of the Elves]  99 cards  views=187
+[734/800] Deck #3739096 ...     HTTP 400
+not found / error
+[735/800] Deck #4101849 ... not found / error
+[736/800] Deck #3961113 ...     HTTP 400
+not found / error
+[737/800] Deck #4530973 ... not found / error
+[738/800] Deck #2935682 ...     HTTP 400
+not found / error
+[739/800] Deck #3689992 ... OK  [Grolnok, the Omnivore]  99 cards  views=107
+[740/800] Deck #2924249 ... skip (incomplete deck / low views)
+[741/800] Deck #4836023 ... not found / error
+[742/800] Deck #2026061 ... skip (incomplete deck / low views)
+[743/800] Deck #3031763 ... skip (incomplete deck / low views)
+[744/800] Deck #3156916 ...     HTTP 400
+not found / error
+[745/800] Deck #3048934 ... skip (incomplete deck / low views)
+[746/800] Deck #3942377 ... OK  [Saskia the Unyielding]  99 cards  views=111
+[747/800] Deck #4037622 ... OK  [Goro-Goro and Satoru]  99 cards  views=208
+[748/800] Deck #1251804 ...     HTTP 400
+not found / error
+[749/800] Deck #4805310 ... not found / error
+[750/800] Deck #2501747 ...     HTTP 400
+not found / error
+[751/800] Deck #1221667 ... not found / error
+[752/800] Deck #4095680 ... OK  [Otrimi, the Ever-Playful]  99 cards  views=96
+[753/800] Deck #2465673 ... not found / error
+[754/800] Deck #2625890 ...     HTTP 400
+not found / error
+[755/800] Deck #3394680 ... OK  [Arcades, the Strategist]  99 cards  views=188
+[756/800] Deck #1696008 ...     HTTP 400
+not found / error
+[757/800] Deck #1025909 ...     HTTP 400
+not found / error
+[758/800] Deck #2849618 ...     HTTP 400
+not found / error
+[759/800] Deck #2146130 ...     HTTP 400
+not found / error
+[760/800] Deck #1607049 ... skip (incomplete deck / low views)
+[761/800] Deck #4627647 ... not found / error
+[762/800] Deck #3447489 ... not found / error
+[763/800] Deck #2161303 ... skip (format 7)
+[764/800] Deck #3044223 ... skip (incomplete deck / low views)
+[765/800] Deck #3590033 ... skip (incomplete deck / low views)
+[766/800] Deck #3226338 ...     HTTP 400
+not found / error
+[767/800] Deck #4490586 ...     HTTP 400
+not found / error
+[768/800] Deck #2575339 ... not found / error
+[769/800] Deck #1502982 ... skip (incomplete deck / low views)
+[770/800] Deck #3451147 ... not found / error
+[771/800] Deck #1539044 ... skip (format 7)
+[772/800] Deck #4675276 ... skip (incomplete deck / low views)
+[773/800] Deck #3469300 ... skip (incomplete deck / low views)
+[774/800] Deck #2012126 ...     HTTP 400
+not found / error
+[775/800] Deck #1822567 ... skip (format 9)
+[776/800] Deck #4551742 ...     HTTP 400
+not found / error
+[777/800] Deck #1430776 ...     HTTP 400
+not found / error
+[778/800] Deck #1082381 ... skip (incomplete deck / low views)
+[779/800] Deck #1459246 ... skip (incomplete deck / low views)
+[780/800] Deck #4908340 ... skip (incomplete deck / low views)
+[781/800] Deck #2339666 ...     HTTP 400
+not found / error
+[782/800] Deck #1943825 ... skip (incomplete deck / low views)
+[783/800] Deck #3709738 ... OK  [The Reality Chip]  99 cards  views=205
+[784/800] Deck #1969362 ... skip (incomplete deck / low views)
+[785/800] Deck #5153805 ...     HTTP 400
+not found / error
+[786/800] Deck #1129620 ...     HTTP 400
+not found / error
+[787/800] Deck #1232793 ... not found / error
+[788/800] Deck #3318910 ...     HTTP 400
+not found / error
+[789/800] Deck #4571020 ... not found / error
+[790/800] Deck #1231284 ... skip (format 2)
+[791/800] Deck #1911885 ... skip (incomplete deck / low views)
+[792/800] Deck #2263705 ...     HTTP 400
+not found / error
+[793/800] Deck #3422483 ...     HTTP 400
+not found / error
+[794/800] Deck #3787628 ... OK  [Prosper, Tome-Bound]  99 cards  views=55
+[795/800] Deck #3011523 ... not found / error
+[796/800] Deck #3455521 ...     HTTP 400
+not found / error
+[797/800] Deck #1007485 ...     HTTP 400
+not found / error
+[798/800] Deck #3433314 ... skip (incomplete deck / low views)
+[799/800] Deck #4494299 ... not found / error
+[800/800] Deck #1003064 ...     HTTP 400
+not found / error
+
+Wrote 94 example(s) to data\raw\archidekt_examples_v2.jsonl
+
+Summary: 94 saved | 44 wrong format | 0 private | 170 incomplete | 492 errors

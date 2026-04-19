@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -11,10 +12,20 @@ from sqlalchemy import select, delete
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from database import DATABASE_URL, get_db
 from models import Card
-from services.import_adapters import CanonicalImportRow, parse_collection_csv
+from services.import_adapters import (
+    CanonicalImportRow,
+    parse_collection_csv,
+    parse_collection_csv_chunked,
+    estimate_csv_row_count,
+)
 from services.scryfall import fetch_card_by_name, fetch_card_by_id, extract_card_fields
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/collection", tags=["collection"])
+
+MAX_CSV_FILE_SIZE = 100 * 1024 * 1024  # 100 MB hard limit
+CHUNK_THRESHOLD = 2 * 1024 * 1024      # 2 MB — files above this use chunked parsing
 
 IMPORT_STATUS_LOCK = Lock()
 IMPORT_CANCEL_LOCK = Lock()
@@ -275,7 +286,7 @@ async def _import_rows(
                 message=cancel_message,
                 finished_at=datetime.utcnow().isoformat(),
             )
-            await commit_with_retry(db)
+            await db.rollback()
             return results
 
         if not row.name and not row.scryfall_id:
@@ -361,6 +372,145 @@ async def _import_rows(
     return results
 
 
+async def _import_rows_chunked(
+    db: AsyncSession,
+    row_batches,
+    *,
+    total_rows: int,
+    current_file: str,
+    start_message: str,
+    cancel_message: str,
+    completion_message: str,
+) -> dict:
+    """Process card imports from a chunked row generator, keeping memory low for large files."""
+    results = {
+        "imported": 0,
+        "updated": 0,
+        "failed": [],
+        "failed_details": [],
+        "touched_names": [],
+        "total": total_rows,
+    }
+
+    _set_import_status(
+        active=True,
+        source="upload",
+        message=start_message,
+        current_file=current_file,
+        total_files=1,
+        processed=0,
+        total=total_rows,
+        percent=0,
+        imported=0,
+        updated=0,
+        failed=0,
+        started_at=datetime.utcnow().isoformat(),
+        finished_at=None,
+    )
+    _set_import_cancel_requested(False)
+
+    commit_every = 25
+    global_idx = 0
+
+    for batch in row_batches:
+        for row in batch:
+            if _is_import_cancel_requested():
+                _set_import_status(
+                    active=False,
+                    message=cancel_message,
+                    finished_at=datetime.utcnow().isoformat(),
+                )
+                await db.rollback()
+                return results
+
+            if not row.name and not row.scryfall_id:
+                global_idx += 1
+                _set_import_status(
+                    processed=global_idx,
+                    percent=round((global_idx / max(total_rows, 1)) * 100),
+                )
+                continue
+
+            label = _import_row_label(row)
+
+            try:
+                state, reason = await upsert_card(db, row)
+                if state == "imported":
+                    results["imported"] += 1
+                    if row.name:
+                        results["touched_names"].append(row.name)
+                elif state == "updated":
+                    results["updated"] += 1
+                    if row.name:
+                        results["touched_names"].append(row.name)
+                else:
+                    results["failed"].append(label)
+                    results["failed_details"].append(
+                        {
+                            "name": label,
+                            "quantity": row.quantity,
+                            "scryfall_id": row.scryfall_id,
+                            "reason": reason or "Unknown error",
+                        }
+                    )
+            except Exception as exc:
+                results["failed"].append(label)
+                results["failed_details"].append(
+                    {
+                        "name": label,
+                        "quantity": row.quantity,
+                        "scryfall_id": row.scryfall_id,
+                        "reason": str(exc),
+                    }
+                )
+
+            global_idx += 1
+            if global_idx % commit_every == 0:
+                ok, reason = await commit_with_retry(db)
+                if not ok:
+                    _set_import_status(
+                        active=False,
+                        message=f"Import aborted: commit failed ({reason})",
+                        finished_at=datetime.utcnow().isoformat(),
+                    )
+                    return results
+
+            _set_import_status(
+                processed=global_idx,
+                percent=round((global_idx / max(total_rows, 1)) * 100),
+                imported=results["imported"],
+                updated=results["updated"],
+                failed=len(results["failed"]),
+            )
+
+            if global_idx < total_rows:
+                await asyncio.sleep(0.1)
+
+    ok, reason = await commit_with_retry(db)
+    if not ok:
+        _set_import_status(
+            active=False,
+            message=f"Import aborted: final commit failed ({reason})",
+            finished_at=datetime.utcnow().isoformat(),
+            imported=results["imported"],
+            updated=results["updated"],
+            failed=len(results["failed"]),
+        )
+        return results
+
+    _set_import_status(
+        active=False,
+        message=completion_message,
+        percent=100,
+        finished_at=datetime.utcnow().isoformat(),
+        imported=results["imported"],
+        updated=results["updated"],
+        failed=len(results["failed"]),
+    )
+
+    return results
+
+
 @router.get("/")
 async def list_cards(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Card).order_by(Card.name))
@@ -419,9 +569,41 @@ async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(ge
     Import cards from a CSV file.
     Expected columns: name (required), quantity (optional, defaults to 1).
     Compatible with exports from Moxfield, Archidekt, and generic spreadsheets.
+    Large files (>2 MB) are automatically parsed in chunks to keep memory usage low.
     """
+    content = await file.read()
+
+    if len(content) > MAX_CSV_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large ({len(content) // (1024 * 1024)}MB). Maximum allowed size is {MAX_CSV_FILE_SIZE // (1024 * 1024)}MB.",
+        )
+
+    # Large files: chunked parsing to avoid loading entire DataFrame at once
+    if len(content) > CHUNK_THRESHOLD:
+        logger.info("Large CSV detected (%d bytes), using chunked import", len(content))
+        try:
+            source, matched_columns, batches = parse_collection_csv_chunked(content, file.filename)
+            total_rows = estimate_csv_row_count(content)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        results = await _import_rows_chunked(
+            db,
+            batches,
+            total_rows=total_rows,
+            current_file=file.filename or "upload.csv",
+            start_message=f"Import in progress (chunked, ~{total_rows} rows)",
+            cancel_message="Import canceled by user",
+            completion_message="Import completed",
+        )
+        results["detected_source"] = source
+        results["matched_columns"] = matched_columns
+        return results
+
+    # Normal path for small files
     try:
-        parse_result = parse_collection_csv(await file.read(), file.filename)
+        parse_result = parse_collection_csv(content, file.filename)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
