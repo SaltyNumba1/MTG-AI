@@ -1,0 +1,176 @@
+.page {
+  padding: 24px;
+}
+
+.page-title {
+  font-size: 2rem;
+  margin-bottom: 16px;
+}
+
+.collection-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.collection-search {
+  max-width: 300px;
+}
+
+.collection-filter {
+  max-width: 120px;
+}
+
+.collection-type-filter {
+  max-width: 220px;
+}
+
+.collection-rarity-filter {
+  max-width: 140px;
+}
+
+.collection-set-filter {
+  max-width: 120px;
+}
+
+.collection-sort {
+  max-width: 180px;
+}
+
+.collection-import-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collection-import-input {
+  display: none;
+}
+
+.collection-bulk-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.collection-bulk-action {
+  max-width: 130px;
+}
+
+.collection-bulk-value {
+  width: 110px;
+}
+
+.import-progress {
+  margin-bottom: 16px;
+}
+
+.import-progress-bar {
+  width: 100%;
+  height: 10px;
+  background: #1e293b;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #334155;
+}
+
+.import-progress-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #14b8a6);
+  transition: width 0.25s ease;
+}
+
+.import-progress-info {
+  color: #94a3b8;
+  display: block;
+  margin-top: 6px;
+}
+
+.import-progress-success {
+  color: #86efac;
+  display: block;
+  margin-top: 4px;
+}
+
+.collection-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collection-modal {
+  background: #1e293b;
+  padding: 24px;
+  border-radius: 8px;
+  min-width: 340px;
+  max-width: 480px;
+}
+
+.collection-modal-title {
+  margin-bottom: 12px;
+}
+
+.collection-modal-textarea {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.collection-modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.collection-modal-error {
+  color: #fca5a5;
+  margin-top: 8px;
+}
+
+.collection-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.collection-card-checkbox {
+  width: 16px;
+  height: 16px;
+}
+
+.collection-card-delete {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.collection-db-safety {
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.collection-db-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.collection-db-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.collection-db-backup-select {
+  min-width: 280px;
+}

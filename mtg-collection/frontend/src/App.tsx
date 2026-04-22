@@ -17,7 +17,7 @@ export default function App() {
     if (location.pathname === "/" && saved && saved !== "/") {
       navigate(saved, { replace: true });
     }
-  }, [location.pathname, navigate]);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("mtg.lastRoute", location.pathname);

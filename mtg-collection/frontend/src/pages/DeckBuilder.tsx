@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import MTG_KEYWORDS from "../mtg_keywords";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
 
@@ -37,6 +38,7 @@ interface BuildStatus {
   message: string;
   started_at: string | null;
   finished_at: string | null;
+  last_activity_at: string | null;
   thoughts: BuildThought[];
 }
 
@@ -116,24 +118,47 @@ export default function DeckBuilder() {
   const [commanders, setCommanders] = useState<Commander[]>([]);
   const [selectedCommander, setSelectedCommander] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [basicLandCount, setBasicLandCount] = useState(37);
+  const [nonbasicLandCount, setNonbasicLandCount] = useState(5);
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<DeckResult | null>(null);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
+  const [keywordFilters, setKeywordFilters] = useState<string[]>([""]);
+  const [isHung, setIsHung] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const hungCheckRef = useRef<number | null>(null);
+
+  // HUNG_THRESHOLD_MS: if build is active and last_activity_at hasn't updated
+  // in this many ms, the model is considered hung. Heartbeat fires every 8s,
+  // so 45s means 5+ missed heartbeats.
+  const HUNG_THRESHOLD_MS = 45_000;
 
   useEffect(() => {
     api.get<Commander[]>("/deck/commanders").then(({ data }) => setCommanders(data));
   }, []);
 
   useEffect(() => {
-    if (!building) return;
+    if (!building) {
+      setIsHung(false);
+      if (hungCheckRef.current) window.clearInterval(hungCheckRef.current);
+      return;
+    }
 
     const pollStatus = async () => {
       try {
         const { data } = await api.get<BuildStatus>("/deck/build-status");
         setBuildStatus(data);
+
+        // Detect hung: active build with stale last_activity_at
+        if (data.active && data.last_activity_at) {
+          const staleness = Date.now() - new Date(data.last_activity_at + "Z").getTime();
+          setIsHung(staleness > HUNG_THRESHOLD_MS);
+        } else {
+          setIsHung(false);
+        }
       } catch {
         // Keep deck build running even if status polling fails.
       }
@@ -156,6 +181,7 @@ export default function DeckBuilder() {
       message: "Preparing deck build",
       started_at: null,
       finished_at: null,
+      last_activity_at: null,
       thoughts: [],
     });
 
@@ -163,6 +189,9 @@ export default function DeckBuilder() {
       const { data } = await api.post<DeckResult>("/deck/build", {
         commander_name: selectedCommander,
         prompt,
+        basic_land_count: basicLandCount,
+        nonbasic_land_count: nonbasicLandCount,
+        keyword_filters: keywordFilters.filter((k) => k && k.trim()),
       });
       setResult(data);
       await saveDeckWithName(data, data.commander.name, true);
@@ -176,15 +205,38 @@ export default function DeckBuilder() {
       setError(err.response?.data?.detail || "Deck generation failed");
     } finally {
       setBuilding(false);
+      setIsHung(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!isHung) return;
+    setResetting(true);
+    try {
+      await api.post("/deck/reset");
+      setBuilding(false);
+      setIsHung(false);
+      setError("Build was force-reset. The model may still be processing in the background — wait a moment before starting a new build.");
+    } catch {
+      setError("Reset request failed. Try restarting the backend server.");
+    } finally {
+      setResetting(false);
     }
   };
 
   const exportDecklist = () => {
     if (!result) return;
+    // Group cards by type
+    const groups = groupByType(result.deck);
+    const sortedTypes = Object.keys(groups).sort((a, b) => a.localeCompare(b));
     const lines = [
       `1 ${result.commander.name}`,
       "",
-      ...result.deck.map((c) => `1 ${c.name}`),
+      ...sortedTypes.flatMap((type) => [
+        `// ${type} (${groups[type].length})`,
+        ...groups[type].map((c) => `1 ${c.name}`),
+        ""
+      ]),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -264,6 +316,50 @@ export default function DeckBuilder() {
       <div style={{ display: "grid", gap: 16, maxWidth: 600, marginBottom: 24 }}>
         <div>
           <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
+            Filter by MTG Keywords (assist AI synergy)
+          </label>
+          {keywordFilters.map((filter, idx) => (
+            <div key={idx} style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
+              <select
+                value={filter}
+                onChange={e => {
+                  const newFilters = [...keywordFilters];
+                  newFilters[idx] = e.target.value;
+                  setKeywordFilters(newFilters);
+                }}
+                style={{ flex: 1, marginRight: 8 }}
+              >
+                <option value="">- Select a keyword -</option>
+                {MTG_KEYWORDS.map((kw) => (
+                  <option key={kw} value={kw}>{kw}</option>
+                ))}
+              </select>
+              {keywordFilters.length > 1 && (
+                <button
+                  type="button"
+                  style={{ marginRight: 4 }}
+                  onClick={() => setKeywordFilters(keywordFilters.filter((_, i) => i !== idx))}
+                >
+                  ✕
+                </button>
+              )}
+              {idx === keywordFilters.length - 1 && (
+                <button
+                  type="button"
+                  onClick={() => setKeywordFilters([...keywordFilters, ""])}
+                  style={{ fontWeight: 700 }}
+                >
+                  ＋
+                </button>
+              )}
+            </div>
+          ))}
+          <small style={{ color: "#64748b" }}>
+            These keywords help the AI suggest synergistic cards, but do not hard-filter the deck.
+          </small>
+        </div>
+        <div>
+          <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
             Commander
           </label>
           <select
@@ -297,6 +393,35 @@ export default function DeckBuilder() {
           />
         </div>
 
+        <div style={{ display: "flex", gap: 16 }}>
+          <div>
+            <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
+              Number of Basic Lands
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={basicLandCount}
+              onChange={e => setBasicLandCount(Number(e.target.value))}
+              style={{ width: 60 }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
+              Number of Nonbasic Lands
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={nonbasicLandCount}
+              onChange={e => setNonbasicLandCount(Number(e.target.value))}
+              style={{ width: 60 }}
+            />
+          </div>
+        </div>
+
         <button
           className="btn-primary"
           onClick={handleBuild}
@@ -305,6 +430,27 @@ export default function DeckBuilder() {
         >
           {building ? "Building deck... (this may take ~30s)" : "Generate Deck"}
         </button>
+
+        {isHung && (
+          <button
+            onClick={handleReset}
+            disabled={resetting}
+            style={{
+              width: "fit-content",
+              backgroundColor: "#dc2626",
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              padding: "8px 16px",
+              cursor: resetting ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              marginLeft: 8,
+            }}
+            title="The model has not responded in 45+ seconds and is considered hung. Click to reset."
+          >
+            {resetting ? "Resetting..." : "⚠️ Force Reset Model"}
+          </button>
+        )}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}

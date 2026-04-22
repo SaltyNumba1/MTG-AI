@@ -1,0 +1,186 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "Commander archetype synergy database. Each archetype maps keyword inputs to expanded oracle-text search patterns, required deck roles, and a strategy directive injected into the LLM prompt."
+  },
+  "archetypes": {
+    "sacrifice": {
+      "aliases": ["sacrifice", "aristocrats", "sac", "death trigger", "dies", "when a creature dies"],
+      "description": "Generate repeatable value from creatures dying. Needs sac outlets, death payoffs, and fodder.",
+      "requires": ["sacrifice outlet", "death trigger payoff", "token generator", "graveyard recursion"],
+      "key_patterns": [
+        "sacrifice", "dies", "when a creature dies", "when another creature dies",
+        "creature token", "from your graveyard", "sac outlet", "blood artist",
+        "whenever a creature you control dies"
+      ],
+      "synergy_partners": ["token", "graveyard", "recursion", "aristocrats"],
+      "strategy_directive": "SACRIFICE/ARISTOCRATS BUILD — Construct the deck around a sacrifice engine. You MUST include: (1) At least 6 free or repeatable sacrifice outlets (e.g., cards with 'sacrifice a creature' as cost or ability), (2) At least 8 death-trigger payoffs (cards that trigger 'when a creature dies' or 'whenever a creature you control dies'), (3) Token generators to supply sacrifice fodder (cards producing creature tokens), (4) Graveyard recursion to loop key pieces. Weight heavily toward low-CMC creatures with ETB or death triggers. Avoid high-CMC cards that don't contribute to the sacrifice loop."
+    },
+    "blink": {
+      "aliases": ["blink", "flicker", "etb", "enters the battlefield", "enter the battlefield", "panharmonicon"],
+      "description": "Abuse enters-the-battlefield triggers by repeatedly blinking or bouncing creatures.",
+      "requires": ["blink enabler", "etb payoff creature", "value etb creature", "doubler"],
+      "key_patterns": [
+        "enters the battlefield", "when ~ enters", "exile.*return.*to the battlefield",
+        "flicker", "blink", "whenever a creature enters", "return.*to the battlefield under your control"
+      ],
+      "synergy_partners": ["flicker", "bounce", "persist", "undying", "token"],
+      "strategy_directive": "BLINK/ETB BUILD — Construct the deck around enters-the-battlefield abuse. You MUST include: (1) At least 6 blink/flicker enablers (spells or permanents that exile and return creatures), (2) At least 10 creatures with powerful ETB triggers (draw, removal, ramp, token production), (3) ETB doublers like Panharmonicon effects, (4) Bounce and recursion to reuse ETB creatures. Heavily prioritize creatures whose power lives in their ETB trigger. Avoid 'vanilla' creatures with no ETB value."
+    },
+    "graveyard": {
+      "aliases": ["graveyard", "reanimator", "recursion", "self-mill", "dredge", "mill yourself", "from the graveyard"],
+      "description": "Fill the graveyard and reanimate or recur powerful permanents for value.",
+      "requires": ["self-mill enabler", "reanimation spell", "graveyard payoff", "protection"],
+      "key_patterns": [
+        "from your graveyard", "return.*from.*graveyard", "mill", "surveil", "dredge",
+        "flashback", "escape", "delve", "unearth", "put.*card.*from.*graveyard.*onto.*battlefield",
+        "reanimate", "self-mill"
+      ],
+      "synergy_partners": ["sacrifice", "token", "mill"],
+      "strategy_directive": "GRAVEYARD/REANIMATOR BUILD — Construct the deck to exploit the graveyard as a resource. You MUST include: (1) At least 6 self-mill or discard enablers to fill the graveyard quickly (surveil, dredge, loot effects), (2) At least 6 reanimation spells or abilities (put creature from graveyard onto battlefield), (3) Graveyard payoff cards (flashback, escape, 'from your graveyard' effects), (4) Graveyard protection or recursion loops. Prioritize creatures that are worth cheating into play or that have abilities relevant from the graveyard."
+    },
+    "tokens": {
+      "aliases": ["tokens", "token", "go wide", "populate", "wide strategy", "token generation"],
+      "description": "Flood the board with creature tokens, then win with wide attacks or payoffs.",
+      "requires": ["token generator", "token anthem", "token payoff", "protection for board"],
+      "key_patterns": [
+        "create.*token", "creature token", "populate", "anthem", "gets +1/+1 for each",
+        "convoke", "whenever a token", "for each creature you control"
+      ],
+      "synergy_partners": ["sacrifice", "wide attack", "anthems", "counters"],
+      "strategy_directive": "TOKEN/GO-WIDE BUILD — Construct the deck around token generation and exploitation. You MUST include: (1) At least 8 reliable token generators (spells, creatures, or enchantments that create multiple creature tokens), (2) At least 5 token anthems or global buffs (cards that give all your creatures +X/+X or relevant abilities), (3) Token payoffs (cards that scale with number of creatures/tokens you control), (4) A wide-attack win condition. Prioritize token generators that produce multiple tokens per activation and avoid narrow single-target effects."
+    },
+    "storm": {
+      "aliases": ["storm", "spells", "spell-slinger", "magecraft", "instants and sorceries", "spellcopy", "prowess"],
+      "description": "Cast as many instants and sorceries as possible to trigger payoffs and storm off.",
+      "requires": ["cantrip", "spell payoff", "spell copy", "mana ritual", "win condition"],
+      "key_patterns": [
+        "storm", "magecraft", "whenever you cast", "whenever you cast an instant or sorcery",
+        "copy.*spell", "flashback", "rebound", "prowess", "instant or sorcery"
+      ],
+      "synergy_partners": ["draw", "copy", "ritual", "cantrip"],
+      "strategy_directive": "STORM/SPELL-SLINGER BUILD — Construct the deck to chain as many spells as possible each turn. You MUST include: (1) At least 8 cantrips and cheap draw spells to chain plays, (2) At least 6 magecraft or 'whenever you cast a spell' payoffs, (3) Spell copy effects (fork, replicate, copy spell), (4) Mana rituals and fast mana to fuel spell chains, (5) A spell-based win condition (Aetherflux Reservoir pattern, storm finisher, damage dealer). Strongly prefer instants and sorceries over creatures and prioritize low-CMC spells."
+    },
+    "voltron": {
+      "aliases": ["voltron", "equipment", "aura", "commander damage", "21 damage", "suit up"],
+      "description": "Attach auras and equipment to one creature and deal 21 commander damage to win.",
+      "requires": ["equipment or aura", "tutor for equipment", "evasion", "protection", "haste enabler"],
+      "key_patterns": [
+        "equip", "enchant creature", "aura", "attach", "double strike", "protection",
+        "hexproof", "shroud", "+2/+2", "trample", "commander damage"
+      ],
+      "synergy_partners": ["equipment", "aura", "combat"],
+      "strategy_directive": "VOLTRON BUILD — Construct the deck to power up one creature (usually the commander) to deal lethal commander damage. You MUST include: (1) At least 10 equipment or auras that provide +power, evasion, or protection, (2) Equipment tutors (search for equipment cards), (3) At least 3 haste enablers so the commander can attack immediately, (4) Evasion tools (flying, trample, unblockable effects), (5) Hexproof/shroud or protection effects. Prioritize low-equip-cost equipment and avoid useless combat tricks that don't permanently buff the commander."
+    },
+    "landfall": {
+      "aliases": ["landfall", "land drops", "extra land", "lands matter", "land synergy"],
+      "description": "Trigger landfall abilities by playing multiple lands each turn.",
+      "requires": ["landfall payoff", "extra land drop", "land fetch", "land recursion"],
+      "key_patterns": [
+        "landfall", "whenever a land enters", "whenever.*land.*enters.*battlefield",
+        "land.*from.*library", "additional land", "put.*land.*onto the battlefield"
+      ],
+      "synergy_partners": ["ramp", "token", "counters"],
+      "strategy_directive": "LANDFALL BUILD — Construct the deck to trigger landfall as many times per turn as possible. You MUST include: (1) At least 8 landfall payoff cards (cards with 'whenever a land enters the battlefield under your control'), (2) At least 5 extra land drop enablers (effects that let you play additional lands per turn), (3) Land fetch and ramp spells that put lands directly onto the battlefield (not just into hand), (4) Land recursion to replay lands from the graveyard. Prioritize ramp spells that put lands into play over mana rocks. Reduce mana rocks in favor of land-based ramp."
+    },
+    "counters": {
+      "aliases": ["counters", "+1/+1", "proliferate", "counter", "evolve", "undying", "persist", "modular"],
+      "description": "Place +1/+1 counters on creatures and proliferate to scale up the board.",
+      "requires": ["counter source", "proliferate", "counter payoff", "finisher"],
+      "key_patterns": [
+        "+1/+1 counter", "proliferate", "evolve", "modular", "undying", "persist",
+        "adapt", "riot", "graft", "for each counter", "whenever.*counter.*placed"
+      ],
+      "synergy_partners": ["token", "sacrifice", "draw"],
+      "strategy_directive": "COUNTERS/PROLIFERATE BUILD — Construct the deck around +1/+1 counter synergies. You MUST include: (1) At least 6 ways to place +1/+1 counters reliably (ETB counters, evolve, proliferate triggers), (2) At least 4 proliferate effects to double up counters, (3) Counter payoffs (cards that benefit from creatures having counters or that scale with counter counts), (4) A finisher that uses counters (infect alternative win, large creature swings). Prioritize creatures that enter with counters or grow each turn."
+    },
+    "tribal": {
+      "aliases": ["tribal", "creature type", "typal", "lord", "tribe"],
+      "description": "Fill the deck with creatures of one type and use tribal lords and synergies.",
+      "requires": ["tribal lord", "tribal payoff", "tribal synergy creature", "creature type tutor"],
+      "key_patterns": [
+        "creatures you control get", "other.*you control get", "lord", "changeling",
+        "creature type", "whenever you cast.*creature"
+      ],
+      "synergy_partners": ["token", "counters", "graveyard"],
+      "strategy_directive": "TRIBAL BUILD — Construct the deck around a single creature type. You MUST include: (1) At least 8 creatures of the target tribe, (2) At least 4 tribal lords (cards giving +1/+1 or abilities to the tribe), (3) Tribal synergy cards (cards that care about creature type or reward casting creatures of a type), (4) Tribal tutors or card draw specific to the tribe. Heavily weight toward creatures of the tribal type. Avoid generic value cards that don't interact with the tribe."
+    },
+    "enchantress": {
+      "aliases": ["enchantress", "enchantments", "auras matter", "enchantment synergy", "constellation"],
+      "description": "Play enchantments to trigger enchantress draw effects and constellation abilities.",
+      "requires": ["enchantress draw engine", "constellation payoff", "aura", "enchantment protection"],
+      "key_patterns": [
+        "enchantment", "constellation", "whenever you cast an enchantment", "whenever an enchantment enters",
+        "aura", "whenever.*enchantment.*enters.*battlefield"
+      ],
+      "synergy_partners": ["aura", "voltron", "draw"],
+      "strategy_directive": "ENCHANTRESS BUILD — Construct the deck around enchantment density for draw and constellation triggers. You MUST include: (1) At least 4 enchantress draw engines (cards that draw whenever an enchantment enters), (2) At least 6 constellation payoffs (cards with 'whenever an enchantment enters the battlefield'), (3) High enchantment density — prefer enchantments over instants/sorceries for non-land slots, (4) Aura-based protection for the commander. Replace removal instants with enchantment-based removal (Oblivion Ring effects)."
+    },
+    "artifact": {
+      "aliases": ["artifact", "artifacts matter", "affinity", "artifact synergy", "improvise", "constructs"],
+      "description": "Use artifacts and artifact synergies to generate value and win.",
+      "requires": ["artifact generator", "artifact payoff", "artifact tutor", "combo piece"],
+      "key_patterns": [
+        "artifact", "affinity", "improvise", "whenever you cast an artifact",
+        "whenever an artifact enters", "for each artifact", "metalcraft"
+      ],
+      "synergy_partners": ["sacrifice", "token", "draw"],
+      "strategy_directive": "ARTIFACT BUILD — Construct the deck to maximize artifact density and exploit artifact synergies. You MUST include: (1) At least 8 artifact permanents beyond mana rocks (preferably ones that generate value or synergize), (2) At least 5 artifact payoffs (cards that care about artifacts entering, being sacrificed, or artifact count), (3) Artifact tutors to find key pieces, (4) Mana rocks that double as artifact synergy pieces. Prioritize artifacts over non-artifact spells where functionally equal."
+    },
+    "reanimator": {
+      "aliases": ["reanimator", "cheat into play", "big creatures", "reanimate", "raise dead", "reanimate targets"],
+      "description": "Cheat large creatures into play via reanimation rather than paying their mana cost.",
+      "requires": ["discard outlet", "reanimation spell", "large creature target", "protection"],
+      "key_patterns": [
+        "return.*creature.*from.*graveyard.*to.*battlefield", "put.*graveyard.*onto.*battlefield",
+        "reanimate", "animate dead", "entomb", "buried alive", "discard", "mill"
+      ],
+      "synergy_partners": ["graveyard", "self-mill", "big creatures"],
+      "strategy_directive": "REANIMATOR BUILD — Construct the deck to cheat large creatures into play via the graveyard. You MUST include: (1) At least 5 reanimation spells (effects that put creature cards from graveyard onto battlefield), (2) At least 4 discard outlets or self-mill effects to get creatures into the graveyard quickly, (3) At least 5 high-impact reanimation targets (large creatures worth cheating into play), (4) Graveyard protection. Prioritize low-CMC enablers and discard outlets, then large splashy creatures as the payload."
+    },
+    "mill": {
+      "aliases": ["mill", "self-mill", "mill opponent", "library", "decked", "grindstone"],
+      "description": "Mill opponents' libraries or self-mill to fuel graveyard synergies.",
+      "requires": ["mill engine", "mill payoff", "protection", "win condition"],
+      "key_patterns": [
+        "mill", "put.*card.*into.*graveyard.*from.*library", "surveil",
+        "whenever.*milled", "exile.*from.*top of library"
+      ],
+      "synergy_partners": ["graveyard", "self-mill", "draw"],
+      "strategy_directive": "MILL BUILD — Construct the deck to mill opponents as the primary win condition, or self-mill to fuel graveyard plays. You MUST include: (1) At least 6 high-volume mill effects (spells or permanents that mill multiple cards), (2) Mill payoffs or win conditions (Thassa's Oracle pattern, or damage from mill), (3) Ways to protect your mill engine (counterspells, removal), (4) Draw spells to chain mill effects. Prioritize repeatable mill over one-shot effects."
+    },
+    "lifegain": {
+      "aliases": ["lifegain", "life gain", "lifelink", "soul sisters", "life payoff", "drain"],
+      "description": "Gain life to trigger payoffs and drain opponents with life-based effects.",
+      "requires": ["lifegain trigger", "lifegain payoff", "drain effect", "lifegain enabler"],
+      "key_patterns": [
+        "gain.*life", "whenever you gain life", "lifelink", "drain",
+        "for each life you gained", "life total", "soul sisters"
+      ],
+      "synergy_partners": ["token", "aristocrats", "wide attack"],
+      "strategy_directive": "LIFEGAIN BUILD — Construct the deck around gaining life to trigger payoffs. You MUST include: (1) At least 6 reliable lifegain triggers (preferably repeatable, not one-shot), (2) At least 5 lifegain payoffs (cards that trigger 'whenever you gain life' or scale with life total), (3) A life-drain win condition (damage players equal to life gained, or turbo-large life totals), (4) Lifelink creatures and effects. Prioritize cards that gain life repeatedly each turn over large one-time life bursts."
+    },
+    "control": {
+      "aliases": ["control", "counterspells", "board wipe", "wrath", "removal heavy", "stax", "taxing"],
+      "description": "Counter threats, wrath the board, and win through inevitability.",
+      "requires": ["counterspell", "board wipe", "targeted removal", "win condition", "draw engine"],
+      "key_patterns": [
+        "counter target", "destroy all", "exile all", "counter that spell",
+        "each player sacrifices", "wrath", "removal"
+      ],
+      "synergy_partners": ["draw", "protection"],
+      "strategy_directive": "CONTROL BUILD — Construct the deck to answer threats and win through card advantage. You MUST include: (1) At least 6 counterspells or permission spells, (2) At least 4 board wipes (destroy or exile all creatures), (3) At least 6 targeted removal spells, (4) At least 4 card draw engines for sustained advantage, (5) A resilient win condition that is hard to answer. Heavily prioritize interaction over proactive threats. Include draw spells and tutors to find your answers."
+    },
+    "ramp": {
+      "aliases": ["ramp", "big mana", "mana acceleration", "mana ramp", "land ramp", "mana rocks"],
+      "description": "Accelerate mana production to cast large spells ahead of curve.",
+      "requires": ["land ramp", "mana rock", "big payoff spells", "card draw"],
+      "key_patterns": [
+        "add.*mana", "land.*from.*library.*to.*battlefield", "mana rock",
+        "sol ring", "signet", "talisman", "cultivate", "kodama's reach"
+      ],
+      "synergy_partners": ["big creatures", "landfall"],
+      "strategy_directive": "RAMP BUILD — Construct the deck to accelerate mana and cast large payoff spells. You MUST include: (1) At least 10 ramp pieces (land-fetching spells AND mana rocks), (2) At least 5 large payoff spells or creatures that benefit from the extra mana, (3) Card draw to maintain hand size after ramping, (4) A ramp-based win condition. Weight toward land ramp over mana rocks for stability. Include both two-drop and three-drop ramp spells to avoid dead draws."
+    }
+  }
+}

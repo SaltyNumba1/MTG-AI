@@ -30,6 +30,22 @@ interface SavedDeckDetail {
 }
 
 export default function MyDecks() {
+  const [showAnalyze, setShowAnalyze] = useState(false);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
+  const handleAnalyze = async () => {
+    setAnalyzeLoading(true);
+    setAnalyzeResult(null);
+    try {
+      // TODO: Call backend endpoint to analyze deck and get suggestions
+      // Example: await api.post("/deck/analyze", { deck_file: selectedFile });
+      setAnalyzeResult("AI suggestions will appear here (backend integration needed)");
+    } catch (err: any) {
+      setAnalyzeResult(err.response?.data?.detail || "Analysis failed");
+    } finally {
+      setAnalyzeLoading(false);
+    }
+  };
   const [decks, setDecks] = useState<SavedDeckSummary[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [detail, setDetail] = useState<SavedDeckDetail | null>(null);
@@ -73,6 +89,33 @@ export default function MyDecks() {
   useEffect(() => {
     loadSelectedDeck(selectedFile);
   }, [selectedFile]);
+
+  const exportDecklist = () => {
+    if (!detail) return;
+    const groups: Record<string, CardEntry[]> = {};
+    for (const card of detail.deck) {
+      const type = card.type_line?.split("—")[0].trim() || "Other";
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(card);
+    }
+    const sortedTypes = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+    const lines = [
+      `1 ${detail.commander.name}`,
+      "",
+      ...sortedTypes.flatMap((type) => [
+        `// ${type} (${groups[type].length})`,
+        ...groups[type].map((c) => `1 ${c.name}`),
+        "",
+      ]),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${detail.commander.name.replace(/\s+/g, "_")}_deck.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const deleteDeck = async () => {
     if (!selectedFile) return;
@@ -149,6 +192,30 @@ export default function MyDecks() {
               />
             ))}
           </div>
+
+          <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
+            <button className="btn-secondary" onClick={exportDecklist}>
+              Export Decklist (.txt)
+            </button>
+            <button className="btn-primary" onClick={() => { setShowAnalyze(true); handleAnalyze(); }} disabled={analyzeLoading}>
+              {analyzeLoading ? "Analyzing..." : "Analyze & Suggest Improvements"}
+            </button>
+          </div>
+
+          {/* Analyze Modal */}
+          {showAnalyze && (
+            <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ background: "#1e293b", padding: 24, borderRadius: 8, minWidth: 340, maxWidth: 540 }}>
+                <h2 style={{ marginBottom: 12 }}>AI Suggestions</h2>
+                <div style={{ minHeight: 80, color: "#f1f5f9" }}>
+                  {analyzeResult || (analyzeLoading ? "Analyzing..." : "No suggestions yet.")}
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+                  <button className="btn-secondary" onClick={() => setShowAnalyze(false)} disabled={analyzeLoading}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

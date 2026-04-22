@@ -5,7 +5,9 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('services/synergy_map.json', 'services'),
+    ],
     hiddenimports=[
         'aiosqlite',
         'sqlalchemy',

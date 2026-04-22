@@ -16,6 +16,15 @@ function formatPrice(raw?: string | null) {
   return `TCG: $${parsed.toFixed(2)}`;
 }
 
+/** Derive the back-face image URL from the front-face Scryfall URL.
+ *  Scryfall CDN pattern: .../normal/front/X/Y/{id}.jpg  →  .../normal/back/X/Y/{id}.jpg
+ *  Returns null if this doesn't look like a transform card URL. */
+function getBackFaceUri(frontUri?: string | null): string | null {
+  if (!frontUri) return null;
+  if (!frontUri.includes("/front/")) return null;
+  return frontUri.replace("/front/", "/back/");
+}
+
 export default function CardPreview({
   name,
   imageUri,
@@ -25,12 +34,15 @@ export default function CardPreview({
   children,
 }: CardPreviewProps) {
   const [zoom, setZoom] = useState(1);
+  const [flipped, setFlipped] = useState(false);
 
+  const backUri = useMemo(() => getBackFaceUri(imageUri), [imageUri]);
+  const displayUri = flipped && backUri ? backUri : imageUri;
   const zoomHint = useMemo(() => (zoom > 1 ? `Zoom ${zoom.toFixed(1)}x` : "Alt + Scroll to zoom"), [zoom]);
 
   return (
     <div className="mtg-card">
-      {imageUri ? (
+      {displayUri ? (
         <div
           className="card-image-shell"
           onWheel={(e) => {
@@ -42,11 +54,32 @@ export default function CardPreview({
           title="Hold Alt and use scroll wheel to zoom card image"
         >
           <img
-            src={imageUri}
-            alt={name}
+            src={displayUri}
+            alt={flipped ? `${name} (back face)` : name}
             loading="lazy"
             style={zoom > 1 ? { transform: `scale(${zoom})` } : undefined}
           />
+          {backUri && (
+            <button
+              onClick={() => { setFlipped((f) => !f); setZoom(1); }}
+              title={flipped ? "Show front face" : "Show back/transform face"}
+              style={{
+                position: "absolute",
+                bottom: 6,
+                right: 6,
+                background: "rgba(15,23,42,0.85)",
+                border: "1px solid #475569",
+                borderRadius: 4,
+                color: "#c4b5fd",
+                cursor: "pointer",
+                fontSize: 14,
+                lineHeight: 1,
+                padding: "3px 6px",
+              }}
+            >
+              {flipped ? "▶" : "🔄"}
+            </button>
+          )}
         </div>
       ) : (
         <div
@@ -73,10 +106,10 @@ export default function CardPreview({
         <small style={{ color: "#64748b", display: "block", marginBottom: 6 }}>{zoomHint}</small>
         {children}
       </div>
-      {imageUri && (
+      {displayUri && (
         <div className="card-popout" aria-hidden="true">
           <div className="card-popout-frame">
-            <img src={imageUri} alt="" loading="lazy" />
+            <img src={displayUri} alt="" loading="lazy" />
             <div className="card-popout-caption">
               <strong>{name}</strong>
               <span>{formatPrice(tcgplayerPrice)}</span>

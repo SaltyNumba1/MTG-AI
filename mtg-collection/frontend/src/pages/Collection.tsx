@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
+import "./Collection.css";
 
 interface CardEntry {
   id: string;
@@ -62,6 +63,25 @@ const COLOR_SYMBOLS: Record<string, string> = {
 };
 
 export default function Collection() {
+  const [showImportDeck, setShowImportDeck] = useState(false);
+  const [decklistText, setDecklistText] = useState("");
+  const [deckImporting, setDeckImporting] = useState(false);
+  const [deckImportMessage, setDeckImportMessage] = useState<string | null>(null);
+  const handleImportDeck = async () => {
+    setDeckImporting(true);
+    setDeckImportMessage(null);
+    try {
+      // TODO: Call backend endpoint to import decklist
+      // Example: await api.post("/deck/import", { decklist: decklistText });
+      setDeckImportMessage("Deck import submitted (backend integration needed)");
+      setDecklistText("");
+      setShowImportDeck(false);
+    } catch (err: any) {
+      setDeckImportMessage(err.response?.data?.detail || "Deck import failed");
+    } finally {
+      setDeckImporting(false);
+    }
+  };
   const [cards, setCards] = useState<CardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -142,10 +162,11 @@ export default function Collection() {
   }, []);
 
   useEffect(() => {
+    let unmounted = false;
     const fetchImportStatus = async () => {
       try {
         const { data } = await api.get<ImportStatus>("/collection/import-status");
-        setImportStatus(data);
+        if (!unmounted) setImportStatus(data);
       } catch {
         // Keep UI usable if import status polling fails.
       }
@@ -153,7 +174,11 @@ export default function Collection() {
 
     fetchImportStatus();
     const timer = setInterval(fetchImportStatus, 1000);
-    return () => clearInterval(timer);
+    return () => {
+      unmounted = true;
+      clearInterval(timer);
+      setImportStatus(null); // Clear status on unmount
+    };
   }, []);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -409,32 +434,32 @@ export default function Collection() {
     <div className="page">
       <h1 className="page-title">My Collection ({cards.length} unique cards | {totalCardCount} total cards)</h1>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="collection-toolbar">
         <input
+          className="collection-search"
           placeholder="Search cards..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 300 }}
         />
-        <select aria-label="Color filter" title="Color filter" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)} style={{ maxWidth: 120 }}>
+        <select aria-label="Color filter" title="Color filter" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)} className="collection-filter">
           <option value="all">All Colors</option>
           {colorOptions.map((c) => (
             <option key={c.code} value={c.code}>{c.label}</option>
           ))}
         </select>
-        <select aria-label="Type filter" title="Type filter" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ maxWidth: 220 }}>
+        <select aria-label="Type filter" title="Type filter" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="collection-type-filter">
           <option value="all">All Types</option>
           {typeOptions.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
-        <select aria-label="Rarity filter" title="Rarity filter" value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)} style={{ maxWidth: 140 }}>
+        <select aria-label="Rarity filter" title="Rarity filter" value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)} className="collection-rarity-filter">
           <option value="all">All Rarity</option>
           {rarityOptions.map((r) => (
             <option key={r} value={r}>{r}</option>
           ))}
         </select>
-        <select aria-label="Set filter" title="Set filter" value={setFilter} onChange={(e) => setSetFilter(e.target.value)} style={{ maxWidth: 120 }}>
+        <select aria-label="Set filter" title="Set filter" value={setFilter} onChange={(e) => setSetFilter(e.target.value)} className="collection-set-filter">
           <option value="all">All Sets</option>
           {setOptions.map((s) => (
             <option key={s} value={s}>{s.toUpperCase()}</option>
@@ -445,16 +470,17 @@ export default function Collection() {
           title="Sort cards"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as "name" | "quantity" | "cmc" | "recent")}
-          style={{ maxWidth: 180 }}
+          className="collection-sort"
         >
           <option value="name">Sort: Name</option>
           <option value="quantity">Sort: Quantity</option>
           <option value="cmc">Sort: CMC</option>
           <option value="recent">Sort: Recently Imported</option>
         </select>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label className="collection-import-label">
           <button
             className="btn-primary"
+            type="button"
             onClick={() => fileRef.current?.click()}
             disabled={importing || importStatus?.active}
           >
@@ -464,12 +490,13 @@ export default function Collection() {
             ref={fileRef}
             type="file"
             accept=".csv"
-            style={{ display: "none" }}
+            className="collection-import-input"
             onChange={handleImport}
           />
         </label>
         <button
           className="btn-secondary"
+          type="button"
           onClick={cancelImport}
           disabled={!importStatus?.active}
         >
@@ -477,24 +504,52 @@ export default function Collection() {
         </button>
         <button
           className="btn-danger"
+          type="button"
           onClick={handleClearCollection}
           disabled={cards.length === 0}
         >
           Delete Collection
         </button>
+        <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(true)}>
+          Import Deck
+        </button>
       </div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
-        <button className="btn-secondary" onClick={toggleSelectFiltered} disabled={filtered.length === 0}>
+      {/* Import Deck Modal */}
+      {showImportDeck && (
+        <div className="collection-modal-overlay">
+          <div className="collection-modal">
+            <h2 className="collection-modal-title">Import Decklist</h2>
+            <textarea
+              className="collection-modal-textarea"
+              rows={10}
+              value={decklistText}
+              onChange={e => setDecklistText(e.target.value)}
+              placeholder={"Paste your decklist here (one card per line, e.g. '1 Sol Ring')"}
+              disabled={deckImporting}
+            />
+            <div className="collection-modal-footer">
+              <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(false)} disabled={deckImporting}>Cancel</button>
+              <button className="btn-primary" type="button" onClick={handleImportDeck} disabled={deckImporting || !decklistText.trim()}>
+                {deckImporting ? "Importing..." : "Import Deck"}
+              </button>
+            </div>
+            {deckImportMessage && <div className="collection-modal-error">{deckImportMessage}</div>}
+          </div>
+        </div>
+      )}
+
+      <div className="collection-bulk-toolbar">
+        <button className="btn-secondary" type="button" onClick={toggleSelectFiltered} disabled={filtered.length === 0}>
           {filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))
             ? "Unselect Filtered"
             : "Select Filtered"}
         </button>
         <span style={{ color: "#94a3b8", fontSize: 13 }}>Selected: {selectedCount}</span>
-        <button className="btn-danger" disabled={selectedCount === 0} onClick={handleBulkDelete}>
+        <button className="btn-danger" type="button" disabled={selectedCount === 0} onClick={handleBulkDelete}>
           Bulk Delete
         </button>
-        <select aria-label="Bulk quantity action" title="Bulk quantity action" value={bulkAction} onChange={(e) => setBulkAction(e.target.value as "set" | "adjust")} style={{ maxWidth: 130 }}>
+        <select aria-label="Bulk quantity action" title="Bulk quantity action" value={bulkAction} onChange={(e) => setBulkAction(e.target.value as "set" | "adjust")} className="collection-bulk-action">
           <option value="adjust">Adjust Qty</option>
           <option value="set">Set Qty</option>
         </select>
@@ -504,9 +559,9 @@ export default function Collection() {
           title="Bulk quantity value"
           value={bulkValue}
           onChange={(e) => setBulkValue(Number(e.target.value || 0))}
-          style={{ width: 110 }}
+          className="collection-bulk-value"
         />
-        <button className="btn-primary" disabled={selectedCount === 0} onClick={handleBulkQuantity}>
+        <button className="btn-primary" type="button" disabled={selectedCount === 0} onClick={handleBulkQuantity}>
           Apply Qty
         </button>
       </div>
@@ -516,7 +571,7 @@ export default function Collection() {
       )}
 
       {importStatus && (importStatus.active || importStatus.total > 0) && (
-        <div className="import-progress" style={{ marginBottom: 16 }}>
+        <div className="import-progress">
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
             <span>
               {importStatus.source === "folder" ? "Startup folder import" : "CSV upload import"}
@@ -524,30 +579,17 @@ export default function Collection() {
             </span>
             <span>{importStatus.percent}%</span>
           </div>
-          <div
-            style={{
-              width: "100%",
-              height: 10,
-              background: "#1e293b",
-              borderRadius: 999,
-              overflow: "hidden",
-              border: "1px solid #334155",
-            }}
-          >
+          <div className="import-progress-bar">
             <div
-              style={{
-                width: `${importStatus.percent}%`,
-                height: "100%",
-                background: "linear-gradient(90deg, #22c55e, #14b8a6)",
-                transition: "width 0.25s ease",
-              }}
+              className="import-progress-bar-inner"
+              style={{ width: `${importStatus.percent}%` }}
             />
           </div>
-          <small style={{ color: "#94a3b8", display: "block", marginTop: 6 }}>
+          <small className="import-progress-info">
             Processed {importStatus.processed}/{importStatus.total} | Imported {importStatus.imported} | Updated {importStatus.updated} | Failed {importStatus.failed}
           </small>
           {!importStatus.active && importStatus.message && (
-            <small style={{ color: "#86efac", display: "block", marginTop: 4 }}>{importStatus.message}</small>
+            <small className="import-progress-success">{importStatus.message}</small>
           )}
         </div>
       )}
@@ -562,24 +604,24 @@ export default function Collection() {
         </div>
       )}
 
-      <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Database Safety</div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <button className="btn-primary" onClick={createBackup} disabled={backupBusy}>Create Backup</button>
-          <button className="btn-secondary" onClick={loadBackups} disabled={backupBusy}>Refresh Backups</button>
+      <div className="collection-db-safety">
+        <div className="collection-db-title">Database Safety</div>
+        <div className="collection-db-toolbar">
+          <button className="btn-primary" type="button" onClick={createBackup} disabled={backupBusy}>Create Backup</button>
+          <button className="btn-secondary" type="button" onClick={loadBackups} disabled={backupBusy}>Refresh Backups</button>
           <select
             aria-label="Backup selection"
             title="Backup selection"
             value={selectedBackup}
             onChange={(e) => setSelectedBackup(e.target.value)}
-            style={{ minWidth: 280 }}
+            className="collection-db-backup-select"
           >
             <option value="">Select backup</option>
             {backups.map((b) => (
               <option key={b.filename} value={b.filename}>{b.filename}</option>
             ))}
           </select>
-          <button className="btn-danger" onClick={restoreBackup} disabled={!selectedBackup || backupBusy}>
+          <button className="btn-danger" type="button" onClick={restoreBackup} disabled={!selectedBackup || backupBusy}>
             Restore Selected Backup
           </button>
         </div>
@@ -604,7 +646,7 @@ export default function Collection() {
               quantity={card.quantity}
               tcgplayerPrice={card.tcgplayer_price}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="collection-card-row">
                 <span>
                   {(card.color_identity || []).map((c) => COLOR_SYMBOLS[c] || c).join("")}
                 </span>
@@ -614,11 +656,11 @@ export default function Collection() {
                   title={`Select ${card.name}`}
                   checked={selectedIds.has(card.id)}
                   onChange={() => toggleSelected(card.id)}
-                  style={{ width: 16, height: 16 }}
+                  className="collection-card-checkbox"
                 />
                 <button
-                  className="btn-danger"
-                  style={{ padding: "2px 8px", fontSize: 11 }}
+                  className="btn-danger collection-card-delete"
+                  type="button"
                   onClick={() => handleDelete(card.id)}
                 >
                   ✕

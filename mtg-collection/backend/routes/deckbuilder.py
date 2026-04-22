@@ -4,7 +4,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Body
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -18,6 +19,154 @@ router = APIRouter(prefix="/deck", tags=["deck"])
 class DeckRequest(BaseModel):
     prompt: str
     commander_name: str
+    keyword_filters: list[str] = []
+    basic_land_count: int = 37
+    nonbasic_land_count: int = 5
+    strict_mode: bool = False
+
+
+class ImportDeckRequest(BaseModel):
+    decklist: str
+
+
+class AnalyzeDeckRequest(BaseModel):
+    deck_file: str
+
+@router.post("/import-deck")
+async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Import a decklist (plain text, one card per line) and save as a deck.
+    Returns the saved deck info or errors.
+    """
+    lines = [line.strip() for line in req.decklist.splitlines() if line.strip()]
+    if not lines:
+        raise HTTPException(status_code=400, detail="Decklist is empty.")
+
+    # Parse decklist: expect lines like '1 Sol Ring' or just 'Sol Ring'
+    import re
+    deck_entries = []
+    commander_name = None
+    for idx, line in enumerate(lines):
+        m = re.match(r"(\d+)\s+(.+)", line)
+        if m:
+            qty, name = int(m.group(1)), m.group(2).strip()
+        else:
+            qty, name = 1, line
+        if idx == 0:
+            commander_name = name
+        deck_entries.append({"name": name, "quantity": qty})
+
+    # Try to fetch card details for commander and deck cards
+    result = await db.execute(select(Card))
+    cards = result.scalars().all()
+    card_lookup = {c.name.lower(): c for c in cards}
+    commander = card_lookup.get(commander_name.lower()) if commander_name else None
+    deck_cards = []
+    missing = []
+    for entry in deck_entries[1:]:
+        c = card_lookup.get(entry["name"].lower())
+        if c:
+            deck_cards.append({
+                "name": c.name,
+                "image_uri": c.image_uri,
+                "type_line": c.type_line,
+                "tcgplayer_price": c.tcgplayer_price,
+            })
+        else:
+            missing.append(entry["name"])
+
+    if not commander:
+        raise HTTPException(status_code=400, detail=f"Commander '{commander_name}' not found in your collection.")
+
+    # Save deck (reuse save_deck logic)
+    payload = DeckSaveRequest(
+        name=f"Imported Deck ({commander_name})",
+        prompt="Imported decklist",
+        commander={
+            "name": commander.name,
+            "image_uri": commander.image_uri,
+            "type_line": commander.type_line,
+            "tcgplayer_price": commander.tcgplayer_price,
+        },
+        deck=deck_cards,
+        description=f"Imported decklist. Missing: {', '.join(missing) if missing else 'None'}",
+    )
+    resp = await save_deck(payload)
+    return {"saved": resp, "missing": missing}
+
+
+@router.post("/analyze-deck")
+async def analyze_deck(req: AnalyzeDeckRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Analyze a saved deck and suggest improvements using the user's collection.
+    Returns AI suggestions (text or structured).
+    """
+    # Load deck
+    deck_dir = _saved_decks_dir()
+    deck_path = (deck_dir / req.deck_file).resolve()
+    if not str(deck_path).startswith(str(deck_dir)) or not deck_path.exists():
+        raise HTTPException(status_code=404, detail="Deck file not found")
+    deck_data = json.loads(deck_path.read_text(encoding="utf-8"))
+
+    # Get user's collection
+    result = await db.execute(select(Card))
+    cards = result.scalars().all()
+    collection = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "quantity": c.quantity,
+            "mana_cost": c.mana_cost,
+            "cmc": c.cmc,
+            "type_line": c.type_line,
+            "oracle_text": c.oracle_text,
+            "colors": c.colors,
+            "color_identity": c.color_identity,
+            "keywords": c.keywords,
+            "power": c.power,
+            "toughness": c.toughness,
+            "image_uri": c.image_uri,
+            "tcgplayer_price": c.tcgplayer_price,
+            "legalities": c.legalities,
+        }
+        for c in cards
+    ]
+
+    # Use the deck_engine to generate suggestions (reuse generate_deck logic, but with a prompt for improvement)
+    from services.deck_engine import generate_deck
+    def progress_callback(msg):
+        pass  # No streaming for now
+    suggestions = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: generate_deck(
+            prompt=f"Analyze and suggest improvements for this deck using my collection. Only suggest cards I own. Deck: {deck_data['name']}",
+            commander_name=deck_data['commander']['name'],
+            collection=collection,
+            keyword_filters=[],
+            progress_callback=progress_callback,
+            current_deck=deck_data['deck'],
+        ),
+    )
+    return {"suggestions": suggestions}
+
+
+# SSE endpoint for real-time build status streaming
+@router.get("/build-stream")
+async def build_stream(request: Request):
+    """Stream build status and thoughts as server-sent events (SSE)."""
+    last_message = None
+    async def event_generator():
+        nonlocal last_message
+        while True:
+            if await request.is_disconnected():
+                break
+            status = _build_status_snapshot()
+            message = status.get("message", "")
+            if message != last_message:
+                yield f"data: {json.dumps(status)}\n\n"
+                last_message = message
+            await asyncio.sleep(0.5)
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 class DeckSaveRequest(BaseModel):
@@ -35,6 +184,7 @@ BUILD_STATUS = {
     "message": "",
     "started_at": None,
     "finished_at": None,
+    "last_activity_at": None,
     "thoughts": [],
 }
 
@@ -47,9 +197,11 @@ def _set_build_status(**kwargs):
 def _append_thought(message: str):
     with BUILD_STATUS_LOCK:
         thoughts = list(BUILD_STATUS.get("thoughts", []))
-        thoughts.append({"time": datetime.utcnow().isoformat(), "message": message})
+        now = datetime.utcnow().isoformat()
+        thoughts.append({"time": now, "message": message})
         BUILD_STATUS["thoughts"] = thoughts[-50:]
         BUILD_STATUS["message"] = message
+        BUILD_STATUS["last_activity_at"] = now
 
 
 def _build_status_snapshot() -> dict:
@@ -153,6 +305,10 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
                 prompt=req.prompt,
                 commander_name=req.commander_name,
                 collection=collection,
+                keyword_filters=getattr(req, "keyword_filters", []),
+                basic_land_count=getattr(req, "basic_land_count", 37),
+                nonbasic_land_count=getattr(req, "nonbasic_land_count", 5),
+                strict_mode=getattr(req, "strict_mode", False),
                 progress_callback=_append_thought,
             ),
         )
@@ -173,6 +329,20 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/build-status")
 async def build_status():
     return _build_status_snapshot()
+
+
+@router.post("/reset")
+async def reset_build():
+    """Force-reset a hung build. Only meaningful when a build is active and stale."""
+    _set_build_status(
+        active=False,
+        phase="reset",
+        message="Build was manually reset.",
+        finished_at=datetime.utcnow().isoformat(),
+        last_activity_at=datetime.utcnow().isoformat(),
+    )
+    _append_thought("⚠️ Build was force-reset by user.")
+    return {"reset": True}
 
 
 @router.get("/commanders")
