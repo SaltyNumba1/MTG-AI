@@ -70,6 +70,34 @@ The app accepts CSV exports from:
 5. Click **Generate Deck**. The engine filters your collection by color identity and Commander legality, then the AI selects the best 99 cards.
 6. Export the finished decklist as a `.txt` file (compatible with Moxfield and Archidekt import).
 
+Defaults:
+- Basic lands: **25**
+- Nonbasic lands: **12**
+
+The builder now also shows an **estimated deck cost** using available TCG pricing data.
+
+---
+
+## Collection Features
+
+- **Import Deck** modal can now save directly to **My Decks** and supports an optional deck name.
+- **Color filter** includes a **Colorless** option for non-colored cards.
+- Use card checkboxes plus **Save Selected as Deck** to create a manual deck from your collection.
+- Backup/restore uses a safer SQLite backup flow for more complete backups.
+
+---
+
+## My Decks Features
+
+- **Analyze & Suggest Improvements** now calls the backend and returns AI suggestions.
+- Exported decklists include explicit commander marking for better Moxfield compatibility.
+
+---
+
+## Help Page
+
+A built-in **Help** page is available in the top navigation with quick how-to guidance for import, deck building, manual deck saving, and backup/restore.
+
 ---
 
 ## Optional: Development Setup
