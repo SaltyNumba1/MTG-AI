@@ -265,6 +265,16 @@ def _is_legal_commander(card: Card) -> bool:
 
 
 def _saved_decks_dir() -> Path:
+    """Return the saved_decks directory.
+
+    In a PyInstaller bundle, ``Path(__file__).parents[1]`` resolves to the
+    temporary ``_MEIxxxx`` extraction directory which is wiped when the app
+    exits, causing saved decks to vanish on relaunch. When frozen, anchor the
+    folder next to the executable instead so it persists.
+    """
+    import sys
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "saved_decks"
     return Path(__file__).resolve().parents[1] / "saved_decks"
 
 
