@@ -80,6 +80,33 @@ export default function Collection() {
   const [manualDeckName, setManualDeckName] = useState("");
   const [manualCommanderId, setManualCommanderId] = useState("");
   const [manualSaving, setManualSaving] = useState(false);
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [addCardName, setAddCardName] = useState("");
+  const [addCardQty, setAddCardQty] = useState<number>(1);
+  const [addCardBusy, setAddCardBusy] = useState(false);
+  const [addCardMessage, setAddCardMessage] = useState<string | null>(null);
+  const handleAddCard = async () => {
+    const name = addCardName.trim();
+    if (!name) return;
+    setAddCardBusy(true);
+    setAddCardMessage(null);
+    try {
+      const { data } = await api.post("/collection/add-card", {
+        name,
+        quantity: Math.max(1, Math.floor(addCardQty || 1)),
+      });
+      const verb = data?.status === "imported" ? "Added" : "Updated";
+      setMessage({ type: "success", text: `${verb} ${data?.name || name} (+${data?.quantity || 1})` });
+      setAddCardName("");
+      setAddCardQty(1);
+      setShowAddCard(false);
+      await fetchCards();
+    } catch (err: any) {
+      setAddCardMessage(err.response?.data?.detail || "Failed to add card");
+    } finally {
+      setAddCardBusy(false);
+    }
+  };
   const handleImportDeck = async () => {
     setDeckImporting(true);
     setDeckImportMessage(null);
@@ -591,7 +618,47 @@ export default function Collection() {
         <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(true)}>
           Import Deck
         </button>
+        <button className="btn-primary" type="button" onClick={() => { setAddCardMessage(null); setShowAddCard(true); }}>
+          Add Card
+        </button>
       </div>
+
+      {/* Add Card Modal */}
+      {showAddCard && (
+        <div className="collection-modal-overlay">
+          <div className="collection-modal">
+            <h2 className="collection-modal-title">Add Single Card</h2>
+            <input
+              className="collection-search"
+              value={addCardName}
+              onChange={(e) => setAddCardName(e.target.value)}
+              placeholder="Card name (e.g. 'Sol Ring')"
+              disabled={addCardBusy}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && addCardName.trim() && !addCardBusy) handleAddCard();
+              }}
+            />
+            <input
+              type="number"
+              min={1}
+              className="collection-search"
+              style={{ marginTop: 10 }}
+              value={addCardQty}
+              onChange={(e) => setAddCardQty(Number(e.target.value || 1))}
+              placeholder="Quantity"
+              disabled={addCardBusy}
+            />
+            <div className="collection-modal-footer">
+              <button className="btn-secondary" type="button" onClick={() => setShowAddCard(false)} disabled={addCardBusy}>Cancel</button>
+              <button className="btn-primary" type="button" onClick={handleAddCard} disabled={addCardBusy || !addCardName.trim()}>
+                {addCardBusy ? "Adding..." : "Add Card"}
+              </button>
+            </div>
+            {addCardMessage && <div className="collection-modal-error">{addCardMessage}</div>}
+          </div>
+        </div>
+      )}
 
       {/* Import Deck Modal */}
       {showImportDeck && (

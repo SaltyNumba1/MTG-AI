@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import MTG_KEYWORDS from "../mtg_keywords";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
+import "./DeckBuilder.css";
 
 interface Commander {
   id: string;
@@ -127,6 +128,8 @@ export default function DeckBuilder() {
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
   const [keywordFilters, setKeywordFilters] = useState<string[]>([""]);
+  const DEFAULT_MUST_INCLUDE = '"Sol Ring" "Arcane Signet" "Commander\'s Sphere" "Path of Ancestry" "Command Tower"';
+  const [mustIncludeText, setMustIncludeText] = useState<string>(DEFAULT_MUST_INCLUDE);
   const [isHung, setIsHung] = useState(false);
   const [resetting, setResetting] = useState(false);
   const hungCheckRef = useRef<number | null>(null);
@@ -186,12 +189,21 @@ export default function DeckBuilder() {
     });
 
     try {
+      const mustIncludeCards = Array.from(
+        new Set(
+          (mustIncludeText.match(/"([^"]+)"/g) || [])
+            .map((s) => s.slice(1, -1).trim())
+            .filter(Boolean)
+        )
+      );
+
       const { data } = await api.post<DeckResult>("/deck/build", {
         commander_name: selectedCommander,
         prompt,
         basic_land_count: basicLandCount,
         nonbasic_land_count: nonbasicLandCount,
         keyword_filters: keywordFilters.filter((k) => k && k.trim()),
+        must_include_cards: mustIncludeCards,
       });
       setResult(data);
       await saveDeckWithName(data, data.commander.name, true);
@@ -312,53 +324,72 @@ export default function DeckBuilder() {
     <div className="page">
       <h1 className="page-title">Build a Commander Deck</h1>
 
-      <div style={{ display: "grid", gap: 16, maxWidth: 600, marginBottom: 24 }}>
-        <div>
-          <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
-            Filter by MTG Keywords (assist AI synergy)
-          </label>
-          {keywordFilters.map((filter, idx) => (
-            <div key={idx} style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
-              <select
-                value={filter}
-                onChange={e => {
-                  const newFilters = [...keywordFilters];
-                  newFilters[idx] = e.target.value;
-                  setKeywordFilters(newFilters);
-                }}
-                style={{ flex: 1, marginRight: 8 }}
-              >
-                <option value="">- Select a keyword -</option>
-                {MTG_KEYWORDS.map((kw) => (
-                  <option key={kw} value={kw}>{kw}</option>
-                ))}
-              </select>
-              {keywordFilters.length > 1 && (
-                <button
-                  type="button"
-                  style={{ marginRight: 4 }}
-                  onClick={() => setKeywordFilters(keywordFilters.filter((_, i) => i !== idx))}
+      <div className="deckbuilder-form">
+        <div className="deckbuilder-filters-row">
+          <div className="deckbuilder-filters-col">
+            <label className="deckbuilder-label">
+              Filter by MTG Keywords (assist AI synergy)
+            </label>
+            {keywordFilters.map((filter, idx) => (
+              <div key={idx} className="deckbuilder-keyword-row">
+                <select
+                  value={filter}
+                  onChange={e => {
+                    const newFilters = [...keywordFilters];
+                    newFilters[idx] = e.target.value;
+                    setKeywordFilters(newFilters);
+                  }}
+                  className="deckbuilder-keyword-select"
                 >
-                  ✕
-                </button>
-              )}
-              {idx === keywordFilters.length - 1 && (
-                <button
-                  type="button"
-                  onClick={() => setKeywordFilters([...keywordFilters, ""])}
-                  style={{ fontWeight: 700 }}
-                >
-                  ＋
-                </button>
-              )}
-            </div>
-          ))}
-          <small style={{ color: "#64748b" }}>
-            These keywords help the AI suggest synergistic cards, but do not hard-filter the deck.
-          </small>
+                  <option value="">- Select a keyword -</option>
+                  {MTG_KEYWORDS.map((kw) => (
+                    <option key={kw} value={kw}>{kw}</option>
+                  ))}
+                </select>
+                {keywordFilters.length > 1 && (
+                  <button
+                    type="button"
+                    className="deckbuilder-keyword-remove"
+                    onClick={() => setKeywordFilters(keywordFilters.filter((_, i) => i !== idx))}
+                  >
+                    ✕
+                  </button>
+                )}
+                {idx === keywordFilters.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setKeywordFilters([...keywordFilters, ""])}
+                    className="deckbuilder-keyword-add"
+                  >
+                    ＋
+                  </button>
+                )}
+              </div>
+            ))}
+            <small className="deckbuilder-hint">
+              These keywords help the AI suggest synergistic cards, but do not hard-filter the deck.
+            </small>
+          </div>
+          <div className="deckbuilder-filters-col">
+            <label className="deckbuilder-label">
+              Must Include Cards
+            </label>
+            <textarea
+              value={mustIncludeText}
+              onChange={(e) => setMustIncludeText(e.target.value)}
+              rows={5}
+              spellCheck={false}
+              placeholder={'"Sol Ring" "Arcane Signet" "Command Tower"'}
+              className="deckbuilder-must-include"
+            />
+            <small className="deckbuilder-hint">
+              Wrap each card name in double quotes. These will be force-included in the deck even if you don't own them
+              (fetched from Scryfall). Lands among them count toward the nonbasic land count.
+            </small>
+          </div>
         </div>
         <div>
-          <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
+          <label className="deckbuilder-label">
             Commander
           </label>
           <select
@@ -374,14 +405,14 @@ export default function DeckBuilder() {
             ))}
           </select>
           {commanders.length === 0 && (
-            <small style={{ color: "#64748b" }}>
+            <small className="deckbuilder-hint">
               No legal legendary commanders found in your collection.
             </small>
           )}
         </div>
 
         <div>
-          <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
+          <label className="deckbuilder-label">
             Deck prompt
           </label>
           <textarea
@@ -392,9 +423,9 @@ export default function DeckBuilder() {
           />
         </div>
 
-        <div style={{ display: "flex", gap: 16 }}>
+        <div className="deckbuilder-lands-row">
           <div>
-            <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
+            <label className="deckbuilder-label">
               Number of Basic Lands
             </label>
             <input
@@ -403,11 +434,11 @@ export default function DeckBuilder() {
               max={100}
               value={basicLandCount}
               onChange={e => setBasicLandCount(Number(e.target.value))}
-              style={{ width: 60 }}
+              className="deckbuilder-land-input"
             />
           </div>
           <div>
-            <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "#94a3b8" }}>
+            <label className="deckbuilder-label">
               Number of Nonbasic Lands
             </label>
             <input
@@ -416,16 +447,15 @@ export default function DeckBuilder() {
               max={100}
               value={nonbasicLandCount}
               onChange={e => setNonbasicLandCount(Number(e.target.value))}
-              style={{ width: 60 }}
+              className="deckbuilder-land-input"
             />
           </div>
         </div>
 
         <button
-          className="btn-primary"
+          className="btn-primary deckbuilder-generate-btn"
           onClick={handleBuild}
           disabled={building || !selectedCommander || !prompt.trim()}
-          style={{ width: "fit-content" }}
         >
           {building ? "Building deck... (this may take ~30s)" : "Generate Deck"}
         </button>
@@ -434,17 +464,7 @@ export default function DeckBuilder() {
           <button
             onClick={handleReset}
             disabled={resetting}
-            style={{
-              width: "fit-content",
-              backgroundColor: "#dc2626",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              padding: "8px 16px",
-              cursor: resetting ? "not-allowed" : "pointer",
-              fontWeight: 600,
-              marginLeft: 8,
-            }}
+            className="deckbuilder-reset-btn"
             title="The model has not responded in 45+ seconds and is considered hung. Click to reset."
           >
             {resetting ? "Resetting..." : "⚠️ Force Reset Model"}
@@ -456,14 +476,14 @@ export default function DeckBuilder() {
       {saveMessage && <div className={`alert alert-${saveMessage.type}`}>{saveMessage.text}</div>}
 
       {(building || (buildStatus?.thoughts?.length ?? 0) > 0) && (
-        <div className="alert alert-info" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>AI Build Process</div>
-          <small style={{ display: "block", marginBottom: 8, color: "#cbd5e1" }}>
+        <div className="alert alert-info deckbuilder-build-progress">
+          <div className="deckbuilder-build-progress-title">AI Build Process</div>
+          <small className="deckbuilder-build-progress-msg">
             {buildStatus?.message || "Deck builder is working..."}
           </small>
-          <div style={{ display: "grid", gap: 4, maxHeight: 170, overflowY: "auto" }}>
+          <div className="deckbuilder-thoughts">
             {(buildStatus?.thoughts || []).map((thought, idx) => (
-              <small key={`${thought.time}-${idx}`} style={{ color: "#a5b4fc" }}>
+              <small key={`${thought.time}-${idx}`} className="deckbuilder-thought">
                 {new Date(thought.time).toLocaleTimeString()} - {thought.message}
               </small>
             ))}
@@ -473,7 +493,7 @@ export default function DeckBuilder() {
 
       {result && (
         <div>
-          <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap" }}>
+          <div className="deckbuilder-result-header">
             <CardPreview
               name={result.commander.name}
               imageUri={result.commander.image_uri}
@@ -481,40 +501,39 @@ export default function DeckBuilder() {
               tcgplayerPrice={result.commander.tcgplayer_price}
             />
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", marginBottom: 8 }}>
+              <h2 className="deckbuilder-result-title">
                 {result.commander.name} Commander Deck
               </h2>
-              <p style={{ color: "#94a3b8", marginBottom: 12, maxWidth: 500 }}>
+              <p className="deckbuilder-result-desc">
                 {result.description}
               </p>
               <div style={{ color: missingCount === 0 ? "#86efac" : "#fca5a5", marginBottom: 10, fontSize: 13 }}>
                 Total Cards: {totalGeneratedCount}/100
                 {missingCount > 0 ? ` (${missingCount} missing)` : " (complete)"}
               </div>
-              <div style={{ color: "#a7f3d0", marginBottom: 10, fontSize: 13 }}>
+              <div className="deckbuilder-result-cost">
                 Estimated Deck Cost (TCG low): ${estimatedCost.toFixed(2)}
               </div>
               <button className="btn-secondary" onClick={exportDecklist}>
                 Export Decklist (.txt)
               </button>
               <button
-                className="btn-primary"
+                className="btn-primary deckbuilder-save-btn"
                 onClick={saveDeckToFolder}
                 disabled={saving}
-                style={{ marginLeft: 8 }}
               >
                 {saving ? "Saving..." : "Save Deck"}
               </button>
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: 24 }}>
-            <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#16213e" }}>
-              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Mana Curve</h3>
+          <div className="deckbuilder-stats-row">
+            <div className="deckbuilder-stats-card">
+              <h3 className="deckbuilder-stats-heading">Mana Curve</h3>
               {curve && Object.entries(curve).map(([bucket, count]) => (
-                <div key={bucket} style={{ display: "grid", gridTemplateColumns: "30px 1fr 26px", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94a3b8" }}>{bucket}</span>
-                  <div style={{ height: 10, borderRadius: 999, background: "#0f172a", overflow: "hidden" }}>
+                <div key={bucket} className="deckbuilder-stats-item">
+                  <span className="deckbuilder-stats-label">{bucket}</span>
+                  <div className="deckbuilder-stats-bar-bg">
                     <div
                       style={{
                         height: "100%",
@@ -523,17 +542,17 @@ export default function DeckBuilder() {
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: 12, color: "#e2e8f0", textAlign: "right" }}>{count}</span>
+                  <span className="deckbuilder-stats-count">{count}</span>
                 </div>
               ))}
             </div>
 
-            <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#16213e" }}>
-              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Color Distribution</h3>
+            <div className="deckbuilder-stats-card">
+              <h3 className="deckbuilder-stats-heading">Color Distribution</h3>
               {colors && Object.entries(colors).filter(([, v]) => v > 0).map(([color, count]) => (
-                <div key={color} style={{ display: "grid", gridTemplateColumns: "30px 1fr 26px", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94a3b8" }}>{COLOR_SYMBOLS[color] || color}</span>
-                  <div style={{ height: 10, borderRadius: 999, background: "#0f172a", overflow: "hidden" }}>
+                <div key={color} className="deckbuilder-stats-item">
+                  <span className="deckbuilder-stats-label">{COLOR_SYMBOLS[color] || color}</span>
+                  <div className="deckbuilder-stats-bar-bg">
                     <div
                       style={{
                         height: "100%",
@@ -542,16 +561,16 @@ export default function DeckBuilder() {
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: 12, color: "#e2e8f0", textAlign: "right" }}>{count}</span>
+                  <span className="deckbuilder-stats-count">{count}</span>
                 </div>
               ))}
             </div>
 
-            <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#16213e" }}>
-              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Suggested Basic Lands ({basicLandCount})</h3>
-              <div style={{ display: "grid", gap: 6 }}>
+            <div className="deckbuilder-stats-card">
+              <h3 className="deckbuilder-stats-heading">Suggested Basic Lands ({basicLandCount})</h3>
+              <div className="deckbuilder-basics-list">
                 {basics.map((b) => (
-                  <div key={b.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <div key={b.name} className="deckbuilder-basics-row">
                     <span>{b.name}</span>
                     <strong>{b.count}</strong>
                   </div>
@@ -563,8 +582,8 @@ export default function DeckBuilder() {
           {Object.entries(groups)
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([type, cards]) => (
-              <div key={type} style={{ marginBottom: 24 }}>
-                <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>
+              <div key={type} className="deckbuilder-type-group">
+                <h3 className="deckbuilder-stats-heading">
                   {type} ({cards.length})
                 </h3>
                 <div className="card-grid">

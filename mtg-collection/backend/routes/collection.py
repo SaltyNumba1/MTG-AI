@@ -72,6 +72,12 @@ class RestoreBackupRequest(BaseModel):
     filename: str
 
 
+class AddCardRequest(BaseModel):
+    name: str = ""
+    quantity: int = 1
+    scryfall_id: str | None = None
+
+
 def _set_import_status(**kwargs):
     with IMPORT_STATUS_LOCK:
         IMPORT_STATUS.update(kwargs)
@@ -645,6 +651,43 @@ async def retry_failed_import(payload: RetryImportRequest, db: AsyncSession = De
         cancel_message="Retry canceled by user",
         completion_message="Retry completed",
     )
+
+
+@router.post("/add-card")
+async def add_card(payload: AddCardRequest, db: AsyncSession = Depends(get_db)):
+    name = (payload.name or "").strip()
+    scryfall_id = parse_scryfall_id(payload.scryfall_id)
+    quantity = parse_quantity(payload.quantity)
+    if quantity <= 0:
+        quantity = 1
+    if not name and not scryfall_id:
+        raise HTTPException(status_code=400, detail="Provide a card name or Scryfall ID")
+
+    row = CanonicalImportRow(
+        source="manual",
+        name=name,
+        quantity=quantity,
+        scryfall_id=scryfall_id,
+        original_row={"name": name, "quantity": quantity, "scryfall_id": scryfall_id},
+    )
+
+    try:
+        status, reason = await upsert_card(db, row)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("add_card upsert failed")
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}")
+
+    if status == "failed":
+        await db.rollback()
+        raise HTTPException(status_code=404, detail=reason or "Card not found")
+
+    committed, commit_error = await commit_with_retry(db)
+    if not committed:
+        raise HTTPException(status_code=500, detail=commit_error or "Commit failed")
+
+    label = name or scryfall_id or "card"
+    return {"status": status, "name": label, "quantity": quantity}
 
 
 @router.delete("/{card_id}")

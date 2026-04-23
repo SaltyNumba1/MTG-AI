@@ -12,6 +12,7 @@ from sqlalchemy import select
 from database import get_db
 from models import Card
 from services.deck_engine import generate_deck
+from services.scryfall import fetch_card_by_name, extract_card_fields
 
 router = APIRouter(prefix="/deck", tags=["deck"])
 
@@ -20,6 +21,7 @@ class DeckRequest(BaseModel):
     prompt: str
     commander_name: str
     keyword_filters: list[str] = []
+    must_include_cards: list[str] = []
     basic_land_count: int = 25
     nonbasic_land_count: int = 12
     strict_mode: bool = False
@@ -336,6 +338,30 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
         for c in cards
     ]
 
+    # Resolve must-include cards: keep collection-owned versions when present,
+    # otherwise fetch from Scryfall so the AI can include them anyway.
+    raw_must = [n.strip() for n in (getattr(req, "must_include_cards", None) or []) if isinstance(n, str) and n.strip()]
+    seen_must: set[str] = set()
+    must_include_names: list[str] = []
+    existing_names_lower = {c["name"].lower(): c["name"] for c in collection}
+    for name in raw_must:
+        key = name.lower()
+        if key in seen_must:
+            continue
+        seen_must.add(key)
+        if key in existing_names_lower:
+            must_include_names.append(existing_names_lower[key])
+            continue
+        data = await fetch_card_by_name(name)
+        if not data:
+            _append_thought(f"Must-include skipped (not found on Scryfall): {name}")
+            continue
+        fields = extract_card_fields(data)
+        fields["quantity"] = 1
+        collection.append(fields)
+        must_include_names.append(fields["name"])
+        _append_thought(f"Must-include resolved from Scryfall: {fields['name']}")
+
     try:
         _set_build_status(phase="building")
         _append_thought("Applying commander legality and color identity filters")
@@ -348,6 +374,7 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
                 commander_name=req.commander_name,
                 collection=collection,
                 keyword_filters=getattr(req, "keyword_filters", []),
+                must_include_cards=must_include_names,
                 basic_land_count=getattr(req, "basic_land_count", 37),
                 nonbasic_land_count=getattr(req, "nonbasic_land_count", 5),
                 strict_mode=getattr(req, "strict_mode", False),

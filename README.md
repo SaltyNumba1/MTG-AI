@@ -1,1 +1,64 @@
 # MTG-AI
+
+A desktop app for managing your Magic: The Gathering collection and building Commander decks with the help of a local LLM. FastAPI backend + React/Vite frontend, packaged as an Electron app for Windows.
+
+## Features
+
+- **Collection management** – Import CSV exports from Moxfield, Archidekt, and ManaBox. Bulk select, edit quantities, delete, and back up the database.
+- **Add single cards** – Add individual cards by name (with quantity) directly from the Collection page; metadata is fetched from Scryfall automatically.
+- **AI deck builder** – Pick a commander, write a strategy prompt, and generate a 100-card Commander deck driven by a local LLM. Keyword filters help guide AI synergy.
+- **Must-Include Cards** – Force the AI to include specific cards (even ones you don't own) by listing them in the new "Must Include Cards" textbox on the Build Deck page. Cards are fetched from Scryfall and counted against the appropriate land/non-land budget.
+- **Saved decks** – Save generated decks to "My Decks", view stats (mana curve, color distribution, suggested basics), export decklists as TXT (Moxfield-friendly with commander marker), and run AI suggestions on existing decks.
+- **Manual decks** – Build decks by selecting cards from your collection and saving them directly to My Decks.
+
+## What's New (v1.0.6)
+
+- ➕ Add single cards to your collection from the Collection page.
+- 🎯 New "Must Include Cards" textbox on the Build Deck page – wrap card names in double quotes, one or many per line. Lands among them count toward the nonbasic land target.
+- 🐛 Fixed deck generation failure when must-include cards weren't owned (`fetch_card_by_name` import was missing).
+- 🎨 Refactored inline styles out of `CardPreview`, `DeckBuilder`, `MyDecks`, and `Help` into dedicated CSS files.
+
+## Project Structure
+
+```
+mtg-collection/
+  backend/      FastAPI service (routes, services, scryfall client, deck engine)
+  frontend/     React + Vite app + Electron wrapper
+```
+
+## Running in development
+
+```powershell
+# Backend
+cd mtg-collection\backend
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload
+
+# Frontend
+cd mtg-collection\frontend
+npm install
+npm run dev
+```
+
+## Building the desktop app
+
+```powershell
+# 1. Build the standalone backend exe (PyInstaller)
+cd mtg-collection\backend
+.\package_standalone.bat
+
+# 2. Package the Electron app (electron-packager)
+cd ..\frontend
+npm run desktop:package
+```
+
+Output: `mtg-collection/frontend/release/MTG Collection-win32-x64/MTG Collection.exe`
+
+> Note: `npm run desktop:build` (electron-builder) requires Developer Mode / admin to extract `winCodeSign` symlinks. Use `desktop:package` unless you specifically need an installer.
+
+## Tips
+
+- **Must Include Cards format**: `"Sol Ring" "Arcane Signet" "Command Tower"` – each name in double quotes, separated by spaces or newlines.
+- **Stuck deck build**: if the model hangs, a "Force Reset Model" button appears after 45 seconds.
+- **Logs**: `mtg-collection/backend/dist/llm_deckbuilder.log` (runs from the packaged exe's CWD).

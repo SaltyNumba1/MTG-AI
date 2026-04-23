@@ -629,6 +629,7 @@ def build_deck_with_llm(
     commander: dict,
     candidates: list[dict],
     keyword_filters: Optional[list[str]] = None,
+    must_include_cards: Optional[list[dict]] = None,
     basic_land_count: int = 37,
     nonbasic_land_count: int = 5,
     strict_mode: bool = False,
@@ -724,13 +725,20 @@ def build_deck_with_llm(
         f"\nTarget deck composition: {max(0, 99 - min(99, basic_land_count + nonbasic_land_count))} non-lands, "
         f"{max(0, nonbasic_land_count)} nonbasic lands, {max(0, basic_land_count)} basic lands."
     )
+    must_include_names = [c["name"] for c in (must_include_cards or [])]
+    must_include_text = ""
+    if must_include_names:
+        must_include_text = (
+            "\nThese cards MUST be included in your selection (they will be force-added if you skip them): "
+            + ", ".join(must_include_names)
+        )
     current_deck_text = ""
     if current_deck:
         current_deck_text = "\nCurrent deck:\n" + "\n".join(f"- {c.get('name', '')}" for c in current_deck)
     user_message = (
         f"Commander: {commander['name']} "
         f"(Color identity: {', '.join(commander.get('color_identity', []))})\n"
-        f"Request: {prompt}{synergy_text}{deck_shape_text}\n"
+        f"Request: {prompt}{synergy_text}{deck_shape_text}{must_include_text}\n"
         f"{current_deck_text}\n"
         f"Available cards:\n{card_list_text}"
     )
@@ -875,6 +883,40 @@ def build_deck_with_llm(
         commander_identity,
     )
 
+    # Enforce must-include cards: swap into the final 99 if missing.
+    if must_include_cards:
+        must_lower = {m["name"].lower() for m in must_include_cards}
+        present = {c["name"].lower() for c in selected}
+        missing = [m for m in must_include_cards if m["name"].lower() not in present]
+        for m in missing:
+            m_is_land = is_land(m)
+            replaced = False
+            for i in range(len(selected) - 1, -1, -1):
+                sc = selected[i]
+                if sc["name"].lower() in must_lower:
+                    continue
+                if is_land(sc) == m_is_land:
+                    if progress_callback:
+                        progress_callback(f"Forced must-include: swapped '{sc['name']}' for '{m['name']}'")
+                    selected[i] = m
+                    replaced = True
+                    break
+            if not replaced:
+                if progress_callback:
+                    progress_callback(f"Forced must-include appended: '{m['name']}'")
+                selected.append(m)
+        if len(selected) > 99:
+            # Trim non-must extras from the end first
+            trimmed = []
+            for c in selected:
+                trimmed.append(c)
+            i = len(trimmed) - 1
+            while len(trimmed) > 99 and i >= 0:
+                if trimmed[i]["name"].lower() not in must_lower:
+                    trimmed.pop(i)
+                i -= 1
+            selected = trimmed[:99]
+
     if progress_callback and len(selected) < 99:
         progress_callback("Deck had insufficient candidates after recovery; padded with available basics")
 
@@ -893,6 +935,7 @@ def generate_deck(
     commander_name: str,
     collection: list[dict],
     keyword_filters: Optional[list[str]] = None,
+    must_include_cards: Optional[list[str]] = None,
     basic_land_count: int = 37,
     nonbasic_land_count: int = 5,
     strict_mode: bool = False,
@@ -920,6 +963,26 @@ def generate_deck(
 
     candidates = rule_based_filter(collection, identity, commander["id"])
 
+    # Resolve must-include card dicts and force them into the candidate pool
+    # even if they were filtered out by color identity / legality.
+    must_dicts: list[dict] = []
+    if must_include_cards:
+        wanted = {n.lower() for n in must_include_cards if isinstance(n, str) and n.strip()}
+        if wanted:
+            candidate_names = {c["name"].lower() for c in candidates}
+            for card in collection:
+                key = card["name"].lower()
+                if key in wanted and key != commander["name"].lower():
+                    must_dicts.append(card)
+                    if key not in candidate_names:
+                        candidates.append(card)
+                        candidate_names.add(key)
+            if progress_callback and must_dicts:
+                progress_callback(
+                    f"Forcing {len(must_dicts)} must-include card(s) into deck: "
+                    + ", ".join(c["name"] for c in must_dicts)
+                )
+
     if len(candidates) < 20:
         raise ValueError(
             f"Not enough legal cards in your collection for a {commander['name']} deck. "
@@ -931,6 +994,7 @@ def generate_deck(
         commander,
         candidates,
         keyword_filters=keyword_filters,
+        must_include_cards=must_dicts,
         basic_land_count=basic_land_count,
         nonbasic_land_count=nonbasic_land_count,
         strict_mode=strict_mode,

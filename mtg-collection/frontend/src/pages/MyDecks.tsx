@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
+import "./MyDecks.css";
 
 interface SavedDeckSummary {
   file: string;
@@ -135,12 +136,12 @@ export default function MyDecks() {
 
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+      <div className="my-decks-toolbar">
         <select
           aria-label="Saved deck selection"
           value={selectedFile}
           onChange={(e) => setSelectedFile(e.target.value)}
-          style={{ minWidth: 320 }}
+          className="my-decks-select"
         >
           <option value="">Select a saved deck</option>
           {decks.map((deck) => (
@@ -159,18 +160,18 @@ export default function MyDecks() {
         <div className="alert alert-info">Select a saved deck to view details.</div>
       ) : (
         <div>
-          <div style={{ marginBottom: 16 }}>
-            <h2 style={{ color: "#c4b5fd", marginBottom: 6 }}>{detail.name}</h2>
-            <small style={{ color: "#94a3b8" }}>
+          <div className="my-decks-meta">
+            <h2>{detail.name}</h2>
+            <small>
               Saved: {detail.saved_at || "Unknown"} | Cards: {detail.card_count}
             </small>
-            <p style={{ color: "#cbd5e1", marginTop: 10, marginBottom: 12 }}>{detail.description}</p>
+            <p>{detail.description}</p>
             {detail.prompt && (
-              <small style={{ color: "#94a3b8" }}>Prompt: {detail.prompt}</small>
+              <small>Prompt: {detail.prompt}</small>
             )}
           </div>
 
-          <div style={{ marginBottom: 18, maxWidth: 260 }}>
+          <div className="my-decks-commander-card">
             <CardPreview
               name={detail.commander.name}
               imageUri={detail.commander.image_uri}
@@ -191,7 +192,7 @@ export default function MyDecks() {
             ))}
           </div>
 
-          <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
+          <div className="my-decks-actions">
             <button className="btn-secondary" onClick={exportDecklist}>
               Export Decklist (.txt)
             </button>
@@ -202,13 +203,13 @@ export default function MyDecks() {
 
           {/* Analyze Modal */}
           {showAnalyze && (
-            <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ background: "#1e293b", padding: 24, borderRadius: 8, minWidth: 340, maxWidth: 540 }}>
-                <h2 style={{ marginBottom: 12 }}>AI Suggestions</h2>
-                <div style={{ minHeight: 80, color: "#f1f5f9" }}>
+            <div className="my-decks-modal-overlay">
+              <div className="my-decks-modal">
+                <h2>AI Suggestions</h2>
+                <div className="my-decks-modal-body">
                   {analyzeResult || (analyzeLoading ? "Analyzing..." : "No suggestions yet.")}
                 </div>
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+                <div className="my-decks-modal-footer">
                   <button className="btn-secondary" onClick={() => setShowAnalyze(false)} disabled={analyzeLoading}>Close</button>
                 </div>
               </div>

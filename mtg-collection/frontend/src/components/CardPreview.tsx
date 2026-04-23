@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+import "./CardPreview.css";
 
 interface CardPreviewProps {
   name: string;
@@ -55,47 +56,23 @@ export default function CardPreview({
             <button
               onClick={() => { setFlipped((f) => !f); }}
               title={flipped ? "Show front face" : "Show back/transform face"}
-              style={{
-                position: "absolute",
-                bottom: 6,
-                right: 6,
-                background: "rgba(15,23,42,0.85)",
-                border: "1px solid #475569",
-                borderRadius: 4,
-                color: "#c4b5fd",
-                cursor: "pointer",
-                fontSize: 14,
-                lineHeight: 1,
-                padding: "3px 6px",
-              }}
+              className="card-rotate-btn"
             >
               {flipped ? "▶" : "🔄"}
             </button>
           )}
         </div>
       ) : (
-        <div
-          style={{
-            height: 120,
-            background: "#0f172a",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-            color: "#64748b",
-          }}
-        >
-          No image
-        </div>
+        <div className="card-no-image">No image</div>
       )}
       <div className="card-info">
         <div className="card-name">{name}</div>
-        {subtitle && <div style={{ color: "#94a3b8", fontSize: 11, marginBottom: 4 }}>{subtitle}</div>}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <span style={{ color: "#86efac", fontSize: 11 }}>{formatPrice(tcgplayerPrice)}</span>
+        {subtitle && <div className="card-subtitle">{subtitle}</div>}
+        <div className="card-meta-row">
+          <span className="card-price">{formatPrice(tcgplayerPrice)}</span>
           {typeof quantity === "number" && <span className="card-qty">x{quantity}</span>}
         </div>
-        <small style={{ color: "#64748b", display: "block", marginBottom: 6 }}>Hover to preview</small>
+        <small className="card-hint">Hover to preview</small>
         {children}
       </div>
       {displayUri && (

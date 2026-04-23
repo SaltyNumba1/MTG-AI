@@ -1,0 +1,78 @@
+.my-decks-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.my-decks-select {
+  min-width: 320px;
+}
+
+.my-decks-meta {
+  margin-bottom: 16px;
+}
+
+.my-decks-meta h2 {
+  color: #c4b5fd;
+  margin-bottom: 6px;
+}
+
+.my-decks-meta small {
+  color: #94a3b8;
+}
+
+.my-decks-meta p {
+  color: #cbd5e1;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.my-decks-commander-card {
+  margin-bottom: 18px;
+  max-width: 260px;
+}
+
+.my-decks-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 10px;
+}
+
+.my-decks-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.my-decks-modal {
+  background: #1e293b;
+  padding: 24px;
+  border-radius: 8px;
+  min-width: 340px;
+  max-width: 540px;
+}
+
+.my-decks-modal h2 {
+  margin-bottom: 12px;
+}
+
+.my-decks-modal-body {
+  min-height: 80px;
+  color: #f1f5f9;
+}
+
+.my-decks-modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

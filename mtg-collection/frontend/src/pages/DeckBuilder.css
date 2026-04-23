@@ -1,0 +1,203 @@
+.deckbuilder-form {
+  display: grid;
+  gap: 16px;
+  max-width: 900px;
+  margin-bottom: 24px;
+}
+
+.deckbuilder-filters-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.deckbuilder-filters-col {
+  flex: 1 1 360px;
+  min-width: 320px;
+}
+
+.deckbuilder-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.deckbuilder-keyword-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.deckbuilder-keyword-select {
+  flex: 1;
+  margin-right: 8px;
+}
+
+.deckbuilder-keyword-remove {
+  margin-right: 4px;
+}
+
+.deckbuilder-keyword-add {
+  font-weight: 700;
+}
+
+.deckbuilder-hint {
+  color: #64748b;
+}
+
+.deckbuilder-must-include {
+  width: 100%;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.deckbuilder-lands-row {
+  display: flex;
+  gap: 16px;
+}
+
+.deckbuilder-land-input {
+  width: 60px;
+}
+
+.deckbuilder-generate-btn {
+  width: fit-content;
+}
+
+.deckbuilder-reset-btn {
+  width: fit-content;
+  background-color: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.deckbuilder-reset-btn:disabled {
+  cursor: not-allowed;
+}
+
+.deckbuilder-build-progress {
+  margin-bottom: 16px;
+}
+
+.deckbuilder-build-progress-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.deckbuilder-build-progress-msg {
+  display: block;
+  margin-bottom: 8px;
+  color: #cbd5e1;
+}
+
+.deckbuilder-thoughts {
+  display: grid;
+  gap: 4px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+
+.deckbuilder-thought {
+  color: #a5b4fc;
+}
+
+.deckbuilder-result-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.deckbuilder-result-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #a78bfa;
+  margin-bottom: 8px;
+}
+
+.deckbuilder-result-desc {
+  color: #94a3b8;
+  margin-bottom: 12px;
+  max-width: 500px;
+}
+
+.deckbuilder-result-cost {
+  color: #a7f3d0;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.deckbuilder-save-btn {
+  margin-left: 8px;
+}
+
+.deckbuilder-stats-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-bottom: 24px;
+}
+
+.deckbuilder-stats-card {
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  background: #16213e;
+}
+
+.deckbuilder-stats-heading {
+  font-size: 15px;
+  color: #c4b5fd;
+  margin-bottom: 10px;
+}
+
+.deckbuilder-stats-item {
+  display: grid;
+  grid-template-columns: 30px 1fr 26px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.deckbuilder-stats-label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.deckbuilder-stats-bar-bg {
+  height: 10px;
+  border-radius: 999px;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.deckbuilder-stats-count {
+  font-size: 12px;
+  color: #e2e8f0;
+  text-align: right;
+}
+
+.deckbuilder-basics-list {
+  display: grid;
+  gap: 6px;
+}
+
+.deckbuilder-basics-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.deckbuilder-type-group {
+  margin-bottom: 24px;
+}
