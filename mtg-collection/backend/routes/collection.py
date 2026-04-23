@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sqlite3
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -708,7 +709,26 @@ async def create_backup():
     stamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     backup_name = f"mtg_collection-{stamp}.db"
     backup_path = backup_dir / backup_name
-    shutil.copy2(db_path, backup_path)
+
+    # Use SQLite online backup API so active WAL pages are included.
+    src_conn = None
+    dst_conn = None
+    try:
+        src_conn = sqlite3.connect(str(db_path))
+        dst_conn = sqlite3.connect(str(backup_path))
+        with dst_conn:
+            src_conn.backup(dst_conn)
+    except sqlite3.Error as exc:
+        raise HTTPException(status_code=500, detail=f"Backup failed: {exc}") from exc
+    finally:
+        try:
+            src_conn.close()
+        except Exception:
+            pass
+        try:
+            dst_conn.close()
+        except Exception:
+            pass
 
     return {"filename": backup_name, "path": str(backup_path)}
 

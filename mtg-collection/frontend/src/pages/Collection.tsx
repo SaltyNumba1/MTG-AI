@@ -58,6 +58,14 @@ interface BackupEntry {
   modified_at: string;
 }
 
+interface ManualDeckSavePayload {
+  name: string;
+  prompt: string;
+  commander: Partial<CardEntry>;
+  deck: Partial<CardEntry>[];
+  description: string;
+}
+
 const COLOR_SYMBOLS: Record<string, string> = {
   W: "☀️", U: "💧", B: "💀", R: "🔥", G: "🌲",
 };
@@ -65,16 +73,24 @@ const COLOR_SYMBOLS: Record<string, string> = {
 export default function Collection() {
   const [showImportDeck, setShowImportDeck] = useState(false);
   const [decklistText, setDecklistText] = useState("");
+  const [deckNameInput, setDeckNameInput] = useState("");
   const [deckImporting, setDeckImporting] = useState(false);
   const [deckImportMessage, setDeckImportMessage] = useState<string | null>(null);
+  const [showManualSaveDeck, setShowManualSaveDeck] = useState(false);
+  const [manualDeckName, setManualDeckName] = useState("");
+  const [manualCommanderId, setManualCommanderId] = useState("");
+  const [manualSaving, setManualSaving] = useState(false);
   const handleImportDeck = async () => {
     setDeckImporting(true);
     setDeckImportMessage(null);
     try {
-      // TODO: Call backend endpoint to import decklist
-      // Example: await api.post("/deck/import", { decklist: decklistText });
-      setDeckImportMessage("Deck import submitted (backend integration needed)");
+      await api.post("/deck/import-deck", {
+        decklist: decklistText,
+        deck_name: deckNameInput.trim() || undefined,
+      });
+      setDeckImportMessage("Deck imported and saved to My Decks");
       setDecklistText("");
+      setDeckNameInput("");
       setShowImportDeck(false);
     } catch (err: any) {
       setDeckImportMessage(err.response?.data?.detail || "Deck import failed");
@@ -354,6 +370,7 @@ export default function Collection() {
   };
 
   const colorOptions: { code: string; label: string }[] = [
+    { code: "C", label: "◇ Colorless" },
     { code: "W", label: "⚪ White" },
     { code: "U", label: "💧 Blue" },
     { code: "B", label: "💀 Black" },
@@ -384,7 +401,11 @@ export default function Collection() {
     const normalizedSearch = search.trim().toLowerCase();
     const rows = cards.filter((c) => {
       if (normalizedSearch && !c.name.toLowerCase().includes(normalizedSearch)) return false;
-      if (colorFilter !== "all" && !(c.color_identity || []).includes(colorFilter)) return false;
+      if (colorFilter === "C") {
+        if ((c.colors || []).length > 0) return false;
+      } else if (colorFilter !== "all" && !(c.color_identity || []).includes(colorFilter)) {
+        return false;
+      }
       if (typeFilter !== "all") {
         const rootType = (c.type_line || "").split("—")[0].trim();
         if (rootType !== typeFilter) return false;
@@ -407,6 +428,63 @@ export default function Collection() {
 
   const selectedCount = selectedIds.size;
   const totalCardCount = cards.reduce((acc, card) => acc + (card.quantity || 0), 0);
+  const selectedCards = cards.filter((card) => selectedIds.has(card.id));
+  const selectedCommanderCandidates = selectedCards.filter((card) => {
+    const typeLine = (card.type_line || "").toLowerCase();
+    return typeLine.includes("legendary") && typeLine.includes("creature");
+  });
+
+  const openManualSaveModal = () => {
+    if (selectedCards.length === 0) {
+      setMessage({ type: "error", text: "Select cards first to save a manual deck" });
+      return;
+    }
+    const fallbackCommander = selectedCommanderCandidates[0] || selectedCards[0];
+    setManualCommanderId(fallbackCommander?.id || "");
+    setManualDeckName(fallbackCommander?.name ? `${fallbackCommander.name} Manual Deck` : "Manual Deck");
+    setShowManualSaveDeck(true);
+  };
+
+  const saveManualDeck = async () => {
+    const commander = selectedCards.find((card) => card.id === manualCommanderId);
+    if (!commander) {
+      setMessage({ type: "error", text: "Choose a commander for this manual deck" });
+      return;
+    }
+
+    const deckCards = selectedCards
+      .filter((card) => card.id !== commander.id)
+      .map((card) => ({
+        name: card.name,
+        image_uri: card.image_uri,
+        type_line: card.type_line,
+        tcgplayer_price: card.tcgplayer_price,
+      }));
+
+    const payload: ManualDeckSavePayload = {
+      name: (manualDeckName || `${commander.name} Manual Deck`).trim(),
+      prompt: "Manual deck built from selected collection cards",
+      commander: {
+        name: commander.name,
+        image_uri: commander.image_uri,
+        type_line: commander.type_line,
+        tcgplayer_price: commander.tcgplayer_price,
+      },
+      deck: deckCards,
+      description: `Manual deck saved from collection selection (${deckCards.length + 1} cards).`,
+    };
+
+    setManualSaving(true);
+    try {
+      await api.post("/deck/save", payload);
+      setShowManualSaveDeck(false);
+      setMessage({ type: "success", text: "Manual deck saved to My Decks" });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.response?.data?.detail || "Failed to save manual deck" });
+    } finally {
+      setManualSaving(false);
+    }
+  };
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
@@ -528,6 +606,14 @@ export default function Collection() {
               placeholder={"Paste your decklist here (one card per line, e.g. '1 Sol Ring')"}
               disabled={deckImporting}
             />
+            <input
+              className="collection-search"
+              style={{ marginTop: 10 }}
+              value={deckNameInput}
+              onChange={(e) => setDeckNameInput(e.target.value)}
+              placeholder="Optional deck name (saved in My Decks)"
+              disabled={deckImporting}
+            />
             <div className="collection-modal-footer">
               <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(false)} disabled={deckImporting}>Cancel</button>
               <button className="btn-primary" type="button" onClick={handleImportDeck} disabled={deckImporting || !decklistText.trim()}>
@@ -548,6 +634,9 @@ export default function Collection() {
         <span style={{ color: "#94a3b8", fontSize: 13 }}>Selected: {selectedCount}</span>
         <button className="btn-danger" type="button" disabled={selectedCount === 0} onClick={handleBulkDelete}>
           Bulk Delete
+        </button>
+        <button className="btn-primary" type="button" disabled={selectedCount === 0} onClick={openManualSaveModal}>
+          Save Selected as Deck
         </button>
         <select aria-label="Bulk quantity action" title="Bulk quantity action" value={bulkAction} onChange={(e) => setBulkAction(e.target.value as "set" | "adjust")} className="collection-bulk-action">
           <option value="adjust">Adjust Qty</option>
@@ -600,6 +689,43 @@ export default function Collection() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="btn-primary" onClick={retryFailed} disabled={importing}>Retry Failed Only</button>
             <button className="btn-secondary" onClick={downloadFailedCsv}>Download Failed CSV</button>
+          </div>
+        </div>
+      )}
+
+      {showManualSaveDeck && (
+        <div className="collection-modal-overlay">
+          <div className="collection-modal">
+            <h2 className="collection-modal-title">Save Manual Deck</h2>
+            <input
+              className="collection-search"
+              value={manualDeckName}
+              onChange={(e) => setManualDeckName(e.target.value)}
+              placeholder="Deck name"
+              disabled={manualSaving}
+            />
+            <select
+              aria-label="Manual deck commander"
+              title="Manual deck commander"
+              className="collection-filter"
+              value={manualCommanderId}
+              onChange={(e) => setManualCommanderId(e.target.value)}
+              disabled={manualSaving}
+              style={{ marginTop: 10, width: "100%" }}
+            >
+              {selectedCards.map((card) => (
+                <option key={card.id} value={card.id}>{card.name}</option>
+              ))}
+            </select>
+            <small style={{ color: "#94a3b8", marginTop: 8, display: "block" }}>
+              Tip: select a legendary creature as commander.
+            </small>
+            <div className="collection-modal-footer">
+              <button className="btn-secondary" type="button" onClick={() => setShowManualSaveDeck(false)} disabled={manualSaving}>Cancel</button>
+              <button className="btn-primary" type="button" onClick={saveManualDeck} disabled={manualSaving || !manualCommanderId}>
+                {manualSaving ? "Saving..." : "Save to My Decks"}
+              </button>
+            </div>
           </div>
         </div>
       )}

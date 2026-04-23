@@ -118,8 +118,8 @@ export default function DeckBuilder() {
   const [commanders, setCommanders] = useState<Commander[]>([]);
   const [selectedCommander, setSelectedCommander] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [basicLandCount, setBasicLandCount] = useState(37);
-  const [nonbasicLandCount, setNonbasicLandCount] = useState(5);
+  const [basicLandCount, setBasicLandCount] = useState(25);
+  const [nonbasicLandCount, setNonbasicLandCount] = useState(12);
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<DeckResult | null>(null);
@@ -226,17 +226,10 @@ export default function DeckBuilder() {
 
   const exportDecklist = () => {
     if (!result) return;
-    // Group cards by type
-    const groups = groupByType(result.deck);
-    const sortedTypes = Object.keys(groups).sort((a, b) => a.localeCompare(b));
     const lines = [
-      `1 ${result.commander.name}`,
+      `1 ${result.commander.name} *CMDR*`,
       "",
-      ...sortedTypes.flatMap((type) => [
-        `// ${type} (${groups[type].length})`,
-        ...groups[type].map((c) => `1 ${c.name}`),
-        ""
-      ]),
+      ...result.deck.map((card) => `1 ${card.name}`),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -303,11 +296,17 @@ export default function DeckBuilder() {
   const groups = result ? groupByType(result.deck) : {};
   const curve = result ? manaCurve(result.deck) : null;
   const colors = result ? colorDistribution(result.deck) : null;
-  const basics = colors ? suggestBasics(colors, 37) : [];
+  const basics = colors ? suggestBasics(colors, basicLandCount) : [];
   const curveMax = curve ? Math.max(...Object.values(curve), 1) : 1;
   const colorMax = colors ? Math.max(...Object.values(colors), 1) : 1;
   const totalGeneratedCount = result ? result.deck.length + 1 : 0;
   const missingCount = Math.max(0, 100 - totalGeneratedCount);
+  const estimatedCost = result
+    ? [result.commander, ...result.deck].reduce((sum, card) => {
+        const value = Number(card?.tcgplayer_price || 0);
+        return Number.isFinite(value) ? sum + value : sum;
+      }, 0)
+    : 0;
 
   return (
     <div className="page">
@@ -492,6 +491,9 @@ export default function DeckBuilder() {
                 Total Cards: {totalGeneratedCount}/100
                 {missingCount > 0 ? ` (${missingCount} missing)` : " (complete)"}
               </div>
+              <div style={{ color: "#a7f3d0", marginBottom: 10, fontSize: 13 }}>
+                Estimated Deck Cost (TCG low): ${estimatedCost.toFixed(2)}
+              </div>
               <button className="btn-secondary" onClick={exportDecklist}>
                 Export Decklist (.txt)
               </button>
@@ -546,7 +548,7 @@ export default function DeckBuilder() {
             </div>
 
             <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#16213e" }}>
-              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Suggested Basic Lands (37)</h3>
+              <h3 style={{ fontSize: 15, color: "#c4b5fd", marginBottom: 10 }}>Suggested Basic Lands ({basicLandCount})</h3>
               <div style={{ display: "grid", gap: 6 }}>
                 {basics.map((b) => (
                   <div key={b.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>

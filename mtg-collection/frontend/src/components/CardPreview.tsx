@@ -33,35 +33,27 @@ export default function CardPreview({
   tcgplayerPrice,
   children,
 }: CardPreviewProps) {
-  const [zoom, setZoom] = useState(1);
   const [flipped, setFlipped] = useState(false);
 
   const backUri = useMemo(() => getBackFaceUri(imageUri), [imageUri]);
   const displayUri = flipped && backUri ? backUri : imageUri;
-  const zoomHint = useMemo(() => (zoom > 1 ? `Zoom ${zoom.toFixed(1)}x` : "Alt + Scroll to zoom"), [zoom]);
+  const canRotate = useMemo(() => name.includes("//") && Boolean(backUri), [name, backUri]);
 
   return (
     <div className="mtg-card">
       {displayUri ? (
         <div
           className="card-image-shell"
-          onWheel={(e) => {
-            if (!e.altKey) return;
-            e.preventDefault();
-            const delta = e.deltaY < 0 ? 0.1 : -0.1;
-            setZoom((z) => Math.max(1, Math.min(2.5, Number((z + delta).toFixed(2)))));
-          }}
-          title="Hold Alt and use scroll wheel to zoom card image"
+          title={canRotate ? "Use rotate for back face or hover to pop out" : "Hover to pop out"}
         >
           <img
             src={displayUri}
             alt={flipped ? `${name} (back face)` : name}
             loading="lazy"
-            style={zoom > 1 ? { transform: `scale(${zoom})` } : undefined}
           />
-          {backUri && (
+          {canRotate && (
             <button
-              onClick={() => { setFlipped((f) => !f); setZoom(1); }}
+              onClick={() => { setFlipped((f) => !f); }}
               title={flipped ? "Show front face" : "Show back/transform face"}
               style={{
                 position: "absolute",
@@ -103,7 +95,7 @@ export default function CardPreview({
           <span style={{ color: "#86efac", fontSize: 11 }}>{formatPrice(tcgplayerPrice)}</span>
           {typeof quantity === "number" && <span className="card-qty">x{quantity}</span>}
         </div>
-        <small style={{ color: "#64748b", display: "block", marginBottom: 6 }}>{zoomHint}</small>
+        <small style={{ color: "#64748b", display: "block", marginBottom: 6 }}>Hover to preview</small>
         {children}
       </div>
       {displayUri && (

@@ -20,13 +20,14 @@ class DeckRequest(BaseModel):
     prompt: str
     commander_name: str
     keyword_filters: list[str] = []
-    basic_land_count: int = 37
-    nonbasic_land_count: int = 5
+    basic_land_count: int = 25
+    nonbasic_land_count: int = 12
     strict_mode: bool = False
 
 
 class ImportDeckRequest(BaseModel):
     decklist: str
+    deck_name: str | None = None
 
 
 class AnalyzeDeckRequest(BaseModel):
@@ -42,36 +43,77 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
     if not lines:
         raise HTTPException(status_code=400, detail="Decklist is empty.")
 
-    # Parse decklist: expect lines like '1 Sol Ring' or just 'Sol Ring'
-    import re
-    deck_entries = []
-    commander_name = None
-    for idx, line in enumerate(lines):
-        m = re.match(r"(\d+)\s+(.+)", line)
+    # Parse decklist lines from common text formats (Moxfield/Archidekt/manual).
+    section = "deck"
+    deck_entries: list[dict] = []
+    commander_name: str | None = None
+
+    def _clean_name(raw_name: str) -> str:
+        cleaned = raw_name.strip()
+        cleaned = re.sub(r"\*CMDR\*", "", cleaned, flags=re.IGNORECASE).strip()
+        return cleaned
+
+    for line in lines:
+        lowered = line.lower().strip()
+        if lowered in {"commander", "command zone"}:
+            section = "commander"
+            continue
+        if lowered in {"deck", "mainboard", "main"}:
+            section = "deck"
+            continue
+        if lowered in {"sideboard", "side", "maybeboard", "maybeboard:"}:
+            section = "sideboard"
+            continue
+        if line.startswith("//") or line.startswith("#"):
+            continue
+
+        m = re.match(r"^(\d+)\s*x?\s+(.+)$", line, flags=re.IGNORECASE)
         if m:
-            qty, name = int(m.group(1)), m.group(2).strip()
+            qty, name = int(m.group(1)), _clean_name(m.group(2))
         else:
-            qty, name = 1, line
-        if idx == 0:
+            qty, name = 1, _clean_name(line)
+        if not name:
+            continue
+
+        is_commander_line = "*cmdr*" in line.lower()
+        if section == "commander" or is_commander_line or (commander_name is None and section != "sideboard"):
             commander_name = name
-        deck_entries.append({"name": name, "quantity": qty})
+            if section == "commander":
+                continue
+
+        if section != "sideboard":
+            deck_entries.append({"name": name, "quantity": max(1, qty)})
+
+    if not commander_name:
+        raise HTTPException(status_code=400, detail="Could not detect a commander from the decklist.")
 
     # Try to fetch card details for commander and deck cards
     result = await db.execute(select(Card))
     cards = result.scalars().all()
     card_lookup = {c.name.lower(): c for c in cards}
     commander = card_lookup.get(commander_name.lower()) if commander_name else None
+    if not commander and " // " in commander_name:
+        commander = card_lookup.get(commander_name.split(" // ")[0].strip().lower())
+
     deck_cards = []
     missing = []
-    for entry in deck_entries[1:]:
-        c = card_lookup.get(entry["name"].lower())
+    commander_consumed = False
+    for entry in deck_entries:
+        if not commander_consumed and entry["name"].lower() == commander_name.lower():
+            commander_consumed = True
+            continue
+        lookup_name = entry["name"].lower()
+        c = card_lookup.get(lookup_name)
+        if not c and " // " in entry["name"]:
+            c = card_lookup.get(entry["name"].split(" // ")[0].strip().lower())
         if c:
-            deck_cards.append({
-                "name": c.name,
-                "image_uri": c.image_uri,
-                "type_line": c.type_line,
-                "tcgplayer_price": c.tcgplayer_price,
-            })
+            for _ in range(max(1, int(entry.get("quantity", 1)))):
+                deck_cards.append({
+                    "name": c.name,
+                    "image_uri": c.image_uri,
+                    "type_line": c.type_line,
+                    "tcgplayer_price": c.tcgplayer_price,
+                })
         else:
             missing.append(entry["name"])
 
@@ -80,7 +122,7 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
 
     # Save deck (reuse save_deck logic)
     payload = DeckSaveRequest(
-        name=f"Imported Deck ({commander_name})",
+        name=(req.deck_name or f"Imported Deck ({commander_name})").strip(),
         prompt="Imported decklist",
         commander={
             "name": commander.name,
@@ -375,7 +417,7 @@ async def save_deck(payload: DeckSaveRequest):
     json_path = deck_dir / f"{base_filename}.json"
     txt_path = deck_dir / f"{base_filename}.txt"
 
-    card_lines = [f"1 {payload.commander.get('name', 'Unknown Commander')}", ""]
+    card_lines = [f"1 {payload.commander.get('name', 'Unknown Commander')} *CMDR*", ""]
     card_lines.extend([f"1 {c.get('name', 'Unknown Card')}" for c in payload.deck])
 
     payload_data = {

@@ -24,7 +24,8 @@ OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "900"))  # seconds
 OLLAMA_MAX_GENERATION_SEC = float(os.getenv("OLLAMA_MAX_GENERATION_SEC", "420"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "768"))
 ALLOW_LLM_TIMEOUT_FALLBACK = os.getenv("ALLOW_LLM_TIMEOUT_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
-MAX_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "320"))
+BASE_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "320"))
+KEYWORD_MODEL_CANDIDATE_CAP = 500
 MODEL_PROGRESS_HEARTBEAT_SEC = float(os.getenv("MODEL_PROGRESS_HEARTBEAT_SEC", "8"))
 COLOR_ORDER = ["W", "U", "B", "R", "G"]
 BASIC_NAME_TO_COLOR = {
@@ -666,9 +667,11 @@ def build_deck_with_llm(
         else:
             progress_callback("No keyword filters selected — using full candidate pool")
 
+    keyword_match_count = 0
     if scoring_keywords:
         keyword_matches = [c for c in all_candidates if _card_matches_keywords(c, scoring_keywords)]
         keyword_non_matches = [c for c in all_candidates if not _card_matches_keywords(c, scoring_keywords)]
+        keyword_match_count = len(keyword_matches)
         all_candidates = keyword_matches + keyword_non_matches
         if progress_callback:
             progress_callback(
@@ -676,10 +679,14 @@ def build_deck_with_llm(
             )
 
     model_candidates = all_candidates
-    if len(model_candidates) > MAX_MODEL_CANDIDATES:
-        non_land_target = int(MAX_MODEL_CANDIDATES * 0.75)
+    model_candidate_cap = min(KEYWORD_MODEL_CANDIDATE_CAP, max(1, BASE_MODEL_CANDIDATES))
+    if keyword_match_count > 0:
+        model_candidate_cap = min(KEYWORD_MODEL_CANDIDATE_CAP, max(model_candidate_cap, keyword_match_count))
+
+    if len(model_candidates) > model_candidate_cap:
+        non_land_target = int(model_candidate_cap * 0.75)
         chosen_non_lands = _round_robin_by_color(non_lands, commander_identity, non_land_target)
-        remaining = MAX_MODEL_CANDIDATES - len(chosen_non_lands)
+        remaining = model_candidate_cap - len(chosen_non_lands)
         chosen_lands = _round_robin_by_color(lands, commander_identity, max(0, remaining))
         model_candidates = chosen_non_lands + chosen_lands
         if progress_callback:

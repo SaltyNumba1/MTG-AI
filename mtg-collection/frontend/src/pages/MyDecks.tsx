@@ -34,12 +34,21 @@ export default function MyDecks() {
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
   const handleAnalyze = async () => {
+    if (!selectedFile) return;
     setAnalyzeLoading(true);
     setAnalyzeResult(null);
     try {
-      // TODO: Call backend endpoint to analyze deck and get suggestions
-      // Example: await api.post("/deck/analyze", { deck_file: selectedFile });
-      setAnalyzeResult("AI suggestions will appear here (backend integration needed)");
+      const { data } = await api.post("/deck/analyze-deck", { deck_file: selectedFile });
+      const description = data?.suggestions?.description || "No summary provided.";
+      const suggestedCards = Array.isArray(data?.suggestions?.deck)
+        ? data.suggestions.deck.map((card: any) => card?.name).filter(Boolean)
+        : [];
+      const preview = suggestedCards.slice(0, 15).join(", ");
+      setAnalyzeResult(
+        suggestedCards.length
+          ? `${description}\n\nSuggested cards (${suggestedCards.length}): ${preview}${suggestedCards.length > 15 ? "..." : ""}`
+          : description
+      );
     } catch (err: any) {
       setAnalyzeResult(err.response?.data?.detail || "Analysis failed");
     } finally {
@@ -92,21 +101,10 @@ export default function MyDecks() {
 
   const exportDecklist = () => {
     if (!detail) return;
-    const groups: Record<string, CardEntry[]> = {};
-    for (const card of detail.deck) {
-      const type = card.type_line?.split("—")[0].trim() || "Other";
-      if (!groups[type]) groups[type] = [];
-      groups[type].push(card);
-    }
-    const sortedTypes = Object.keys(groups).sort((a, b) => a.localeCompare(b));
     const lines = [
-      `1 ${detail.commander.name}`,
+      `1 ${detail.commander.name} *CMDR*`,
       "",
-      ...sortedTypes.flatMap((type) => [
-        `// ${type} (${groups[type].length})`,
-        ...groups[type].map((c) => `1 ${c.name}`),
-        "",
-      ]),
+      ...detail.deck.map((card) => `1 ${card.name}`),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
