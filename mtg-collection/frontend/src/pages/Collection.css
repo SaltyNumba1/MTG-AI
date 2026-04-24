@@ -174,3 +174,50 @@
 .collection-db-backup-select {
   min-width: 280px;
 }
+
+.collection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.collection-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.collection-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0 12px 0;
+  padding: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.import-progress-circular {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.import-progress-circular-wrap {
+  flex: 0 0 auto;
+}
+
+.import-progress-info-block {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

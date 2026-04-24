@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import sqlite3
 import shutil
 from datetime import datetime
@@ -76,6 +77,10 @@ class AddCardRequest(BaseModel):
     name: str = ""
     quantity: int = 1
     scryfall_id: str | None = None
+
+
+class ImportTextRequest(BaseModel):
+    text: str = ""
 
 
 def _set_import_status(**kwargs):
@@ -688,6 +693,58 @@ async def add_card(payload: AddCardRequest, db: AsyncSession = Depends(get_db)):
 
     label = name or scryfall_id or "card"
     return {"status": status, "name": label, "quantity": quantity}
+
+
+@router.post("/import-text")
+async def import_text(payload: ImportTextRequest, db: AsyncSession = Depends(get_db)):
+    """Add cards parsed from a decklist-style text blob to the existing collection.
+
+    Accepts lines like ``1x Sol Ring``, ``2 Lightning Bolt``, or just ``Sol Ring``.
+    Section headers (Commander/Deck/Sideboard) and comments are ignored. Cards are
+    upserted (existing quantities are incremented), not replaced.
+    """
+    raw = (payload.text or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Text is empty.")
+
+    rows: list[CanonicalImportRow] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        lowered = line.lower()
+        if lowered in {"commander", "command zone", "deck", "mainboard", "main", "sideboard", "side", "maybeboard", "maybeboard:"}:
+            continue
+        if line.startswith("//") or line.startswith("#"):
+            continue
+        m = re.match(r"^(\d+)\s*x?\s+(.+)$", line, flags=re.IGNORECASE)
+        if m:
+            qty, name = int(m.group(1)), m.group(2).strip()
+        else:
+            qty, name = 1, line
+        name = re.sub(r"\*CMDR\*", "", name, flags=re.IGNORECASE).strip()
+        name = re.sub(r"\([^)]*\)\s*\d*\s*$", "", name).strip()
+        if not name:
+            continue
+        rows.append(CanonicalImportRow(
+            source="text",
+            name=name,
+            quantity=max(1, qty),
+            original_row={"name": name, "quantity": qty},
+        ))
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No card entries found in text.")
+
+    results = await _import_rows(
+        db,
+        rows,
+        current_file="text-import",
+        start_message="Importing cards from text…",
+        cancel_message="Text import cancelled.",
+        completion_message=f"Imported cards from text ({len(rows)} entries).",
+    )
+    return results
 
 
 @router.delete("/{card_id}")

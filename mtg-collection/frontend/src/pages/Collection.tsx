@@ -125,6 +125,38 @@ export default function Collection() {
       setDeckImporting(false);
     }
   };
+
+  const [showImportText, setShowImportText] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importTextBusy, setImportTextBusy] = useState(false);
+  const [importTextMessage, setImportTextMessage] = useState<string | null>(null);
+  const handleImportTextSubmit = async () => {
+    const text = importText.trim();
+    if (!text) return;
+    setImportTextBusy(true);
+    setImportTextMessage(null);
+    try {
+      const { data } = await api.post("/collection/import-text", { text });
+      setMessage({
+        type: "success",
+        text: `Imported ${data?.imported ?? 0} new, updated ${data?.updated ?? 0} existing card(s) from text.`,
+      });
+      setImportText("");
+      setShowImportText(false);
+      await fetchCards();
+    } catch (err: any) {
+      setImportTextMessage(err.response?.data?.detail || "Text import failed");
+    } finally {
+      setImportTextBusy(false);
+    }
+  };
+  const handleImportTextFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const text = await f.text();
+    setImportText(text);
+    e.target.value = "";
+  };
   const [cards, setCards] = useState<CardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -540,87 +572,56 @@ export default function Collection() {
       <h1 className="page-title">My Collection ({cards.length} unique cards | {totalCardCount} total cards)</h1>
 
       <div className="collection-toolbar">
-        <input
-          className="collection-search"
-          placeholder="Search cards..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select aria-label="Color filter" title="Color filter" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)} className="collection-filter">
-          <option value="all">All Colors</option>
-          {colorOptions.map((c) => (
-            <option key={c.code} value={c.code}>{c.label}</option>
-          ))}
-        </select>
-        <select aria-label="Type filter" title="Type filter" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="collection-type-filter">
-          <option value="all">All Types</option>
-          {typeOptions.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-        <select aria-label="Rarity filter" title="Rarity filter" value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)} className="collection-rarity-filter">
-          <option value="all">All Rarity</option>
-          {rarityOptions.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
-        <select aria-label="Set filter" title="Set filter" value={setFilter} onChange={(e) => setSetFilter(e.target.value)} className="collection-set-filter">
-          <option value="all">All Sets</option>
-          {setOptions.map((s) => (
-            <option key={s} value={s}>{s.toUpperCase()}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Sort cards"
-          title="Sort cards"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as "name" | "quantity" | "cmc" | "recent")}
-          className="collection-sort"
-        >
-          <option value="name">Sort: Name</option>
-          <option value="quantity">Sort: Quantity</option>
-          <option value="cmc">Sort: CMC</option>
-          <option value="recent">Sort: Recently Imported</option>
-        </select>
-        <label className="collection-import-label">
-          <button
-            className="btn-primary"
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={importing || importStatus?.active}
-          >
-            {importing || importStatus?.active ? "Importing..." : "Import CSV"}
+        <div className="collection-toolbar-group" title="Add cards to your collection">
+          <button className="btn-primary" type="button" onClick={() => { setAddCardMessage(null); setShowAddCard(true); }}>
+            Add Card
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv"
-            className="collection-import-input"
-            onChange={handleImport}
-          />
-        </label>
-        <button
-          className="btn-secondary"
-          type="button"
-          onClick={cancelImport}
-          disabled={!importStatus?.active}
-        >
-          Cancel Import
-        </button>
-        <button
-          className="btn-danger"
-          type="button"
-          onClick={handleClearCollection}
-          disabled={cards.length === 0}
-        >
-          Delete Collection
-        </button>
-        <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(true)}>
-          Import Deck
-        </button>
-        <button className="btn-primary" type="button" onClick={() => { setAddCardMessage(null); setShowAddCard(true); }}>
-          Add Card
-        </button>
+          <label className="collection-import-label">
+            <button
+              className="btn-primary"
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={importing || importStatus?.active}
+            >
+              {importing || importStatus?.active ? "Importing..." : "Import CSV"}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv"
+              className="collection-import-input"
+              onChange={handleImport}
+            />
+          </label>
+          <button className="btn-primary" type="button" onClick={() => { setImportTextMessage(null); setShowImportText(true); }}>
+            Import Cards from Text
+          </button>
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={cancelImport}
+            disabled={!importStatus?.active}
+          >
+            Cancel Import
+          </button>
+        </div>
+
+        <div className="collection-toolbar-group" title="Decks">
+          <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(true)}>
+            Import Deck (saved to My Decks)
+          </button>
+        </div>
+
+        <div className="collection-toolbar-group" title="Danger zone">
+          <button
+            className="btn-danger"
+            type="button"
+            onClick={handleClearCollection}
+            disabled={cards.length === 0}
+          >
+            Delete Collection
+          </button>
+        </div>
       </div>
 
       {/* Add Card Modal */}
@@ -727,26 +728,88 @@ export default function Collection() {
       )}
 
       {importStatus && (importStatus.active || importStatus.total > 0) && (
-        <div className="import-progress">
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
-            <span>
+        <div className="import-progress import-progress-circular">
+          <div className="import-progress-circular-wrap">
+            {(() => {
+              const radius = 44;
+              const circ = 2 * Math.PI * radius;
+              const pct = Math.max(0, Math.min(100, importStatus.percent || 0));
+              const offset = circ * (1 - pct / 100);
+              return (
+                <svg width="110" height="110" viewBox="0 0 110 110" aria-label="Import progress">
+                  <circle cx="55" cy="55" r={radius} stroke="rgba(148,163,184,0.25)" strokeWidth="9" fill="none" />
+                  <circle
+                    cx="55" cy="55" r={radius}
+                    stroke="#22c55e" strokeWidth="9" fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={circ}
+                    strokeDashoffset={offset}
+                    transform="rotate(-90 55 55)"
+                    style={{ transition: "stroke-dashoffset 200ms ease" }}
+                  />
+                  <text x="55" y="58" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="700" fill="#e2e8f0">
+                    {pct}%
+                  </text>
+                </svg>
+              );
+            })()}
+          </div>
+          <div className="import-progress-info-block">
+            <div style={{ fontSize: 13, marginBottom: 4 }}>
               {importStatus.source === "folder" ? "Startup folder import" : "CSV upload import"}
               {importStatus.current_file ? `: ${importStatus.current_file}` : ""}
-            </span>
-            <span>{importStatus.percent}%</span>
+            </div>
+            <small className="import-progress-info">
+              Processed {importStatus.processed}/{importStatus.total} | Imported {importStatus.imported} | Updated {importStatus.updated} | Failed {importStatus.failed}
+            </small>
+            {!importStatus.active && importStatus.message && (
+              <small className="import-progress-success">{importStatus.message}</small>
+            )}
           </div>
-          <div className="import-progress-bar">
-            <div
-              className="import-progress-bar-inner"
-              style={{ width: `${importStatus.percent}%` }}
+        </div>
+      )}
+
+      {/* Import Cards from Text Modal */}
+      {showImportText && (
+        <div className="collection-modal-overlay">
+          <div className="collection-modal">
+            <h2 className="collection-modal-title">Import Cards from Text</h2>
+            <small style={{ color: "#94a3b8", display: "block", marginBottom: 8 }}>
+              Paste a decklist (one entry per line, e.g. <code>1 Sol Ring</code>). Cards will be added to your collection (existing quantities increment).
+            </small>
+            <textarea
+              className="collection-modal-textarea"
+              rows={10}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={"1 Sol Ring\n1 Arcane Signet\n2 Lightning Bolt"}
+              disabled={importTextBusy}
             />
+            <label className="collection-import-label" style={{ marginTop: 8 }}>
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => document.getElementById("import-text-file")?.click()}
+                disabled={importTextBusy}
+              >
+                Load from .txt
+              </button>
+              <input
+                id="import-text-file"
+                type="file"
+                accept=".txt"
+                className="collection-import-input"
+                onChange={handleImportTextFile}
+              />
+            </label>
+            <div className="collection-modal-footer">
+              <button className="btn-secondary" type="button" onClick={() => setShowImportText(false)} disabled={importTextBusy}>Cancel</button>
+              <button className="btn-primary" type="button" onClick={handleImportTextSubmit} disabled={importTextBusy || !importText.trim()}>
+                {importTextBusy ? "Adding..." : "Add to Collection"}
+              </button>
+            </div>
+            {importTextMessage && <div className="collection-modal-error">{importTextMessage}</div>}
           </div>
-          <small className="import-progress-info">
-            Processed {importStatus.processed}/{importStatus.total} | Imported {importStatus.imported} | Updated {importStatus.updated} | Failed {importStatus.failed}
-          </small>
-          {!importStatus.active && importStatus.message && (
-            <small className="import-progress-success">{importStatus.message}</small>
-          )}
         </div>
       )}
 
@@ -818,6 +881,51 @@ export default function Collection() {
             Restore Selected Backup
           </button>
         </div>
+      </div>
+
+      <div className="collection-filter-bar">
+        <input
+          className="collection-search"
+          placeholder="Search cards..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select aria-label="Color filter" title="Color filter" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)} className="collection-filter">
+          <option value="all">All Colors</option>
+          {colorOptions.map((c) => (
+            <option key={c.code} value={c.code}>{c.label}</option>
+          ))}
+        </select>
+        <select aria-label="Type filter" title="Type filter" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="collection-type-filter">
+          <option value="all">All Types</option>
+          {typeOptions.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <select aria-label="Rarity filter" title="Rarity filter" value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)} className="collection-rarity-filter">
+          <option value="all">All Rarity</option>
+          {rarityOptions.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+        <select aria-label="Set filter" title="Set filter" value={setFilter} onChange={(e) => setSetFilter(e.target.value)} className="collection-set-filter">
+          <option value="all">All Sets</option>
+          {setOptions.map((s) => (
+            <option key={s} value={s}>{s.toUpperCase()}</option>
+          ))}
+        </select>
+        <select
+          aria-label="Sort cards"
+          title="Sort cards"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as "name" | "quantity" | "cmc" | "recent")}
+          className="collection-sort"
+        >
+          <option value="name">Sort: Name</option>
+          <option value="quantity">Sort: Quantity</option>
+          <option value="cmc">Sort: CMC</option>
+          <option value="recent">Sort: Recently Imported</option>
+        </select>
       </div>
 
       {loading ? (

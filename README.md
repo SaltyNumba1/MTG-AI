@@ -11,6 +11,22 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - **Saved decks** – Save generated decks to "My Decks", view stats (mana curve, color distribution, suggested basics), export decklists as TXT (Moxfield-friendly with commander marker), and run AI suggestions on existing decks.
 - **Manual decks** – Build decks by selecting cards from your collection and saving them directly to My Decks.
 
+## What's New (v1.0.8)
+
+- 🔁 **Add cards to existing collection from text** – new "Import Cards from Text" button on the Collection page (paste a list or load a `.txt`).
+- 🧱 **Dual lands counter** – set how many multi-color lands matching your commander identity should be included; counts toward the total land budget.
+- 🎯 **Smarter AI target** – the engine now asks the model for `99 − basics − nonbasics − duals − must-includes`, so it stops wasting effort generating cards we'll throw away.
+- 🌿 **Lands grouped at the bottom** of the generated deck list, with basic-land tiles collapsed to one tile per color (with `(N)` count).
+- 📷 **Smaller commander preview** after generation.
+- 🧮 **My Decks sort dropdown** – Name / Card count / Commander / Type.
+- 🤝 **Analyze & Suggest** popup now shows side-by-side swap recommendations (current → suggested) at ~3"×3" tile size with arrows.
+- ⏳ **Circular progress indicator** on collection imports (with percent in the center).
+- 🐛 Command Tower / Path of Ancestry are correctly treated as nonbasic lands, not basics.
+
+## What's New (v1.0.7)
+
+- 💾 Saved decks now persist between launches in the packaged Windows app (path is anchored next to the exe instead of the temporary PyInstaller extraction directory).
+
 ## What's New (v1.0.6)
 
 - ➕ Add single cards to your collection from the Collection page.

@@ -201,3 +201,31 @@
 .deckbuilder-type-group {
   margin-bottom: 24px;
 }
+
+.deckbuilder-commander-small {
+  max-width: 160px;
+}
+
+.deckbuilder-commander-small .card-preview-image,
+.deckbuilder-commander-small img {
+  max-width: 160px;
+}
+
+.deckbuilder-card-tile-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.deckbuilder-card-count-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #facc15;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+}

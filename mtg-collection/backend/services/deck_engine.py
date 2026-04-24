@@ -69,6 +69,25 @@ def is_nonbasic_land(card: dict) -> bool:
     return is_land(card) and not is_basic_land(card)
 
 
+def is_dual_land(card: dict, commander_identity: Optional[list[str]] = None) -> bool:
+    """A dual (multicolor) nonbasic land that fits the commander's color identity.
+
+    Definition: nonbasic land whose color_identity has 2+ colors and whose
+    every color is present in the commander's identity. (Mono-color utility
+    lands like Path of Ancestry / Command Tower are NOT duals.)
+    """
+    if not is_nonbasic_land(card):
+        return False
+    card_colors = [c for c in (card.get("color_identity") or []) if c in COLOR_ORDER]
+    if len(card_colors) < 2:
+        return False
+    if commander_identity is not None:
+        identity_set = {c for c in commander_identity if c in COLOR_ORDER}
+        if not identity_set or any(c not in identity_set for c in card_colors):
+            return False
+    return True
+
+
 def _card_colors(card: dict) -> list[str]:
     colors = card.get("color_identity") or card.get("colors") or []
     return [c for c in colors if c in COLOR_ORDER]
@@ -543,19 +562,31 @@ def _apply_land_targets(
     basic_land_count: int,
     nonbasic_land_count: int,
     commander_identity: list[str],
+    dual_land_count: int = 0,
 ) -> list[dict]:
     """Rebalance final deck to requested land counts while preserving model picks where possible."""
     basic_target = max(0, int(basic_land_count or 0))
     nonbasic_target = max(0, int(nonbasic_land_count or 0))
-    land_target = min(99, basic_target + nonbasic_target)
+    dual_target = max(0, int(dual_land_count or 0))
+    land_target = min(99, basic_target + nonbasic_target + dual_target)
     nonland_target = 99 - land_target
 
     selected_nonlands = [c for c in selected if not is_land(c)]
-    selected_nonbasic_lands = [c for c in selected if is_nonbasic_land(c)]
+    selected_dual_lands = [c for c in selected if is_dual_land(c, commander_identity)]
+    selected_dual_ids = {c.get("id") or c.get("name") for c in selected_dual_lands}
+    selected_nonbasic_lands = [
+        c for c in selected
+        if is_nonbasic_land(c) and (c.get("id") or c.get("name")) not in selected_dual_ids
+    ]
     selected_basic_lands = [c for c in selected if is_basic_land(c)]
 
     all_nonlands = [c for c in all_candidates if not is_land(c)]
-    all_nonbasic_lands = [c for c in all_candidates if is_nonbasic_land(c)]
+    all_dual_lands = [c for c in all_candidates if is_dual_land(c, commander_identity)]
+    all_dual_ids = {c.get("id") or c.get("name") for c in all_dual_lands}
+    all_nonbasic_lands = [
+        c for c in all_candidates
+        if is_nonbasic_land(c) and (c.get("id") or c.get("name")) not in all_dual_ids
+    ]
     all_basic_lands = [c for c in all_candidates if is_basic_land(c)]
     basic_lands_by_color: dict[str, list[dict]] = {c: [] for c in COLOR_ORDER}
     for card in all_basic_lands:
@@ -591,6 +622,13 @@ def _apply_land_targets(
     nonlands_added = add_unique_from_pool(selected_nonlands, nonland_target)
     if nonlands_added < nonland_target:
         nonlands_added += add_unique_from_pool(all_nonlands, nonland_target - nonlands_added)
+
+    dual_added = add_unique_from_pool(selected_dual_lands, dual_target)
+    if dual_added < dual_target:
+        dual_added += add_unique_from_pool(all_dual_lands, dual_target - dual_added)
+    # If not enough dual lands available, allow nonbasic lands to fill the gap.
+    if dual_added < dual_target:
+        nonbasic_target += (dual_target - dual_added)
 
     nonbasic_added = add_unique_from_pool(selected_nonbasic_lands, nonbasic_target)
     if nonbasic_added < nonbasic_target:
@@ -632,6 +670,7 @@ def build_deck_with_llm(
     must_include_cards: Optional[list[dict]] = None,
     basic_land_count: int = 37,
     nonbasic_land_count: int = 5,
+    dual_land_count: int = 0,
     strict_mode: bool = False,
     progress_callback: Optional[Callable[[str], None]] = None,
     stream_callback: Optional[Callable[[str], None]] = None,
@@ -704,10 +743,11 @@ def build_deck_with_llm(
 
     system_prompt = (
         "You are an expert Magic: The Gathering deck builder specializing in Commander format. "
-        "Select exactly 99 cards from the numbered list to form a synergistic Commander deck. "
+        f"Select exactly {ai_pick_target} non-land cards from the numbered list to form a synergistic Commander deck. "
+        "Lands and must-include cards will be added automatically by the engine — do NOT pick lands. "
         "Respond ONLY with valid JSON — no explanation, no markdown, no code fences. "
         'Format: {"description": "short deck description", "card_indices": [1, 5, 12, ...]}'
-        " card_indices must contain exactly 99 numbers from the list."
+        f" card_indices must contain exactly {ai_pick_target} numbers from the list."
     )
 
     # Build synergy context for the prompt
@@ -721,9 +761,19 @@ def build_deck_with_llm(
     else:
         synergy_text = ""
 
+    # Compute the number of cards we actually need the AI to choose.
+    # We pre-allocate land slots and must-include slots ourselves.
+    must_include_nonland_count = sum(1 for c in (must_include_cards or []) if not is_land(c))
+    must_include_land_count = len(must_include_cards or []) - must_include_nonland_count
+    total_land_budget = max(0, int(basic_land_count or 0)) + max(0, int(nonbasic_land_count or 0)) + max(0, int(dual_land_count or 0))
+    ai_pick_target = max(1, min(99, 99 - total_land_budget - len(must_include_cards or [])))
+
     deck_shape_text = (
-        f"\nTarget deck composition: {max(0, 99 - min(99, basic_land_count + nonbasic_land_count))} non-lands, "
-        f"{max(0, nonbasic_land_count)} nonbasic lands, {max(0, basic_land_count)} basic lands."
+        f"\nTarget deck composition: {max(0, 99 - min(99, total_land_budget))} non-lands "
+        f"(of which {len(must_include_cards or []) - must_include_land_count} are pre-selected must-includes), "
+        f"{max(0, nonbasic_land_count)} nonbasic lands, {max(0, dual_land_count)} dual lands, "
+        f"{max(0, basic_land_count)} basic lands."
+        f"\nYou only need to pick {ai_pick_target} non-land card_indices — lands and must-includes are added automatically."
     )
     must_include_names = [c["name"] for c in (must_include_cards or [])]
     must_include_text = ""
@@ -744,7 +794,7 @@ def build_deck_with_llm(
     )
 
     if progress_callback:
-        progress_callback(f"Asking AI to select 99 cards from {len(model_candidates)} candidates")
+        progress_callback(f"Asking AI to select {ai_pick_target} non-land cards from {len(model_candidates)} candidates")
 
 
     client = ollama.Client(timeout=OLLAMA_TIMEOUT)
@@ -858,7 +908,7 @@ def build_deck_with_llm(
 
     selected = _build_deck_selection(model_candidates, all_candidates, result)
 
-    land_target = min(99, max(0, int(basic_land_count or 0)) + max(0, int(nonbasic_land_count or 0)))
+    land_target = min(99, max(0, int(basic_land_count or 0)) + max(0, int(nonbasic_land_count or 0)) + max(0, int(dual_land_count or 0)))
     nonland_target = 99 - land_target
     rebalanced_nonlands = _rebalance_nonlands_for_quality(
         selected,
@@ -881,6 +931,7 @@ def build_deck_with_llm(
         basic_land_count,
         nonbasic_land_count,
         commander_identity,
+        dual_land_count=dual_land_count,
     )
 
     # Enforce must-include cards: swap into the final 99 if missing.
@@ -938,6 +989,7 @@ def generate_deck(
     must_include_cards: Optional[list[str]] = None,
     basic_land_count: int = 37,
     nonbasic_land_count: int = 5,
+    dual_land_count: int = 0,
     strict_mode: bool = False,
     commander_override: Optional[dict] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
@@ -997,6 +1049,7 @@ def generate_deck(
         must_include_cards=must_dicts,
         basic_land_count=basic_land_count,
         nonbasic_land_count=nonbasic_land_count,
+        dual_land_count=dual_land_count,
         strict_mode=strict_mode,
         progress_callback=progress_callback,
         current_deck=current_deck,

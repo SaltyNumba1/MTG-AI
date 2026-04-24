@@ -30,26 +30,47 @@ interface SavedDeckDetail {
   card_count: number;
 }
 
+interface SwapPair {
+  out: CardEntry | null;
+  in: any;
+}
+
 export default function MyDecks() {
   const [showAnalyze, setShowAnalyze] = useState(false);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
+  const [analyzeSuggestions, setAnalyzeSuggestions] = useState<SwapPair[]>([]);
+  const [sortBy, setSortBy] = useState<"name" | "cost" | "color" | "type">("name");
   const handleAnalyze = async () => {
     if (!selectedFile) return;
     setAnalyzeLoading(true);
     setAnalyzeResult(null);
+    setAnalyzeSuggestions([]);
     try {
       const { data } = await api.post("/deck/analyze-deck", { deck_file: selectedFile });
       const description = data?.suggestions?.description || "No summary provided.";
-      const suggestedCards = Array.isArray(data?.suggestions?.deck)
-        ? data.suggestions.deck.map((card: any) => card?.name).filter(Boolean)
-        : [];
-      const preview = suggestedCards.slice(0, 15).join(", ");
-      setAnalyzeResult(
-        suggestedCards.length
-          ? `${description}\n\nSuggested cards (${suggestedCards.length}): ${preview}${suggestedCards.length > 15 ? "..." : ""}`
-          : description
-      );
+      const suggestedDeck: any[] = Array.isArray(data?.suggestions?.deck) ? data.suggestions.deck : [];
+      const currentNames = new Set((detail?.deck || []).map((c) => c.name.toLowerCase()));
+      const swaps: SwapPair[] = [];
+      const currentCards = (detail?.deck || []).slice();
+      let cursor = currentCards.length - 1;
+      for (const card of suggestedDeck) {
+        if (!card?.name) continue;
+        if (currentNames.has(card.name.toLowerCase())) continue;
+        // Pair with the next current-deck card from the end as a "candidate to swap out".
+        let outCard: CardEntry | null = null;
+        while (cursor >= 0) {
+          const c = currentCards[cursor];
+          cursor -= 1;
+          const cardIsLand = (card.type_line || "").toLowerCase().includes("land");
+          const cIsLand = (c.type_line || "").toLowerCase().includes("land");
+          if (cardIsLand === cIsLand) { outCard = c; break; }
+        }
+        swaps.push({ out: outCard, in: card });
+        if (swaps.length >= 12) break;
+      }
+      setAnalyzeSuggestions(swaps);
+      setAnalyzeResult(description);
     } catch (err: any) {
       setAnalyzeResult(err.response?.data?.detail || "Analysis failed");
     } finally {
@@ -144,11 +165,29 @@ export default function MyDecks() {
           className="my-decks-select"
         >
           <option value="">Select a saved deck</option>
-          {decks.map((deck) => (
+          {[...decks].sort((a, b) => {
+            if (sortBy === "name") return a.name.localeCompare(b.name);
+            if (sortBy === "type") return (a.commander || "").localeCompare(b.commander || "");
+            if (sortBy === "color") return (a.commander || "").localeCompare(b.commander || "");
+            if (sortBy === "cost") return (b.card_count || 0) - (a.card_count || 0);
+            return 0;
+          }).map((deck) => (
             <option key={deck.file} value={deck.file}>
               {deck.name} ({deck.card_count} cards)
             </option>
           ))}
+        </select>
+        <select
+          aria-label="Sort decks by"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+          className="my-decks-select"
+          title="Sort decks"
+        >
+          <option value="name">Sort: Name</option>
+          <option value="cost">Sort: Card count</option>
+          <option value="color">Sort: Commander</option>
+          <option value="type">Sort: Type</option>
         </select>
         <button className="btn-secondary" onClick={loadDecks}>Refresh</button>
         <button className="btn-danger" onClick={deleteDeck} disabled={!selectedFile}>Delete</button>
@@ -204,10 +243,44 @@ export default function MyDecks() {
           {/* Analyze Modal */}
           {showAnalyze && (
             <div className="my-decks-modal-overlay">
-              <div className="my-decks-modal">
+              <div className="my-decks-modal my-decks-modal-wide">
                 <h2>AI Suggestions</h2>
                 <div className="my-decks-modal-body">
-                  {analyzeResult || (analyzeLoading ? "Analyzing..." : "No suggestions yet.")}
+                  {analyzeLoading && <p>Analyzing your deck against your collection...</p>}
+                  {analyzeResult && <p className="my-decks-modal-summary">{analyzeResult}</p>}
+                  {analyzeSuggestions.length > 0 && (
+                    <div className="my-decks-swap-list">
+                      <h3>Suggested swaps ({analyzeSuggestions.length})</h3>
+                      {analyzeSuggestions.map((swap, idx) => (
+                        <div key={`swap-${idx}`} className="my-decks-swap-row">
+                          <div className="my-decks-swap-tile">
+                            {swap.out ? (
+                              <CardPreview
+                                name={swap.out.name}
+                                imageUri={swap.out.image_uri}
+                                subtitle="Consider replacing"
+                                tcgplayerPrice={swap.out.tcgplayer_price}
+                              />
+                            ) : (
+                              <div className="my-decks-swap-placeholder">Add to deck</div>
+                            )}
+                          </div>
+                          <div className="my-decks-swap-arrow">→</div>
+                          <div className="my-decks-swap-tile">
+                            <CardPreview
+                              name={swap.in.name}
+                              imageUri={swap.in.image_uri}
+                              subtitle="Suggested"
+                              tcgplayerPrice={swap.in.tcgplayer_price}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!analyzeLoading && !analyzeResult && analyzeSuggestions.length === 0 && (
+                    <p>No suggestions yet.</p>
+                  )}
                 </div>
                 <div className="my-decks-modal-footer">
                   <button className="btn-secondary" onClick={() => setShowAnalyze(false)} disabled={analyzeLoading}>Close</button>

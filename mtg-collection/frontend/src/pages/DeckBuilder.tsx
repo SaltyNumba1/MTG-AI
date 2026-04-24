@@ -121,6 +121,7 @@ export default function DeckBuilder() {
   const [prompt, setPrompt] = useState("");
   const [basicLandCount, setBasicLandCount] = useState(25);
   const [nonbasicLandCount, setNonbasicLandCount] = useState(12);
+  const [dualLandCount, setDualLandCount] = useState(0);
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<DeckResult | null>(null);
@@ -202,6 +203,7 @@ export default function DeckBuilder() {
         prompt,
         basic_land_count: basicLandCount,
         nonbasic_land_count: nonbasicLandCount,
+        dual_land_count: dualLandCount,
         keyword_filters: keywordFilters.filter((k) => k && k.trim()),
         must_include_cards: mustIncludeCards,
       });
@@ -450,6 +452,20 @@ export default function DeckBuilder() {
               className="deckbuilder-land-input"
             />
           </div>
+          <div>
+            <label className="deckbuilder-label">
+              Number of Dual Lands
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={dualLandCount}
+              onChange={e => setDualLandCount(Number(e.target.value))}
+              className="deckbuilder-land-input"
+              title="Multicolor lands matching your commander's color identity (e.g. shock lands, fetch lands)."
+            />
+          </div>
         </div>
 
         <button
@@ -494,12 +510,14 @@ export default function DeckBuilder() {
       {result && (
         <div>
           <div className="deckbuilder-result-header">
-            <CardPreview
-              name={result.commander.name}
-              imageUri={result.commander.image_uri}
-              subtitle="Commander"
-              tcgplayerPrice={result.commander.tcgplayer_price}
-            />
+            <div className="deckbuilder-commander-small">
+              <CardPreview
+                name={result.commander.name}
+                imageUri={result.commander.image_uri}
+                subtitle="Commander"
+                tcgplayerPrice={result.commander.tcgplayer_price}
+              />
+            </div>
             <div>
               <h2 className="deckbuilder-result-title">
                 {result.commander.name} Commander Deck
@@ -580,25 +598,55 @@ export default function DeckBuilder() {
           </div>
 
           {Object.entries(groups)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([type, cards]) => (
-              <div key={type} className="deckbuilder-type-group">
-                <h3 className="deckbuilder-stats-heading">
-                  {type} ({cards.length})
-                </h3>
-                <div className="card-grid">
-                  {cards.map((card) => (
-                    <CardPreview
-                      key={card.id + card.name}
-                      name={card.name}
-                      imageUri={card.image_uri}
-                      subtitle={`CMC ${card.cmc}`}
-                      tcgplayerPrice={card.tcgplayer_price}
-                    />
-                  ))}
+            .sort(([a], [b]) => {
+              const aIsLand = a.toLowerCase().includes("land");
+              const bIsLand = b.toLowerCase().includes("land");
+              if (aIsLand && !bIsLand) return 1;
+              if (!aIsLand && bIsLand) return -1;
+              return a.localeCompare(b);
+            })
+            .map(([type, cards]) => {
+              const isLandGroup = type.toLowerCase().includes("land");
+              let displayCards: { card: CardEntry; count: number }[] = [];
+              if (isLandGroup) {
+                // Collapse basic-land duplicates: 1 tile per basic name, with a (N) count badge.
+                const basicCounts = new Map<string, { card: CardEntry; count: number }>();
+                for (const c of cards) {
+                  const isBasic = (c.type_line || "").toLowerCase().includes("basic");
+                  if (isBasic) {
+                    const key = c.name.toLowerCase();
+                    const entry = basicCounts.get(key);
+                    if (entry) entry.count += 1;
+                    else basicCounts.set(key, { card: c, count: 1 });
+                  } else {
+                    displayCards.push({ card: c, count: 1 });
+                  }
+                }
+                displayCards = [...displayCards, ...Array.from(basicCounts.values())];
+              } else {
+                displayCards = cards.map((c) => ({ card: c, count: 1 }));
+              }
+              return (
+                <div key={type} className="deckbuilder-type-group">
+                  <h3 className="deckbuilder-stats-heading">
+                    {type} ({cards.length})
+                  </h3>
+                  <div className="card-grid">
+                    {displayCards.map(({ card, count }) => (
+                      <div key={card.id + card.name} className="deckbuilder-card-tile-wrap">
+                        <CardPreview
+                          name={card.name}
+                          imageUri={card.image_uri}
+                          subtitle={`CMC ${card.cmc}`}
+                          tcgplayerPrice={card.tcgplayer_price}
+                        />
+                        {count > 1 && <span className="deckbuilder-card-count-badge">({count})</span>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
         </div>
       )}
     </div>

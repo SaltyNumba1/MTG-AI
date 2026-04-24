@@ -24,6 +24,7 @@ class DeckRequest(BaseModel):
     must_include_cards: list[str] = []
     basic_land_count: int = 25
     nonbasic_land_count: int = 12
+    dual_land_count: int = 0
     strict_mode: bool = False
 
 
@@ -387,6 +388,7 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
                 must_include_cards=must_include_names,
                 basic_land_count=getattr(req, "basic_land_count", 37),
                 nonbasic_land_count=getattr(req, "nonbasic_land_count", 5),
+                dual_land_count=getattr(req, "dual_land_count", 0),
                 strict_mode=getattr(req, "strict_mode", False),
                 progress_callback=_append_thought,
             ),
