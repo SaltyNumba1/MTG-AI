@@ -5,6 +5,9 @@
 #   ollama create mtg-commander -f Modelfile
 #   ollama run mtg-commander
 #
+# Don't want to train? Grab the LoRA (and, when available, the prebuilt .gguf)
+# from Hugging Face: https://huggingface.co/SaltyNumba1/mistral-commander-lora
+#
 # Requires Ollama installed: https://ollama.com/download
 
 FROM ./mistral-commander-q4.gguf

@@ -73,6 +73,21 @@ Output: `mtg-collection/frontend/release/MTG Collection-win32-x64/MTG Collection
 
 > Note: `npm run desktop:build` (electron-builder) requires Developer Mode / admin to extract `winCodeSign` symlinks. Use `desktop:package` unless you specifically need an installer.
 
+## AI model (Ollama)
+
+The deck engine talks to a locally-running [Ollama](https://ollama.com) instance.
+You can use any chat-capable model, but the project ships with a custom-trained
+LoRA over Mistral 7B specialized for Commander deck building.
+
+- **Pretrained LoRA on Hugging Face:** https://huggingface.co/SaltyNumba1/mistral-commander-lora
+- See [`mtg-collection/training/LOCAL_SETUP.md`](mtg-collection/training/LOCAL_SETUP.md) for full instructions
+  (download the prebuilt `.gguf` if available, or merge the LoRA yourself in the included Colab notebook).
+- Once you have the `.gguf`, register it with Ollama from the `training/` directory:
+  ```powershell
+  ollama create mtg-commander -f Modelfile
+  ```
+
+
 ## Tips
 
 - **Must Include Cards format**: `"Sol Ring" "Arcane Signet" "Command Tower"` – each name in double quotes, separated by spaces or newlines.

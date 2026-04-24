@@ -5,9 +5,44 @@ on your AMD RX 5700 GPU.
 
 ---
 
+## Quick path: download the model from Hugging Face
+
+If you don't want to train your own copy, the LoRA adapter is published at:
+
+**🤗 https://huggingface.co/SaltyNumba1/mistral-commander-lora**
+
+You have two options:
+
+### Option A — Use the prebuilt `.gguf` (easiest, when available)
+
+If `mistral-commander-q4.gguf` is listed under the repo's **Files** tab, download
+it directly and place it at:
+
+```
+mtg-collection\training\mistral-commander-q4.gguf
+```
+
+Then skip to **Step 2** below.
+
+> Not available yet? It's a ~4 GB single-file upload — check the repo's Files
+> tab. If you only see `mistral-commander-lora.zip`, use Option B.
+
+### Option B — Merge the LoRA yourself (Colab)
+
+1. Download `mistral-commander-lora.zip` from the HF repo (or `git lfs clone`
+   the whole repo).
+2. Open `MTG_Mistral_LoRA_Training.ipynb` in Colab.
+3. Skip the training cell. Upload `mistral-commander-lora.zip` to the Colab
+   workspace and unzip it where the notebook expects the trained adapter.
+4. Run the export cells listed in **Step 1** below (starting from
+   `install_llamacpp`) to merge + quantize + download the `.gguf`.
+
+---
+
 ## Step 1 — Run Colab export cells (in order)
 
-After the training cell finishes in Colab, run these cells:
+After the training cell finishes in Colab (or after uploading the prebuilt LoRA
+from Hugging Face — see Option B above), run these cells:
 
 1. **`install_llamacpp`** — clones llama.cpp and installs gguf tools
 2. **`build_llamacpp`** — compiles the quantize binary (~2 min)
