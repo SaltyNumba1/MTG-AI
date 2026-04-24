@@ -60,3 +60,71 @@ Create the "Strategy Directive" generator in the backend to ensure keywords from
 - Ollama runs locally; the chat completion endpoint is hit synchronously by the engine.
 - Scryfall API (`services/scryfall.py`) for missing-card lookups and basic-land artwork.
 - TCGplayer prices are stored per-card on import for cost summaries.
+
+---
+
+## 2026-04-24 05:30 UTC - v1.0.9 release + Nemo-12B retrain plan (in progress)
+
+### v1.0.9 release (shipped)
+- **Docs/distribution release** — no app code changes vs v1.0.8.
+- Trained model now lives on Hugging Face: <https://huggingface.co/SaltyNumba1/mistral-commander-lora>
+  - mistral-commander-q4.gguf (4.37 GB) - drop-in Q4_K_M for Ollama.
+  - mistral-commander-lora.zip - raw LoRA adapter.
+  - dapter_config.json - LoRA hyperparameters.
+- README + mtg-collection/training/LOCAL_SETUP.md updated with HF download (Option A direct gguf, Option B merge-LoRA-in-Colab) and "Using a different base model" docs (swap via OLLAMA_MODEL env var; default is mtg-commander, set in services/deck_engine.py:21).
+- HF model card drafted at mtg-collection/training/HF_MODEL_CARD.md (rename to README.md when uploading to the HF repo root).
+- Released zip: MTG-Collection-v1.0.9-win32-x64.zip (146.5 MB), tag 1.0.9, GitHub release published.
+
+### Nemo-12B retrain plan (active work, branch: main)
+**Goal:** v2 model = mistral-commander-nemo, fine-tuned from mistralai/Mistral-Nemo-Instruct-2407 (12B params, **128K native context**, Tekken tokenizer ~30% better on JSON).
+
+**Why Nemo over current Mistral-7B-v0.2:**
+- 8K -> 128K context unlocks "show the model the whole collection" instead of sampling subsets.
+- Tekken tokenizer is more efficient on card-list JSON.
+- Smarter base = better deck quality at same dataset size.
+- Trained context will be 8K (T4) / 12K (L4) / 16K (A100-40) / 16K rank-128 batch-2 (A100-80) - notebook auto-detects GPU.
+
+**Compute budget:** Colab Pro (T4/L4 baseline, occasional A100-40 or A100-80). On A100-80 a full SFT run is ~10-15 hr single session (no QLoRA needed, bf16 LoRA rank 64-128). On T4-only it would be 40-60 hr split across sessions with Drive checkpointing.
+
+**Tokenizer note:** Mistral-Nemo's chat template differs from v0.2's [INST]...[/INST]. Training data is emitted as OpenAI-style messages and the tokenizer applies its own template at train time, so the same dataset works for both bases.
+
+**v1 LoRA is NOT transferable to Nemo** (different architecture). v1 stays on HF as the stable fallback.
+
+### Dataset v3 pipeline (committed in 178089, READY TO RUN)
+Three example types instead of v2's one:
+
+| Type | Source script | Teaches |
+|---|---|---|
+| commander_deck | existing EDHREC + Archidekt scrapers | one-shot deckbuilding (current v1 skill) |
+| card_qa | src/fetch_scryfall_qa.py (NEW) | card knowledge from oracle text |
+| swap_edit | src/generate_swap_examples.py (NEW) | multi-turn editing, archetype swaps |
+
+Merger: src/build_dataset_v3.py (NEW) - deck validation, eval split, per-bucket caps. Outputs to data/processed_v3/.
+
+Runbook: mtg-collection/training/DATASET_V3.md - step-by-step.
+
+**Current dataset size (v2):** 286 deck examples / 165 commanders / ~258 chat rows.
+**Target v3 dataset size:** ~20-35k chat rows (5-10k decks + 10-20k QA capped + 2-5k swaps).
+
+**User action items before training can start:**
+1. Download Scryfall oracle bulk JSON (~150 MB) to mtg-collection/training/data/raw/scryfall-oracle-cards.json from <https://scryfall.com/docs/api/bulk-data>.
+2. Run EDHREC expansion (commanders list at data/imports/commander_list_expanded.txt, 165 commanders) and Archidekt sampling passes per DATASET_V3.md sections 1-2.
+3. Run etch_scryfall_qa.py and generate_swap_examples.py.
+4. Run uild_dataset_v3.py to merge everything.
+
+### Next deliverable (NOT yet started)
+- TRAIN_NEMO.md runbook + Colab .ipynb for Mistral-Nemo-12B QLoRA/bf16 training with:
+  - GPU auto-detect (T4/L4/A100-40/A100-80) -> picks QLoRA-4bit vs bf16 LoRA, context length, batch size, LoRA rank.
+  - Drive checkpointing every ~250 steps for Colab disconnect resilience.
+  - Merge LoRA -> full weights -> llama.cpp Q4_K_M GGUF (~7.5 GB final).
+  - Smoke-test prompts against the user's real collection.
+- After SFT v2 ships: optional DPO pass on ~3k preference pairs (v1 vs v2 outputs scored by deterministic legality + heuristic rules).
+- App-side after v2 ships: bump default OLLAMA_MODEL to mtg-commander-nemo, ship as MTG Collection v1.1.0, keep v1 model on HF as legacy/small/fast option.
+
+### Decision log
+- User has Colab Pro for one month (with occasional A100-80 access).
+- Training method choice: bf16 LoRA on A100, QLoRA-4bit fallback on T4/L4. Auto-detected by notebook.
+- LoRA rank: 64 (T4/L4/A100-40), 128 (A100-80).
+- Base model: mistralai/Mistral-Nemo-Instruct-2407 (NOT Mistral-Nemo-Base-2407 - we want the instruct variant for chat).
+- Quantization: Q4_K_M (same as v1).
+- Old v1 model stays published on HF as the stable/small fallback.
