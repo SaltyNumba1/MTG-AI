@@ -7,35 +7,65 @@ on your AMD RX 5700 GPU.
 
 ## Quick path: download the model from Hugging Face
 
-If you don't want to train your own copy, the LoRA adapter is published at:
+If you don't want to train your own copy, the model is published at:
 
 **🤗 https://huggingface.co/SaltyNumba1/mistral-commander-lora**
 
-You have two options:
+Two files of interest in that repo:
 
-### Option A — Use the prebuilt `.gguf` (easiest, when available)
+| File | What it is | Use it if… |
+|---|---|---|
+| `mistral-commander-q4.gguf` | Prebuilt Q4_K_M quantized model (~4 GB) | You just want it to work — drop in and go. |
+| `mistral-commander-lora.zip` | Raw LoRA adapter on top of Mistral 7B Instruct v0.2 | You want to merge it yourself or further fine-tune. |
 
-If `mistral-commander-q4.gguf` is listed under the repo's **Files** tab, download
-it directly and place it at:
+### Option A — Use the prebuilt `.gguf` (recommended)
 
+1. Open the HF repo's **Files and versions** tab.
+2. Click `mistral-commander-q4.gguf` → click the download icon (top right of the file viewer).
+3. Save to:
+   ```
+   mtg-collection\training\mistral-commander-q4.gguf
+   ```
+4. Skip to **Step 2** below.
+
+CLI alternative (requires `huggingface-cli`):
+```powershell
+pip install -U "huggingface_hub[cli]"
+huggingface-cli download SaltyNumba1/mistral-commander-lora mistral-commander-q4.gguf --local-dir mtg-collection\training
 ```
-mtg-collection\training\mistral-commander-q4.gguf
-```
-
-Then skip to **Step 2** below.
-
-> Not available yet? It's a ~4 GB single-file upload — check the repo's Files
-> tab. If you only see `mistral-commander-lora.zip`, use Option B.
 
 ### Option B — Merge the LoRA yourself (Colab)
 
-1. Download `mistral-commander-lora.zip` from the HF repo (or `git lfs clone`
-   the whole repo).
+1. Download `mistral-commander-lora.zip` from the HF repo.
 2. Open `MTG_Mistral_LoRA_Training.ipynb` in Colab.
-3. Skip the training cell. Upload `mistral-commander-lora.zip` to the Colab
-   workspace and unzip it where the notebook expects the trained adapter.
-4. Run the export cells listed in **Step 1** below (starting from
-   `install_llamacpp`) to merge + quantize + download the `.gguf`.
+3. Skip the training cell. Upload `mistral-commander-lora.zip` to the Colab workspace and unzip it where the notebook expects the trained adapter.
+4. Run the export cells listed in **Step 1** below (starting from `install_llamacpp`) to merge + quantize + download the `.gguf`.
+
+---
+
+## Using a different base model (Gemma, Llama 3, Qwen, etc.)
+
+The app reads the model name from the `OLLAMA_MODEL` environment variable (default: `mtg-commander`). You have two choices:
+
+### Just use a stock model (no MTG fine-tune)
+
+```powershell
+ollama pull gemma:7b
+$env:OLLAMA_MODEL = "gemma:7b"   # set before launching MTG Collection.exe
+```
+
+Or create `.env` next to the exe with `OLLAMA_MODEL=gemma:7b`. Works immediately, but the model won't be MTG-specialized.
+
+### Fine-tune the new base on the MTG dataset
+
+⚠️ The published LoRA is **Mistral-7B-specific** and cannot be reused on top of Gemma / Llama 3 / etc. — different architectures. To get an MTG-specialized version of another base model you must retrain:
+
+1. Open `MTG_Mistral_LoRA_Training.ipynb` in Colab.
+2. Change the base-model identifier from `mistralai/Mistral-7B-Instruct-v0.2` to e.g. `google/gemma-7b-it`.
+3. Make sure the LoRA `target_modules` list still matches your chosen base (Mistral, Llama, Gemma all use `q_proj`/`k_proj`/`v_proj`/`o_proj`; double-check via `print(model)`).
+4. Re-run training (the dataset generator using Scryfall + EDHREC is reusable as-is) → merge → quantize → download the new `.gguf`.
+5. Edit `Modelfile` to point `FROM` at your new `.gguf` and `ollama create <your-model-name> -f Modelfile`.
+6. Set `OLLAMA_MODEL=<your-model-name>` and launch the app.
 
 ---
 

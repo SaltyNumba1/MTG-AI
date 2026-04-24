@@ -79,13 +79,32 @@ The deck engine talks to a locally-running [Ollama](https://ollama.com) instance
 You can use any chat-capable model, but the project ships with a custom-trained
 LoRA over Mistral 7B specialized for Commander deck building.
 
-- **Pretrained LoRA on Hugging Face:** https://huggingface.co/SaltyNumba1/mistral-commander-lora
-- See [`mtg-collection/training/LOCAL_SETUP.md`](mtg-collection/training/LOCAL_SETUP.md) for full instructions
-  (download the prebuilt `.gguf` if available, or merge the LoRA yourself in the included Colab notebook).
-- Once you have the `.gguf`, register it with Ollama from the `training/` directory:
-  ```powershell
-  ollama create mtg-commander -f Modelfile
-  ```
+**🤗 Hugging Face repo:** https://huggingface.co/SaltyNumba1/mistral-commander-lora
+
+That repo contains:
+- `mistral-commander-q4.gguf` — prebuilt Q4_K_M quantized model (~4 GB). Drop it into `mtg-collection/training/` and run `ollama create mtg-commander -f Modelfile`.
+- `mistral-commander-lora.zip` — raw LoRA adapter, for users who want to merge it themselves or apply it to a different fine-tune.
+
+See [`mtg-collection/training/LOCAL_SETUP.md`](mtg-collection/training/LOCAL_SETUP.md) for step-by-step setup.
+
+### Using a different base model (Llama 3, Gemma, Qwen, etc.)
+
+The app doesn't care which model Ollama serves — it just sends a chat request. The model name is read from the `OLLAMA_MODEL` env var (default: `mtg-commander`).
+
+**Option A — use any stock model as-is (no MTG fine-tune):**
+```powershell
+ollama pull gemma:7b
+$env:OLLAMA_MODEL = "gemma:7b"   # set before launching MTG Collection.exe
+```
+Or create a `.env` file next to the exe with `OLLAMA_MODEL=gemma:7b`. Quality won't be MTG-specialized but it works out of the box.
+
+**Option B — fine-tune a different base on the MTG dataset:**
+The published LoRA adapter is **Mistral-7B-specific** — it can't be applied to Gemma, Llama 3, etc. (different architectures). To get an MTG-specialized Gemma model you have to retrain:
+1. Open `mtg-collection/training/MTG_Mistral_LoRA_Training.ipynb` in Colab.
+2. Change the base-model line from `mistralai/Mistral-7B-Instruct-v0.2` to e.g. `google/gemma-7b-it`.
+3. The training data generator (Scryfall + EDHREC pulls in the notebook) is reusable as-is.
+4. Re-run training → merge → quantize → download the new `.gguf`.
+5. Register in Ollama and set `OLLAMA_MODEL` to your new model name.
 
 
 ## Tips
