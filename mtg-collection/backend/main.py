@@ -1,5 +1,24 @@
+import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+# Load .env from (a) the directory next to the exe (PyInstaller frozen),
+# (b) the current working directory, and (c) the source backend dir as a fallback.
+# Each call only sets variables that aren't already defined.
+_env_search_paths = []
+if getattr(sys, "frozen", False):
+    _env_search_paths.append(Path(sys.executable).parent / ".env")
+    _env_search_paths.append(Path(getattr(sys, "_MEIPASS", "")) / ".env")
+_env_search_paths.append(Path.cwd() / ".env")
+_env_search_paths.append(Path(__file__).parent / ".env")
+for _p in _env_search_paths:
+    try:
+        if _p and _p.is_file():
+            load_dotenv(dotenv_path=_p, override=False)
+    except Exception:
+        pass
+load_dotenv(override=False)
 
 import logging
 from fastapi import FastAPI
