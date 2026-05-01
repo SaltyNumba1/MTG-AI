@@ -40,7 +40,7 @@ export default function MyDecks() {
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
   const [analyzeSuggestions, setAnalyzeSuggestions] = useState<SwapPair[]>([]);
-  const [sortBy, setSortBy] = useState<"name" | "cost" | "color" | "type">("name");
+  const [sortBy, setSortBy] = useState<"name" | "cmc" | "type" | "price">("type");
   const handleAnalyze = async () => {
     if (!selectedFile) return;
     setAnalyzeLoading(true);
@@ -81,7 +81,7 @@ export default function MyDecks() {
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [detail, setDetail] = useState<SavedDeckDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   const loadDecks = async () => {
     try {
@@ -165,34 +165,56 @@ export default function MyDecks() {
           className="my-decks-select"
         >
           <option value="">Select a saved deck</option>
-          {[...decks].sort((a, b) => {
-            if (sortBy === "name") return a.name.localeCompare(b.name);
-            if (sortBy === "type") return (a.commander || "").localeCompare(b.commander || "");
-            if (sortBy === "color") return (a.commander || "").localeCompare(b.commander || "");
-            if (sortBy === "cost") return (b.card_count || 0) - (a.card_count || 0);
-            return 0;
-          }).map((deck) => (
+          {[...decks]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((deck) => (
             <option key={deck.file} value={deck.file}>
               {deck.name} ({deck.card_count} cards)
             </option>
           ))}
         </select>
-        <select
-          aria-label="Sort decks by"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as any)}
-          className="my-decks-select"
-          title="Sort decks"
-        >
-          <option value="name">Sort: Name</option>
-          <option value="cost">Sort: Card count</option>
-          <option value="color">Sort: Commander</option>
-          <option value="type">Sort: Type</option>
-        </select>
-        <button className="btn-secondary" onClick={loadDecks}>Refresh</button>
-        <button className="btn-danger" onClick={deleteDeck} disabled={!selectedFile}>Delete</button>
+      
       </div>
-
+        <div className="my-decks-actions">
+            <button className="btn-secondary" onClick={exportDecklist}>
+              Export Decklist (.txt)
+            </button>
+            <button className="btn-primary" onClick={() => { setShowAnalyze(true); handleAnalyze(); }} disabled={analyzeLoading}>
+              {analyzeLoading ? "Analyzing..." : "Analyze & Suggest Improvements"}
+            </button>
+            <button
+              className="btn-primary"
+              onClick={async () => {
+                if (!selectedFile) return;
+                try {
+                  await api.post("/collection/add-deck", { filename: selectedFile });
+                  // Poll import-status until complete (silent), then refresh collection
+                  const deadline = Date.now() + 20000; // 20s timeout
+                  while (Date.now() < deadline) {
+                    try {
+                      const { data } = await api.get("/collection/import-status");
+                      if (!data?.active) {
+                        // notify collection to refresh
+                        window.dispatchEvent(new Event("collection-updated"));
+                        setMessage({ type: "success", text: `Deck added: imported ${data.imported ?? 0}, updated ${data.updated ?? 0}` });
+                        break;
+                      }
+                    } catch (e:any) {
+                      // ignore transient errors
+                    }
+                    await new Promise((r) => setTimeout(r, 600));
+                  }
+                } catch (err:any) {
+                  setMessage({ type: "error", text: err.response?.data?.detail || "Failed to add deck to collection" });
+                }
+              }}
+              disabled={!selectedFile}
+            >
+              Add to Collection
+            </button>
+            <button className="btn-secondary" onClick={loadDecks}>Refresh</button>
+        <button className="btn-danger" onClick={deleteDeck} disabled={!selectedFile}>Delete</button>
+          </div>
       {loading ? (
         <p>Loading deck...</p>
       ) : !detail ? (
@@ -204,12 +226,8 @@ export default function MyDecks() {
             <small>
               Saved: {detail.saved_at || "Unknown"} | Cards: {detail.card_count}
             </small>
-            <p>{detail.description}</p>
-            {detail.prompt && (
-              <small>Prompt: {detail.prompt}</small>
-            )}
-          </div>
-
+            <h1 style={{ margin: "0.5em 0", color: '#7c3aed' }}>Commander</h1>
+              </div>
           <div className="my-decks-commander-card">
             <CardPreview
               name={detail.commander.name}
@@ -217,29 +235,62 @@ export default function MyDecks() {
               subtitle="Commander"
               tcgplayerPrice={detail.commander.tcgplayer_price}
             />
+        </div>
+        <div className="my-decks-card-toolbar">
+            <label className="my-decks-card-sort-label">Sort cards in this deck:</label>
+            <select
+              aria-label="Sort cards in deck"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="my-decks-select"
+              title="Sort cards in this deck"
+            >
+              <option value="type">Type</option>
+              <option value="name">Name</option>
+              <option value="cmc">Mana Cost</option>
+              <option value="price">Price</option>
+            </select>
           </div>
+
 
           <div className="card-grid">
-            {detail.deck.map((card, idx) => (
-              <CardPreview
-                key={`${card.name}-${idx}`}
-                name={card.name}
-                imageUri={card.image_uri}
-                subtitle={card.type_line || "Deck Card"}
-                tcgplayerPrice={card.tcgplayer_price}
-              />
-            ))}
+            {(() => {
+              const buckets = new Map<string, { card: CardEntry; quantity: number }>();
+              for (const card of detail.deck) {
+                const key = card.name;
+                const existing = buckets.get(key);
+                if (existing) {
+                  existing.quantity += 1;
+                } else {
+                  buckets.set(key, { card, quantity: 1 });
+                }
+              }
+              const grouped = Array.from(buckets.values());
+              grouped.sort((a, b) => {
+                if (sortBy === "name") return a.card.name.localeCompare(b.card.name);
+                if (sortBy === "cmc") {
+                  return (Number(a.card.cmc) || 0) - (Number(b.card.cmc) || 0)
+                    || a.card.name.localeCompare(b.card.name);
+                }
+                if (sortBy === "price") {
+                  return (Number(b.card.tcgplayer_price) || 0) - (Number(a.card.tcgplayer_price) || 0)
+                    || a.card.name.localeCompare(b.card.name);
+                }
+                return (a.card.type_line || "").localeCompare(b.card.type_line || "")
+                  || a.card.name.localeCompare(b.card.name);
+              });
+              return grouped.map(({ card, quantity }, idx) => (
+                <CardPreview
+                  key={`${card.name}-${idx}`}
+                  name={card.name}
+                  imageUri={card.image_uri}
+                  subtitle={card.type_line || "Deck Card"}
+                  tcgplayerPrice={card.tcgplayer_price}
+                  quantity={quantity > 1 ? quantity : undefined}
+                />
+              ));
+            })()}
           </div>
-
-          <div className="my-decks-actions">
-            <button className="btn-secondary" onClick={exportDecklist}>
-              Export Decklist (.txt)
-            </button>
-            <button className="btn-primary" onClick={() => { setShowAnalyze(true); handleAnalyze(); }} disabled={analyzeLoading}>
-              {analyzeLoading ? "Analyzing..." : "Analyze & Suggest Improvements"}
-            </button>
-          </div>
-
           {/* Analyze Modal */}
           {showAnalyze && (
             <div className="my-decks-modal-overlay">

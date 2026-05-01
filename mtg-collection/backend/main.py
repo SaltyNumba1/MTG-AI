@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from routes.collection import router as collection_router
 from routes.deckbuilder import router as deck_router
+##from routes.archidekt import router as archidekt_router        unsure what this is for, but leaving it here for now in case we want to add it back in later
 
 app = FastAPI(title="MTG Collection & Deck Builder", version="1.0.0")
 
@@ -34,6 +35,7 @@ async def startup():
 
 app.include_router(collection_router)
 app.include_router(deck_router)
+##app.include_router(archidekt_router)   unsure what this is for, but leaving it here for now in case we want to add it back in later
 
 
 @app.get("/health")

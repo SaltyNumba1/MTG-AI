@@ -113,6 +113,11 @@ input:focus, select:focus, textarea:focus {
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
+.mtg-card.popout-left .card-popout {
+  left: auto;
+  right: calc(100% + 12px);
+}
+
 .card-popout-frame {
   border-radius: 14px;
   overflow: hidden;

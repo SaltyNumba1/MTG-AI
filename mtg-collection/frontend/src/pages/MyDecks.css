@@ -7,7 +7,8 @@
 }
 
 .my-decks-select {
-  min-width: 320px;
+  min-width: 280px;
+  max-width: 400px;
 }
 
 .my-decks-meta {
@@ -32,6 +33,8 @@
 .my-decks-commander-card {
   margin-bottom: 18px;
   max-width: 260px;
+  border: 3px solid #c4b5fd;
+  border-radius: 12px;
 }
 
 .my-decks-actions {
@@ -137,4 +140,17 @@
   border-radius: 12px;
   color: #94a3b8;
   font-style: italic;
+}
+
+.my-decks-card-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 8px;
+  flex-wrap: wrap;
+}
+
+.my-decks-card-sort-label {
+  font-size: 0.9rem;
+  opacity: 0.85;
 }

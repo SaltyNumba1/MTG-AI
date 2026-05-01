@@ -24,8 +24,8 @@ OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "900"))  # seconds
 OLLAMA_MAX_GENERATION_SEC = float(os.getenv("OLLAMA_MAX_GENERATION_SEC", "420"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "768"))
 ALLOW_LLM_TIMEOUT_FALLBACK = os.getenv("ALLOW_LLM_TIMEOUT_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
-BASE_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "320"))
-KEYWORD_MODEL_CANDIDATE_CAP = 500
+BASE_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "500"))
+KEYWORD_MODEL_CANDIDATE_CAP = 750
 MODEL_PROGRESS_HEARTBEAT_SEC = float(os.getenv("MODEL_PROGRESS_HEARTBEAT_SEC", "8"))
 COLOR_ORDER = ["W", "U", "B", "R", "G"]
 BASIC_NAME_TO_COLOR = {
@@ -741,6 +741,13 @@ def build_deck_with_llm(
         f"{i + 1}. {summarize(c)}" for i, c in enumerate(model_candidates)
     )
 
+    # Compute the number of cards we actually need the AI to choose.
+    # We pre-allocate land slots and must-include slots ourselves.
+    must_include_nonland_count = sum(1 for c in (must_include_cards or []) if not is_land(c))
+    must_include_land_count = len(must_include_cards or []) - must_include_nonland_count
+    total_land_budget = max(0, int(basic_land_count or 0)) + max(0, int(nonbasic_land_count or 0)) + max(0, int(dual_land_count or 0))
+    ai_pick_target = max(1, min(99, 99 - total_land_budget - len(must_include_cards or [])))
+
     system_prompt = (
         "You are an expert Magic: The Gathering deck builder specializing in Commander format. "
         f"Select exactly {ai_pick_target} non-land cards from the numbered list to form a synergistic Commander deck. "
@@ -760,13 +767,6 @@ def build_deck_with_llm(
         synergy_text = f"\nSynergy keywords to prioritize: {', '.join(normalized_keywords)}"
     else:
         synergy_text = ""
-
-    # Compute the number of cards we actually need the AI to choose.
-    # We pre-allocate land slots and must-include slots ourselves.
-    must_include_nonland_count = sum(1 for c in (must_include_cards or []) if not is_land(c))
-    must_include_land_count = len(must_include_cards or []) - must_include_nonland_count
-    total_land_budget = max(0, int(basic_land_count or 0)) + max(0, int(nonbasic_land_count or 0)) + max(0, int(dual_land_count or 0))
-    ai_pick_target = max(1, min(99, 99 - total_land_budget - len(must_include_cards or [])))
 
     deck_shape_text = (
         f"\nTarget deck composition: {max(0, 99 - min(99, total_land_budget))} non-lands "

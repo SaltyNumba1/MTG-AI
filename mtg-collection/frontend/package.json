@@ -25,13 +25,13 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
-    "electron": "^26.0.0",
-    "electron-builder": "^24.0.0",
+    "concurrently": "^8.2.1",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
     "electron-packager": "^17.1.2",
     "typescript": "^5.4.5",
-    "vite": "^5.4.21",
-    "wait-on": "^7.0.1",
-    "concurrently": "^8.2.1"
+    "vite": "^7.3.2",
+    "wait-on": "^7.0.1"
   },
   "build": {
     "appId": "com.mtg.collection",
@@ -39,7 +39,9 @@
     "forceCodeSigning": false,
     "win": {
       "icon": "build/icon.ico",
-      "target": ["dir"]
+      "target": [
+        "dir"
+      ]
     },
     "files": [
       "dist/**/*",
@@ -49,7 +51,9 @@
       {
         "from": "../backend/dist",
         "to": "backend/dist",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "directories": {

@@ -37,7 +37,9 @@ class AnalyzeDeckRequest(BaseModel):
     deck_file: str
 
 @router.post("/import-deck")
+
 async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)):
+    print("NEW BACKEND RUNNING")
     """
     Import a decklist (plain text, one card per line) and save as a deck.
     Returns the saved deck info or errors.
@@ -54,6 +56,9 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
     def _clean_name(raw_name: str) -> str:
         cleaned = raw_name.strip()
         cleaned = re.sub(r"\*CMDR\*", "", cleaned, flags=re.IGNORECASE).strip()
+        # Replace escaped single quotes (\\' or \\') with a plain '
+        cleaned = cleaned.replace("\\'", "'").replace("\'", "'")
+        print(f"_clean_name: raw='{raw_name}' cleaned='{cleaned}'")
         return cleaned
 
     for line in lines:
@@ -90,13 +95,31 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
     if not commander_name:
         raise HTTPException(status_code=400, detail="Could not detect a commander from the decklist.")
 
-    # Try to fetch card details for commander and deck cards
+    # Try to fetch card details for commander and deck cards, auto-adding missing ones
+    from services.import_adapters import CanonicalImportRow
+    from routes.collection import upsert_card
+
     result = await db.execute(select(Card))
     cards = result.scalars().all()
     card_lookup = {c.name.lower(): c for c in cards}
     commander = card_lookup.get(commander_name.lower()) if commander_name else None
     if not commander and " // " in commander_name:
         commander = card_lookup.get(commander_name.split(" // ")[0].strip().lower())
+
+    # If commander is missing, add it to the collection using Scryfall
+    if not commander and commander_name:
+        row = CanonicalImportRow(source="import-deck", name=commander_name, quantity=1, original_row={"name": commander_name, "quantity": 1})
+        status, reason = await upsert_card(db, row)
+        if status == "imported" or status == "updated":
+            # Refresh card lookup
+            result = await db.execute(select(Card))
+            cards = result.scalars().all()
+            card_lookup = {c.name.lower(): c for c in cards}
+            commander = card_lookup.get(commander_name.lower())
+            if not commander and " // " in commander_name:
+                commander = card_lookup.get(commander_name.split(" // ")[0].strip().lower())
+        else:
+            raise HTTPException(status_code=400, detail=f"Commander '{commander_name}' could not be added: {reason or 'Unknown error'}")
 
     deck_cards = []
     missing = []
@@ -109,6 +132,20 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
         c = card_lookup.get(lookup_name)
         if not c and " // " in entry["name"]:
             c = card_lookup.get(entry["name"].split(" // ")[0].strip().lower())
+        if not c:
+            # Try to add missing card to collection
+            row = CanonicalImportRow(source="import-deck", name=entry["name"], quantity=entry["quantity"], original_row=entry)
+            status, reason = await upsert_card(db, row)
+            if status == "imported" or status == "updated":
+                # Refresh card lookup for this card
+                result = await db.execute(select(Card))
+                cards = result.scalars().all()
+                card_lookup = {c.name.lower(): c for c in cards}
+                c = card_lookup.get(lookup_name)
+                if not c and " // " in entry["name"]:
+                    c = card_lookup.get(entry["name"].split(" // ")[0].strip().lower())
+            else:
+                missing.append(entry["name"])
         if c:
             for _ in range(max(1, int(entry.get("quantity", 1)))):
                 deck_cards.append({
@@ -117,11 +154,9 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
                     "type_line": c.type_line,
                     "tcgplayer_price": c.tcgplayer_price,
                 })
-        else:
-            missing.append(entry["name"])
 
     if not commander:
-        raise HTTPException(status_code=400, detail=f"Commander '{commander_name}' not found in your collection.")
+        raise HTTPException(status_code=400, detail=f"Commander '{commander_name}' could not be found or added.")
 
     # Save deck (reuse save_deck logic)
     payload = DeckSaveRequest(
@@ -268,14 +303,45 @@ def _is_legal_commander(card: Card) -> bool:
 def _saved_decks_dir() -> Path:
     """Return the saved_decks directory.
 
-    In a PyInstaller bundle, ``Path(__file__).parents[1]`` resolves to the
-    temporary ``_MEIxxxx`` extraction directory which is wiped when the app
-    exits, causing saved decks to vanish on relaunch. When frozen, anchor the
-    folder next to the executable instead so it persists.
+    Priority:
+    1. $SAVED_DECKS_DIR (if set)
+    2. Repo packaged frontend release resources path (if it exists)
+    3. When frozen, a "saved_decks" folder next to the executable
+    4. Fallback to backend/saved_decks in-source (used during development)
     """
+    import os
     import sys
+
+    # 1) Honor explicit env var for tests/packaging overrides
+    env = os.environ.get("SAVED_DECKS_DIR")
+    if env:
+        return Path(env).resolve()
+
+    # 2) Prefer the repo's packaged frontend release resources path when present
+    #    This keeps dev and packaged runs writing to the same folder when the
+    #    frontend release exists in the repo.
+    try:
+        repo_release_saved = (
+            Path(__file__).resolve().parents[2]
+            / "frontend"
+            / "release"
+            / "MTG Collection-win32-x64"
+            / "resources"
+            / "backend"
+            / "dist"
+            / "saved_decks"
+        )
+        if repo_release_saved.exists():
+            return repo_release_saved
+    except Exception:
+        # If any path resolution fails, continue to other fallbacks
+        pass
+
+    # 3) When frozen (PyInstaller), keep saved_decks next to the executable
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent / "saved_decks"
+
+    # 4) Development fallback: saved_decks next to backend package
     return Path(__file__).resolve().parents[1] / "saved_decks"
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import MTG_KEYWORDS from "../mtg_keywords";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
@@ -20,6 +20,14 @@ interface CardEntry {
   image_uri: string;
   color_identity: string[];
   tcgplayer_price?: string | null;
+}
+
+interface CollectionCard {
+  id: string;
+  name: string;
+  quantity: number;
+  type_line: string;
+  color_identity: string[];
 }
 
 interface DeckResult {
@@ -133,7 +141,14 @@ export default function DeckBuilder() {
   const [mustIncludeText, setMustIncludeText] = useState<string>(DEFAULT_MUST_INCLUDE);
   const [isHung, setIsHung] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [collection, setCollection] = useState<CollectionCard[]>([]);
   const hungCheckRef = useRef<number | null>(null);
+
+  // Helper: get selected commander object
+  const selectedCommanderObj = useMemo(
+    () => commanders.find((c) => c.name === selectedCommander),
+    [commanders, selectedCommander]
+  );
 
   // HUNG_THRESHOLD_MS: if build is active and last_activity_at hasn't updated
   // in this many ms, the model is considered hung. Heartbeat fires every 8s,
@@ -142,7 +157,36 @@ export default function DeckBuilder() {
 
   useEffect(() => {
     api.get<Commander[]>("/deck/commanders").then(({ data }) => setCommanders(data));
+    api.get<CollectionCard[]>("/collection/")
+      .then(({ data }) => setCollection(data))
+      .catch(() => setCollection([]));
   }, []);
+
+  // When the user navigates away after a build has finished, clear the chat
+  // so re-entering the page starts fresh.
+  // (No-op: previously invalid useEffect with JSX was here)
+
+  const commanderColors = new Set(selectedCommanderObj?.color_identity || []);
+
+  const landCounts = useMemo(() => {
+    let nonbasic = 0;
+    let dual = 0;
+    for (const c of collection) {
+      const tl = (c.type_line || "").toLowerCase();
+      if (!tl.includes("land")) continue;
+      if (tl.includes("basic")) continue;
+      const ci = c.color_identity || [];
+      // Color-identity legality: every land color must be in commander's color identity (if a commander is selected)
+      const colorLegal = !selectedCommanderObj
+        ? true
+        : ci.every((color) => commanderColors.has(color));
+      if (!colorLegal) continue;
+      const qty = c.quantity || 0;
+      nonbasic += qty;
+      if (ci.length >= 2) dual += qty;
+    }
+    return { nonbasic, dual };
+  }, [collection, selectedCommander, commanders]);
 
   useEffect(() => {
     if (!building) {
@@ -326,48 +370,53 @@ export default function DeckBuilder() {
     <div className="page">
       <h1 className="page-title">Build a Commander Deck</h1>
 
+      <div className="deckbuilder-layout">
       <div className="deckbuilder-form">
         <div className="deckbuilder-filters-row">
           <div className="deckbuilder-filters-col">
             <label className="deckbuilder-label">
               Filter by MTG Keywords (assist AI synergy)
             </label>
-            {keywordFilters.map((filter, idx) => (
-              <div key={idx} className="deckbuilder-keyword-row">
-                <select
-                  value={filter}
-                  onChange={e => {
-                    const newFilters = [...keywordFilters];
-                    newFilters[idx] = e.target.value;
-                    setKeywordFilters(newFilters);
-                  }}
-                  className="deckbuilder-keyword-select"
-                >
-                  <option value="">- Select a keyword -</option>
-                  {MTG_KEYWORDS.map((kw) => (
-                    <option key={kw} value={kw}>{kw}</option>
-                  ))}
-                </select>
-                {keywordFilters.length > 1 && (
-                  <button
-                    type="button"
-                    className="deckbuilder-keyword-remove"
-                    onClick={() => setKeywordFilters(keywordFilters.filter((_, i) => i !== idx))}
+            {keywordFilters.map(function(filter, idx) {
+              return (
+                <div key={idx} className="deckbuilder-keyword-row">
+                  <select
+                    aria-label={"Keyword filter " + (idx + 1)}
+                    title={"Keyword filter " + (idx + 1)}
+                    value={filter}
+                    onChange={function(e) {
+                      const newFilters = [...keywordFilters];
+                      newFilters[idx] = e.target.value;
+                      setKeywordFilters(newFilters);
+                    }}
+                    className="deckbuilder-keyword-select"
                   >
-                    ✕
-                  </button>
-                )}
-                {idx === keywordFilters.length - 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setKeywordFilters([...keywordFilters, ""])}
-                    className="deckbuilder-keyword-add"
-                  >
-                    ＋
-                  </button>
-                )}
-              </div>
-            ))}
+                    <option value="">- Select a keyword -</option>
+                    {MTG_KEYWORDS.map(function(kw) {
+                      return <option key={kw} value={kw}>{kw}</option>;
+                    })}
+                  </select>
+                  {keywordFilters.length > 1 && (
+                    <button
+                      type="button"
+                      className="deckbuilder-keyword-remove"
+                      onClick={function() { setKeywordFilters(keywordFilters.filter(function(_, i) { return i !== idx; })); }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                  {idx === keywordFilters.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setKeywordFilters([...keywordFilters, ""])}
+                      className="deckbuilder-keyword-add"
+                    >
+                      ＋
+                    </button>
+                  )}
+                </div>
+              );
+            })}
             <small className="deckbuilder-hint">
               These keywords help the AI suggest synergistic cards, but do not hard-filter the deck.
             </small>
@@ -451,6 +500,10 @@ export default function DeckBuilder() {
               onChange={e => setNonbasicLandCount(Number(e.target.value))}
               className="deckbuilder-land-input"
             />
+            <small className="deckbuilder-land-hint">
+              You own <strong>{landCounts.nonbasic}</strong> compatible nonbasic land{landCounts.nonbasic === 1 ? "" : "s"}
+              {selectedCommander ? "" : " (select a commander to filter by color identity)"}
+            </small>
           </div>
           <div>
             <label className="deckbuilder-label">
@@ -465,6 +518,9 @@ export default function DeckBuilder() {
               className="deckbuilder-land-input"
               title="Multicolor lands matching your commander's color identity (e.g. shock lands, fetch lands)."
             />
+            <small className="deckbuilder-land-hint">
+              You own <strong>{landCounts.dual}</strong> compatible dual land{landCounts.dual === 1 ? "" : "s"}
+            </small>
           </div>
         </div>
 
@@ -486,6 +542,22 @@ export default function DeckBuilder() {
             {resetting ? "Resetting..." : "⚠️ Force Reset Model"}
           </button>
         )}
+      </div>
+
+      <div className="deckbuilder-commander-preview">
+        {selectedCommanderObj ? (
+          <CardPreview
+            name={selectedCommanderObj.name}
+            imageUri={selectedCommanderObj.image_uri}
+            subtitle={`Commander ${(selectedCommanderObj.color_identity || []).map((x) => COLOR_SYMBOLS[x] || x).join("")}`}
+            tcgplayerPrice={selectedCommanderObj.tcgplayer_price}
+          />
+        ) : (
+          <div className="deckbuilder-commander-placeholder">
+            <span>Select a commander to preview it here</span>
+          </div>
+        )}
+      </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -525,7 +597,7 @@ export default function DeckBuilder() {
               <p className="deckbuilder-result-desc">
                 {result.description}
               </p>
-              <div style={{ color: missingCount === 0 ? "#86efac" : "#fca5a5", marginBottom: 10, fontSize: 13 }}>
+              <div className={missingCount === 0 ? "deckbuilder-result-complete" : "deckbuilder-result-missing"}>
                 Total Cards: {totalGeneratedCount}/100
                 {missingCount > 0 ? ` (${missingCount} missing)` : " (complete)"}
               </div>
@@ -553,11 +625,7 @@ export default function DeckBuilder() {
                   <span className="deckbuilder-stats-label">{bucket}</span>
                   <div className="deckbuilder-stats-bar-bg">
                     <div
-                      style={{
-                        height: "100%",
-                        width: `${(count / curveMax) * 100}%`,
-                        background: "linear-gradient(90deg, #22c55e, #14b8a6)",
-                      }}
+                      className="deckbuilder-curve-bar"
                     />
                   </div>
                   <span className="deckbuilder-stats-count">{count}</span>
@@ -572,11 +640,7 @@ export default function DeckBuilder() {
                   <span className="deckbuilder-stats-label">{COLOR_SYMBOLS[color] || color}</span>
                   <div className="deckbuilder-stats-bar-bg">
                     <div
-                      style={{
-                        height: "100%",
-                        width: `${(count / colorMax) * 100}%`,
-                        background: "linear-gradient(90deg, #f59e0b, #ef4444)",
-                      }}
+                      className="deckbuilder-color-bar"
                     />
                   </div>
                   <span className="deckbuilder-stats-count">{count}</span>

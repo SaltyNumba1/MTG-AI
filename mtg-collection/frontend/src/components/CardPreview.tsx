@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import "./CardPreview.css";
 
 interface CardPreviewProps {
@@ -35,13 +35,53 @@ export default function CardPreview({
   children,
 }: CardPreviewProps) {
   const [flipped, setFlipped] = useState(false);
+  const [popoutSide, setPopoutSide] = useState<"right" | "left">("right");
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  const updatePopoutSide = () => {
+    const el = cardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const popoutWidth = 340 + 16; // popout plus gap
+    const spaceRight = Math.max(0, window.innerWidth - rect.right);
+    const spaceLeft = Math.max(0, rect.left);
+
+    // Prefer the side with enough room for the popout. If right side lacks space, show left.
+    if (spaceRight < popoutWidth && spaceLeft >= popoutWidth) {
+      setPopoutSide("left");
+      return;
+    }
+    if (spaceRight < popoutWidth && spaceLeft < popoutWidth) {
+      // neither side has full room: choose the side with more space
+      setPopoutSide(spaceLeft > spaceRight ? "left" : "right");
+      return;
+    }
+    setPopoutSide("right");
+  };
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const onEnter = () => updatePopoutSide();
+    const onMove = () => updatePopoutSide();
+    const onResize = () => updatePopoutSide();
+
+    el.addEventListener("mouseenter", onEnter);
+    el.addEventListener("mousemove", onMove);
+    window.addEventListener("resize", onResize);
+    return () => {
+      el.removeEventListener("mouseenter", onEnter);
+      el.removeEventListener("mousemove", onMove);
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
 
   const backUri = useMemo(() => getBackFaceUri(imageUri), [imageUri]);
   const displayUri = flipped && backUri ? backUri : imageUri;
   const canRotate = useMemo(() => name.includes("//") && Boolean(backUri), [name, backUri]);
 
   return (
-    <div className="mtg-card">
+    <div className={`mtg-card popout-${popoutSide}`} ref={cardRef}>
       {displayUri ? (
         <div
           className="card-image-shell"

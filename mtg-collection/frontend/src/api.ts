@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const baseURL = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "/";
+// Always use backend at port 8001 for local development
+const baseURL = "http://localhost:8001";
 
 const api = axios.create({
   baseURL,

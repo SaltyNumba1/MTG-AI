@@ -1,0 +1,76 @@
+.build-status-floater {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 320px;
+  max-height: 220px;
+  background: #1d2330;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 10px 12px;
+  z-index: 9999;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.build-status-floater.collapsed {
+  max-height: 44px;
+  overflow: hidden;
+}
+
+.build-status-floater-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.build-status-floater-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: bsf-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes bsf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.build-status-floater-title {
+  font-weight: 600;
+  flex: 1;
+}
+
+.build-status-floater-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: inherit;
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.build-status-floater-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.build-status-floater-msg {
+  font-size: 0.82rem;
+  opacity: 0.92;
+}
+
+.build-status-floater-thoughts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 110px;
+  overflow-y: auto;
+  font-size: 0.72rem;
+  opacity: 0.78;
+}

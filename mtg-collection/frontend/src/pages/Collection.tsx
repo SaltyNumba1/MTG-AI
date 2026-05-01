@@ -3,6 +3,11 @@ import api from "../api";
 import CardPreview from "../components/CardPreview";
 import "./Collection.css";
 
+// Types for Archidekt precon data
+type ArchidektPreconData = {
+  [setName: string]: { deck_name: string; url: string }[];
+};
+
 interface CardEntry {
   id: string;
   name: string;
@@ -72,6 +77,42 @@ const COLOR_SYMBOLS: Record<string, string> = {
 
 export default function Collection() {
   const [showImportDeck, setShowImportDeck] = useState(false);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef({ active: false, offsetX: 0, offsetY: 0 });
+  const [modalPos, setModalPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Initialize modal position to center on first mount
+  useEffect(() => {
+    const setInitial = () => {
+      const w = window.innerWidth || 800;
+      const h = window.innerHeight || 600;
+      setModalPos({ x: Math.max(20, Math.round(w / 2 - 320)), y: Math.max(20, Math.round(h / 2 - 200)) });
+    };
+    setInitial();
+    window.addEventListener("resize", setInitial);
+    return () => window.removeEventListener("resize", setInitial);
+  }, []);
+
+  const startDrag = (e: React.MouseEvent) => {
+    const el = modalRef.current;
+    if (!el) return;
+    draggingRef.current.active = true;
+    const rect = el.getBoundingClientRect();
+    draggingRef.current.offsetX = e.clientX - rect.left;
+    draggingRef.current.offsetY = e.clientY - rect.top;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!draggingRef.current.active) return;
+      setModalPos({ x: ev.clientX - draggingRef.current.offsetX, y: ev.clientY - draggingRef.current.offsetY });
+    };
+    const onUp = () => {
+      draggingRef.current.active = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
   const [decklistText, setDecklistText] = useState("");
   const [deckNameInput, setDeckNameInput] = useState("");
   const [deckImporting, setDeckImporting] = useState(false);
@@ -160,12 +201,13 @@ export default function Collection() {
   const [cards, setCards] = useState<CardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
   const [search, setSearch] = useState("");
-  const [colorFilter, setColorFilter] = useState<string>("all");
+  const [colorFilter, setColorFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [rarityFilter, setRarityFilter] = useState<string>("all");
   const [setFilter, setSetFilter] = useState<string>("all");
+  const [manaCostFilter, setManaCostFilter] = useState<number[]>([]);
   const [sortBy, setSortBy] = useState<"name" | "quantity" | "cmc" | "recent">("name");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"set" | "adjust">("adjust");
@@ -187,11 +229,18 @@ export default function Collection() {
       if (raw) {
         const parsed = JSON.parse(raw);
         setSearch(parsed.search || "");
-        setColorFilter(parsed.colorFilter || "all");
+        setColorFilter(
+          Array.isArray(parsed.colorFilter)
+            ? parsed.colorFilter.filter((s: any) => typeof s === "string")
+            : (parsed.colorFilter && parsed.colorFilter !== "all" ? [parsed.colorFilter] : [])
+        );
         setTypeFilter(parsed.typeFilter || "all");
         setRarityFilter(parsed.rarityFilter || "all");
         setSetFilter(parsed.setFilter || "all");
         setSortBy(parsed.sortBy || "name");
+        if (Array.isArray(parsed.manaCostFilter)) {
+          setManaCostFilter(parsed.manaCostFilter.filter((n: any) => Number.isFinite(n)));
+        }
       }
       const recentRaw = localStorage.getItem(RECENT_KEY);
       if (recentRaw) {
@@ -205,9 +254,9 @@ export default function Collection() {
   useEffect(() => {
     localStorage.setItem(
       FILTERS_KEY,
-      JSON.stringify({ search, colorFilter, typeFilter, rarityFilter, setFilter, sortBy })
+      JSON.stringify({ search, colorFilter, typeFilter, rarityFilter, setFilter, sortBy, manaCostFilter })
     );
-  }, [search, colorFilter, typeFilter, rarityFilter, setFilter, sortBy]);
+  }, [search, colorFilter, typeFilter, rarityFilter, setFilter, sortBy, manaCostFilter]);
 
   const loadBackups = async () => {
     try {
@@ -236,6 +285,15 @@ export default function Collection() {
     loadBackups();
   }, []);
 
+  // Refresh collection when an external action imports cards (e.g., MyDecks -> Add to Collection)
+  useEffect(() => {
+    const handler = () => {
+      fetchCards();
+    };
+    window.addEventListener("collection-updated", handler);
+    return () => window.removeEventListener("collection-updated", handler);
+  }, []);
+
   useEffect(() => {
     let unmounted = false;
     const fetchImportStatus = async () => {
@@ -261,6 +319,7 @@ export default function Collection() {
     if (!file) return;
     setImporting(true);
     setMessage(null);
+    await refreshImportStatus(); // Force status refresh on import start
     const form = new FormData();
     form.append("file", file);
     try {
@@ -284,6 +343,7 @@ export default function Collection() {
         }`,
       });
       await fetchCards();
+      await refreshImportStatus(); // Force status refresh after import completes
     } catch (err: any) {
       setMessage({ type: "error", text: err.response?.data?.detail || "Import failed" });
     } finally {
@@ -448,42 +508,129 @@ export default function Collection() {
   }, [cards]);
 
   const typeOptions = useMemo(() => {
-    const s = new Set(
-      cards
-        .map((c) => (c.type_line || "").split("—")[0].trim())
-        .filter(Boolean)
-    );
-    return Array.from(s).sort();
+    const roots = new Set<string>();
+    const compounds = new Set<string>();
+    for (const c of cards) {
+      const tl = c.type_line || "";
+      const [rootPart, subPart] = tl.split("—");
+      const root = (rootPart || "").trim();
+      if (!root) continue;
+      // Split multi-type roots like "Legendary Creature" into the last word as the primary type bucket
+      const primary = root.split(/\s+/).pop() || root;
+      roots.add(primary);
+      const subs = (subPart || "").trim().split(/\s+/).map((s) => s.trim()).filter(Boolean);
+      if (subs) {
+        for (const sub of subs) {
+          compounds.add(`${primary} // ${sub}`);
+        }
+      }
+    }
+    return [
+      ...Array.from(roots).sort(),
+      ...Array.from(compounds).sort(),
+    ];
   }, [cards]);
+
+  const maxCmc = useMemo(() => {
+    let m = 0;
+    for (const c of cards) {
+      const v = Math.floor(Number(c.cmc) || 0);
+      if (v > m) m = v;
+    }
+    return m;
+  }, [cards]);
+
+  const hasXCost = (c: CardEntry) => /\{\s*X\s*\}/i.test(c.mana_cost || "");
 
   const filtered = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
+    const manaSet = new Set(manaCostFilter);
     const rows = cards.filter((c) => {
       if (normalizedSearch && !c.name.toLowerCase().includes(normalizedSearch)) return false;
-      if (colorFilter === "C") {
-        if ((c.colors || []).length > 0) return false;
-      } else if (colorFilter !== "all" && !(c.color_identity || []).includes(colorFilter)) {
-        return false;
+      if (colorFilter.length > 0) {
+        const wantsColorless = colorFilter.includes("C");
+        const wantedColors = colorFilter.filter((x) => x !== "C");
+        const ci = c.color_identity || [];
+        const colors = c.colors || [];
+        const matchesColorless = wantsColorless && colors.length === 0;
+        const matchesAny = wantedColors.some((col) => ci.includes(col));
+        if (!matchesColorless && !matchesAny) return false;
       }
       if (typeFilter !== "all") {
-        const rootType = (c.type_line || "").split("—")[0].trim();
-        if (rootType !== typeFilter) return false;
+        const tl = (c.type_line || "");
+        const [rootPart, subPart] = tl.split("—");
+        const root = (rootPart || "").trim();
+        const primary = root.split(/\s+/).pop() || root;
+        const subs = (subPart || "").trim().split(/\s+/).map((s) => s.trim()).filter(Boolean);
+        if (typeFilter.includes(" // ")) {
+          const [wantPrimary, wantSub] = typeFilter.split(" // ").map((s) => s.trim());
+          if (primary !== wantPrimary || !subs.includes(wantSub)) return false;
+        } else {
+          if (primary !== typeFilter) return false;
+        }
       }
       if (rarityFilter !== "all" && c.rarity !== rarityFilter) return false;
       if (setFilter !== "all" && c.set_code !== setFilter) return false;
+      if (manaSet.size > 0 && !manaSet.has(Math.floor(Number(c.cmc) || 0))) return false;
       return true;
     });
 
     rows.sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "quantity") return b.quantity - a.quantity || a.name.localeCompare(b.name);
-      if (sortBy === "cmc") return (b.cmc || 0) - (a.cmc || 0) || a.name.localeCompare(b.name);
+      if (sortBy === "cmc") {
+        const ca = Math.floor(Number(a.cmc) || 0);
+        const cb = Math.floor(Number(b.cmc) || 0);
+        if (ca !== cb) return ca - cb;
+        // Float X-cost cards to the top of each mana-cost bucket
+        const ax = hasXCost(a) ? 1 : 0;
+        const bx = hasXCost(b) ? 1 : 0;
+        if (ax !== bx) return bx - ax;
+        return a.name.localeCompare(b.name);
+      }
       const ta = lastImportedNames[a.name] || 0;
       const tb = lastImportedNames[b.name] || 0;
       return tb - ta || a.name.localeCompare(b.name);
     });
     return rows;
-  }, [cards, search, colorFilter, typeFilter, rarityFilter, setFilter, sortBy, lastImportedNames]);
+  }, [cards, search, colorFilter, typeFilter, rarityFilter, setFilter, sortBy, manaCostFilter, lastImportedNames]);
+
+  const filteredQuantitySum = useMemo(
+    () => filtered.reduce((sum, c) => sum + (c.quantity || 0), 0),
+    [filtered]
+  );
+
+  const filterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (colorFilter.length > 0) {
+      const labels: Record<string, string> = { W: "White", U: "Blue", B: "Black", R: "Red", G: "Green", C: "Colorless" };
+      parts.push(colorFilter.map((c) => labels[c] || c).join("/"));
+    }
+    if (typeFilter !== "all") {
+      parts.push(typeFilter.endsWith("s") ? typeFilter : `${typeFilter}s`);
+    } else {
+      parts.push("cards");
+    }
+    if (rarityFilter !== "all") parts.push(`(${rarityFilter})`);
+    if (setFilter !== "all") parts.push(`from ${setFilter.toUpperCase()}`);
+    if (manaCostFilter.length > 0) {
+      parts.push(`@ MV ${[...manaCostFilter].sort((a, b) => a - b).join(",")}`);
+    }
+    if (search.trim()) parts.push(`matching "${search.trim()}"`);
+    return parts.join(" ");
+  }, [colorFilter, typeFilter, rarityFilter, setFilter, manaCostFilter, search]);
+
+  const toggleManaCost = (n: number) => {
+    setManaCostFilter((prev) =>
+      prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n].sort((a, b) => a - b)
+    );
+  };
+
+  const toggleColor = (code: string) => {
+    setColorFilter((prev) =>
+      prev.includes(code) ? prev.filter((x) => x !== code) : [...prev, code]
+    );
+  };
 
   const selectedCount = selectedIds.size;
   const totalCardCount = cards.reduce((acc, card) => acc + (card.quantity || 0), 0);
@@ -505,33 +652,50 @@ export default function Collection() {
   };
 
   const saveManualDeck = async () => {
-    const commander = selectedCards.find((card) => card.id === manualCommanderId);
-    if (!commander) {
-      setMessage({ type: "error", text: "Choose a commander for this manual deck" });
-      return;
-    }
+    const commanderName = manualCommanderId.trim();
+if (!commanderName) {
+  setMessage({ type: "error", text: "Enter a commander name for this manual deck" });
+  return;
+}
 
-    const deckCards = selectedCards
-      .filter((card) => card.id !== commander.id)
-      .map((card) => ({
-        name: card.name,
-        image_uri: card.image_uri,
-        type_line: card.type_line,
-        tcgplayer_price: card.tcgplayer_price,
-      }));
+// Try to find commander card in selectedCards for extra info, fallback to just name
+const commanderCard = selectedCards.find((card) => card.name.toLowerCase() === commanderName.toLowerCase());
 
-    const payload: ManualDeckSavePayload = {
-      name: (manualDeckName || `${commander.name} Manual Deck`).trim(),
-      prompt: "Manual deck built from selected collection cards",
-      commander: {
-        name: commander.name,
-        image_uri: commander.image_uri,
-        type_line: commander.type_line,
-        tcgplayer_price: commander.tcgplayer_price,
-      },
-      deck: deckCards,
-      description: `Manual deck saved from collection selection (${deckCards.length + 1} cards).`,
-    };
+const deckCards = cards
+  .filter((card) => card.name.toLowerCase() !== commanderName.toLowerCase())
+  .map((card) => ({
+    name: card.name,
+    image_uri: card.image_uri,
+    type_line: card.type_line,
+    tcgplayer_price: card.tcgplayer_price,
+  }));
+
+// Ensure all deck cards are present in the collection (add or increment)
+for (const card of deckCards) {
+  const existing = cards.find((c) => c.name.toLowerCase() === card.name.toLowerCase());
+  if (existing) {
+    // Increment quantity by 1
+    await api.post("/collection/add-card", { name: card.name, quantity: 1 });
+  } else {
+    // Add new card with quantity 1
+    await api.post("/collection/add-card", { name: card.name, quantity: 1 });
+  }
+}
+
+const payload: ManualDeckSavePayload = {
+  name: (manualDeckName || `${commanderName} Manual Deck`).trim(),
+  prompt: "Manual deck built from selected collection cards",
+  commander: commanderCard
+    ? {
+        name: commanderCard.name,
+        image_uri: commanderCard.image_uri,
+        type_line: commanderCard.type_line,
+        tcgplayer_price: commanderCard.tcgplayer_price,
+      }
+    : { name: commanderName },
+  deck: deckCards,
+  description: `Manual deck saved from collection selection (${deckCards.length + 1} cards).`,
+};
 
     setManualSaving(true);
     try {
@@ -567,8 +731,63 @@ export default function Collection() {
     });
   };
 
+  // Reset import status when the component unmounts (user leaves the page)
+  useEffect(() => {
+    return () => {
+      setImportStatus(null);
+    };
+  }, []);
+
+  // Also reset import status when the page is shown (on mount)
+  useEffect(() => {
+    setImportStatus(null);
+  }, []);
+
+  // Helper to force import status refresh
+  const refreshImportStatus = async () => {
+    try {
+      const { data } = await api.get<ImportStatus>("/collection/import-status");
+      setImportStatus(data);
+    } catch {}
+  };
+  useEffect(() => {
+    refreshImportStatus();
+    const timer = setInterval(refreshImportStatus, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
+
+  // Pause countdown state: when server reports a retry (e.g. "retrying in 60s"), show a countdown
+  const [pauseRemaining, setPauseRemaining] = useState<number | null>(null);
+  const [pauseUntil, setPauseUntil] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (importStatus?.message) {
+      const m = importStatus.message.match(/retrying in (\d+)s/i);
+      if (m) {
+        const secs = parseInt(m[1], 10);
+        const until = Date.now() + secs * 1000;
+        setPauseUntil(until);
+        setPauseRemaining(secs);
+        return;
+      }
+    }
+    setPauseUntil(null);
+    setPauseRemaining(null);
+  }, [importStatus?.message]);
+
+  useEffect(() => {
+    if (!pauseUntil) return;
+    const timer = setInterval(() => {
+      const rem = Math.max(0, Math.ceil((pauseUntil - Date.now()) / 1000));
+      setPauseRemaining(rem);
+    }, 500);
+    return () => clearInterval(timer);
+  }, [pauseUntil]);
+
   return (
-    <div className="page">
+     <div className="page">
       <h1 className="page-title">My Collection ({cards.length} unique cards | {totalCardCount} total cards)</h1>
 
       <div className="collection-toolbar">
@@ -576,6 +795,7 @@ export default function Collection() {
           <button className="btn-primary" type="button" onClick={() => { setAddCardMessage(null); setShowAddCard(true); }}>
             Add Card
           </button>
+          {/* Removed Add Precon button as requested */}
           <label className="collection-import-label">
             <button
               className="btn-primary"
@@ -594,7 +814,7 @@ export default function Collection() {
             />
           </label>
           <button className="btn-primary" type="button" onClick={() => { setImportTextMessage(null); setShowImportText(true); }}>
-            Import Cards from Text
+            Import txt
           </button>
           <button
             className="btn-secondary"
@@ -606,11 +826,7 @@ export default function Collection() {
           </button>
         </div>
 
-        <div className="collection-toolbar-group" title="Decks">
-          <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(true)}>
-            Import Deck (saved to My Decks)
-          </button>
-        </div>
+        {/* Removed Add deck/Import Deck button as requested */}
 
         <div className="collection-toolbar-group" title="Danger zone">
           <button
@@ -627,8 +843,8 @@ export default function Collection() {
       {/* Add Card Modal */}
       {showAddCard && (
         <div className="collection-modal-overlay">
-          <div className="collection-modal">
-            <h2 className="collection-modal-title">Add Single Card</h2>
+          <div className="collection-modal" ref={modalRef} style={{ position: 'fixed', left: modalPos.x, top: modalPos.y }}>
+            <h2 className="collection-modal-title" onMouseDown={startDrag} style={{ cursor: 'move' }}>Add Single Card</h2>
             <input
               className="collection-search"
               value={addCardName}
@@ -643,8 +859,7 @@ export default function Collection() {
             <input
               type="number"
               min={1}
-              className="collection-search"
-              style={{ marginTop: 10 }}
+              className="collection-search collection-search-margin"
               value={addCardQty}
               onChange={(e) => setAddCardQty(Number(e.target.value || 1))}
               placeholder="Quantity"
@@ -661,73 +876,136 @@ export default function Collection() {
         </div>
       )}
 
-      {/* Import Deck Modal */}
-      {showImportDeck && (
+      {/* Removed Add Precon Modal as requested */}
+
+      {/* Import Cards from Text Modal with Save as Deck option and Commander field */}
+      {showImportText && (
         <div className="collection-modal-overlay">
-          <div className="collection-modal">
-            <h2 className="collection-modal-title">Import Decklist</h2>
+          <div className="collection-modal" ref={modalRef} style={{ position: 'fixed', left: modalPos.x, top: modalPos.y }}>
+            <h2 className="collection-modal-title" onMouseDown={startDrag} style={{ cursor: 'move' }}>Import Cards from Text</h2>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ display: 'block', fontWeight: 500, color: 'white', marginBottom: 2 }}></label>
+              <input
+                className="collection-search collection-search-margin"
+                value={manualCommanderId}
+                onChange={e => setManualCommanderId(e.target.value)}
+                placeholder="Commander name" 
+                disabled={!showManualSaveDeck || importTextBusy}
+                style={{ background: !showManualSaveDeck ? '#3c424d' : undefined}}
+              />
+            </div>
+               {showManualSaveDeck && (
+              <input style={{ marginBottom: 13, fontWeight: 500, color: 'white' }} 
+                className="collection-search collection-search-margin"
+                value={manualDeckName}
+                onChange={e => setManualDeckName(e.target.value)}
+                placeholder="Deck Name"
+                disabled={importTextBusy}
+                autoFocus
+              />
+            )}
             <textarea
               className="collection-modal-textarea"
               rows={10}
-              value={decklistText}
-              onChange={e => setDecklistText(e.target.value)}
+              value={importText}
+              onChange={e => setImportText(e.target.value)}
               placeholder={"Paste your decklist here (one card per line, e.g. '1 Sol Ring')"}
-              disabled={deckImporting}
+              disabled={importTextBusy}
             />
-            <input
-              className="collection-search"
-              style={{ marginTop: 10 }}
-              value={deckNameInput}
-              onChange={(e) => setDeckNameInput(e.target.value)}
-              placeholder="Optional deck name (saved in My Decks)"
-              disabled={deckImporting}
-            />
+            <div style={{ display: 'inline-flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 11, gap: 10, width: '100%' }}>
+              Save as New Deck
+              <label>
+                 <input 
+                  type="checkbox"
+                  checked={showManualSaveDeck}
+                  onChange={e => setShowManualSaveDeck(e.target.checked)}
+                  disabled={importTextBusy}
+                />
+              </label>
+              <div>
+                <button style={{ color: 'white', background: '#7c3aed', padding: '4px 10px', fontSize: '0.95em' }}
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => document.getElementById("import-text-file")?.click()}
+                  disabled={importTextBusy}
+                >
+                  Load from .txt
+                </button>
+                <input 
+                  id="import-text-file"
+                  type="file"
+                  accept=".txt"
+                  style={{ display: 'none' }}
+                  onChange={handleImportTextFile}
+                />
+              </div>
+            </div>
+      
             <div className="collection-modal-footer">
-              <button className="btn-secondary" type="button" onClick={() => setShowImportDeck(false)} disabled={deckImporting}>Cancel</button>
-              <button className="btn-primary" type="button" onClick={handleImportDeck} disabled={deckImporting || !decklistText.trim()}>
-                {deckImporting ? "Importing..." : "Import Deck"}
+              <button className="btn-secondary" type="button" onClick={() => setShowImportText(false)} disabled={importTextBusy}>Cancel</button>
+              <button
+                className="btn-primary"
+                type="button"
+                onClick={async () => {
+                  setImportTextBusy(true);
+                  setImportTextMessage(null);
+                  try {
+                    if (showManualSaveDeck && manualDeckName.trim() && manualCommanderId.trim()) {
+                      // Save as deck with commander
+                      const { data } = await api.post("/deck/import-deck", {
+                        decklist: importText,
+                        deck_name: manualDeckName.trim(),
+                        commander: manualCommanderId.trim(),
+                      });
+                      setImportTextMessage("Deck imported successfully!");
+                    } else if (showManualSaveDeck && manualDeckName.trim()) {
+                      setImportTextMessage("Please enter a commander name.");
+                    } else {
+                      // Normal import
+                      const { data } = await api.post("/collection/import-text", {
+                        text: importText,
+                      });
+                      setImportTextMessage("Cards imported successfully!");
+                    }
+                    await refreshImportStatus(); // Force status refresh after import
+                  } catch (err: any) {
+                    setImportTextMessage(err?.response?.data?.detail || "Import failed");
+                  } finally {
+                    setImportTextBusy(false);
+                  }
+                }}
+                disabled={importTextBusy || !importText.trim() || (showManualSaveDeck && (!manualDeckName.trim() || !manualCommanderId.trim()))}
+              >
+                {importTextBusy ? (showManualSaveDeck ? "Importing Deck..." : "Importing...") : (showManualSaveDeck ? "Import as Deck" : "Import Cards")}
+              </button>
+              {/* Exit button for after import completes */}
+              <button
+                className="btn-secondary"
+                type="button"
+                style={{ marginLeft: 8 }}
+                onClick={() => {
+                  setShowImportText(false);
+                  setImportTextMessage(null);
+                  setImportText("");
+                  setManualDeckName("");
+                  setManualCommanderId("");
+                }}
+                disabled={importTextBusy}
+              >
+                Exit
               </button>
             </div>
-            {deckImportMessage && <div className="collection-modal-error">{deckImportMessage}</div>}
+            {importTextMessage && <div className="collection-modal-error">{importTextMessage}</div>}
           </div>
         </div>
       )}
 
-      <div className="collection-bulk-toolbar">
-        <button className="btn-secondary" type="button" onClick={toggleSelectFiltered} disabled={filtered.length === 0}>
-          {filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))
-            ? "Unselect Filtered"
-            : "Select Filtered"}
-        </button>
-        <span style={{ color: "#94a3b8", fontSize: 13 }}>Selected: {selectedCount}</span>
-        <button className="btn-danger" type="button" disabled={selectedCount === 0} onClick={handleBulkDelete}>
-          Bulk Delete
-        </button>
-        <button className="btn-primary" type="button" disabled={selectedCount === 0} onClick={openManualSaveModal}>
-          Save Selected as Deck
-        </button>
-        <select aria-label="Bulk quantity action" title="Bulk quantity action" value={bulkAction} onChange={(e) => setBulkAction(e.target.value as "set" | "adjust")} className="collection-bulk-action">
-          <option value="adjust">Adjust Qty</option>
-          <option value="set">Set Qty</option>
-        </select>
-        <input
-          type="number"
-          aria-label="Bulk quantity value"
-          title="Bulk quantity value"
-          value={bulkValue}
-          onChange={(e) => setBulkValue(Number(e.target.value || 0))}
-          className="collection-bulk-value"
-        />
-        <button className="btn-primary" type="button" disabled={selectedCount === 0} onClick={handleBulkQuantity}>
-          Apply Qty
-        </button>
-      </div>
-
+    
       {message && (
         <div className={`alert alert-${message.type}`}>{message.text}</div>
       )}
 
-      {importStatus && (importStatus.active || importStatus.total > 0) && (
+      {importStatus && importStatus.active && (
         <div className="import-progress import-progress-circular">
           <div className="import-progress-circular-wrap">
             {(() => {
@@ -745,7 +1023,7 @@ export default function Collection() {
                     strokeDasharray={circ}
                     strokeDashoffset={offset}
                     transform="rotate(-90 55 55)"
-                    style={{ transition: "stroke-dashoffset 200ms ease" }}
+                    className="import-progress-circle"
                   />
                   <text x="55" y="58" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="700" fill="#e2e8f0">
                     {pct}%
@@ -755,111 +1033,49 @@ export default function Collection() {
             })()}
           </div>
           <div className="import-progress-info-block">
-            <div style={{ fontSize: 13, marginBottom: 4 }}>
+            <div className="import-progress-info-title">
               {importStatus.source === "folder" ? "Startup folder import" : "CSV upload import"}
               {importStatus.current_file ? `: ${importStatus.current_file}` : ""}
             </div>
-            <small className="import-progress-info">
+            <small className="import-progress-info" style={{ color: "orange", fontWeight: "500", fontSize: "0.95em", margin: 2 }}>
               Processed {importStatus.processed}/{importStatus.total} | Imported {importStatus.imported} | Updated {importStatus.updated} | Failed {importStatus.failed}
             </small>
-            {!importStatus.active && importStatus.message && (
-              <small className="import-progress-success">{importStatus.message}</small>
+            {importStatus?.message && (
+              (/retrying in \d+s/i.test(importStatus.message || "")) ? (
+                <div className="import-paused" style={{ padding: 10, borderRadius: 6, background: '#2b2f36' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6, color: '#ffd966' }}>Import paused</div>
+                  <div style={{ marginBottom: 6 }}>{importStatus.message}</div>
+                  {pauseRemaining !== null && (
+                    <div style={{ marginBottom: 8 }}>Resuming in {pauseRemaining}s</div>
+                  )}
+                  <div>
+                    <button className="btn-secondary" type="button" onClick={cancelImport}>Cancel Import</button>
+                  </div>
+                </div>
+              ) : (
+                !importStatus.active ? (
+                  <small className="import-progress-success">{importStatus.message}</small>
+                ) : null
+              )
             )}
           </div>
         </div>
       )}
 
-      {/* Import Cards from Text Modal */}
-      {showImportText && (
-        <div className="collection-modal-overlay">
-          <div className="collection-modal">
-            <h2 className="collection-modal-title">Import Cards from Text</h2>
-            <small style={{ color: "#94a3b8", display: "block", marginBottom: 8 }}>
-              Paste a decklist (one entry per line, e.g. <code>1 Sol Ring</code>). Cards will be added to your collection (existing quantities increment).
-            </small>
-            <textarea
-              className="collection-modal-textarea"
-              rows={10}
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder={"1 Sol Ring\n1 Arcane Signet\n2 Lightning Bolt"}
-              disabled={importTextBusy}
-            />
-            <label className="collection-import-label" style={{ marginTop: 8 }}>
-              <button
-                className="btn-secondary"
-                type="button"
-                onClick={() => document.getElementById("import-text-file")?.click()}
-                disabled={importTextBusy}
-              >
-                Load from .txt
-              </button>
-              <input
-                id="import-text-file"
-                type="file"
-                accept=".txt"
-                className="collection-import-input"
-                onChange={handleImportTextFile}
-              />
-            </label>
-            <div className="collection-modal-footer">
-              <button className="btn-secondary" type="button" onClick={() => setShowImportText(false)} disabled={importTextBusy}>Cancel</button>
-              <button className="btn-primary" type="button" onClick={handleImportTextSubmit} disabled={importTextBusy || !importText.trim()}>
-                {importTextBusy ? "Adding..." : "Add to Collection"}
-              </button>
-            </div>
-            {importTextMessage && <div className="collection-modal-error">{importTextMessage}</div>}
-          </div>
-        </div>
-      )}
+
 
       {failedRows.length > 0 && (
-        <div className="alert alert-info" style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 8 }}>Failed rows available: {failedRows.length}</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="alert alert-info collection-alert-margin">
+          <div className="collection-alert-failed-rows">Failed rows available: {failedRows.length}</div>
+          <div className="collection-alert-btn-row">
             <button className="btn-primary" onClick={retryFailed} disabled={importing}>Retry Failed Only</button>
             <button className="btn-secondary" onClick={downloadFailedCsv}>Download Failed CSV</button>
           </div>
         </div>
       )}
 
-      {showManualSaveDeck && (
-        <div className="collection-modal-overlay">
-          <div className="collection-modal">
-            <h2 className="collection-modal-title">Save Manual Deck</h2>
-            <input
-              className="collection-search"
-              value={manualDeckName}
-              onChange={(e) => setManualDeckName(e.target.value)}
-              placeholder="Deck name"
-              disabled={manualSaving}
-            />
-            <select
-              aria-label="Manual deck commander"
-              title="Manual deck commander"
-              className="collection-filter"
-              value={manualCommanderId}
-              onChange={(e) => setManualCommanderId(e.target.value)}
-              disabled={manualSaving}
-              style={{ marginTop: 10, width: "100%" }}
-            >
-              {selectedCards.map((card) => (
-                <option key={card.id} value={card.id}>{card.name}</option>
-              ))}
-            </select>
-            <small style={{ color: "#94a3b8", marginTop: 8, display: "block" }}>
-              Tip: select a legendary creature as commander.
-            </small>
-            <div className="collection-modal-footer">
-              <button className="btn-secondary" type="button" onClick={() => setShowManualSaveDeck(false)} disabled={manualSaving}>Cancel</button>
-              <button className="btn-primary" type="button" onClick={saveManualDeck} disabled={manualSaving || !manualCommanderId}>
-                {manualSaving ? "Saving..." : "Save to My Decks"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Removed Save Manual Deck popup/modal from Import Cards from Text flow. Commander field is now only in the import text modal. */}
+    
       <div className="collection-db-safety">
         <div className="collection-db-title">Database Safety</div>
         <div className="collection-db-toolbar">
@@ -890,12 +1106,6 @@ export default function Collection() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select aria-label="Color filter" title="Color filter" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)} className="collection-filter">
-          <option value="all">All Colors</option>
-          {colorOptions.map((c) => (
-            <option key={c.code} value={c.code}>{c.label}</option>
-          ))}
-        </select>
         <select aria-label="Type filter" title="Type filter" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="collection-type-filter">
           <option value="all">All Types</option>
           {typeOptions.map((t) => (
@@ -926,6 +1136,103 @@ export default function Collection() {
           <option value="cmc">Sort: CMC</option>
           <option value="recent">Sort: Recently Imported</option>
         </select>
+      </div>
+      <div className="collection-bulk-toolbar">
+        <button className="btn-secondary" type="button" onClick={toggleSelectFiltered} disabled={filtered.length === 0}>
+          {filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))
+            ? "Unselect Filtered"
+            : "Select Filtered"}
+        </button>
+        <button className="btn-primary" type="button" disabled={selectedCount === 0} onClick={openManualSaveModal}>
+          Save Selected as Deck
+        </button>
+        <span className="collection-selected-count">Selected: {selectedCount}</span>
+        
+        <button className="btn-danger" type="button" disabled={selectedCount === 0} onClick={handleBulkDelete}>
+          Bulk Delete
+        </button>
+        <select aria-label="Bulk quantity action" title="Bulk quantity action" value={bulkAction} onChange={(e) => setBulkAction(e.target.value as "set" | "adjust")} className="collection-bulk-action">
+          <option value="adjust">Adjust Qty</option>
+          <option value="set">Set Qty</option>
+        </select>
+        <input
+          type="number"
+          aria-label="Bulk quantity value"
+          title="Bulk quantity value"
+          value={bulkValue}
+          onChange={(e) => setBulkValue(Number(e.target.value || 0))}
+          className="collection-bulk-value"
+        />
+        <button className="btn-primary" type="button" disabled={selectedCount === 0} onClick={handleBulkQuantity}>
+          Apply Qty
+        </button>
+      </div>
+
+
+      <div className="collection-color-row">
+        <span className="collection-color-label">Colors:</span>
+        <div className="collection-color-checks">
+          {colorOptions.map((opt) => {
+            const active = colorFilter.includes(opt.code);
+            return (
+              <button
+                key={opt.code}
+                type="button"
+                onClick={() => toggleColor(opt.code)}
+                className={`collection-color-pip color-${opt.code}${active ? " active" : ""}${colorFilter.length > 0 && !active ? " inactive" : ""}`}
+                aria-label={opt.label}
+                aria-pressed={active}
+              >
+                <span className="collection-color-pip-glyph">{opt.label.split(" ")[0]}</span>
+              </button>
+            );
+          })}
+          {colorFilter.length > 0 && (
+            <button
+              type="button"
+              className="collection-mana-cost-clear"
+              onClick={() => setColorFilter([])}
+              title="Clear color filter"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {maxCmc > 0 && (
+        <div className="collection-mana-cost-row">
+          <span className="collection-mana-cost-label">Mana Cost:</span>
+          <div className="collection-mana-cost-checks">
+            {Array.from({ length: maxCmc + 1 }, (_, n) => (
+              <label key={n} className="collection-mana-cost-check" title={`Mana value ${n}`}>
+                <input
+                  type="checkbox"
+                  checked={manaCostFilter.includes(n)}
+                  onChange={() => toggleManaCost(n)}
+                />
+                <span>{n}</span>
+              </label>
+            ))}
+            {manaCostFilter.length > 0 && (
+              <button
+                type="button"
+                className="collection-mana-cost-clear"
+                onClick={() => setManaCostFilter([])}
+                title="Clear mana cost filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="collection-filter-summary">
+        <strong>({filtered.length})</strong> {filterSummary}
+        {filteredQuantitySum !== filtered.length && (
+          <span className="collection-filter-summary-qty"> · {filteredQuantitySum} total copies</span>
+        )}
       </div>
 
       {loading ? (

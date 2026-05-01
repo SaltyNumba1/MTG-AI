@@ -4,6 +4,7 @@ import Collection from "./pages/Collection";
 import DeckBuilder from "./pages/DeckBuilder";
 import MyDecks from "./pages/MyDecks";
 import Help from "./pages/Help";
+import BuildStatusFloater from "./components/BuildStatusFloater";
 
 export default function App() {
   const location = useLocation();
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/my-decks" element={<MyDecks />} />
         <Route path="/help" element={<Help />} />
       </Routes>
+      <BuildStatusFloater />
     </>
   );
 }
