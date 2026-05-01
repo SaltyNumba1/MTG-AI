@@ -7,6 +7,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('services/synergy_map.json', 'services'),
+        ('.env', '.'),
     ],
     hiddenimports=[
         'aiosqlite',

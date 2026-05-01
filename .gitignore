@@ -40,5 +40,8 @@ mtg-collection/training/mistral-commander-q4.gguf
 # Internal notes (not for public repo)
 Context.md
 
+# Training assets — published to Hugging Face, not GitHub
+mtg-collection/training/
+
 # Large CSV exports
 archidekt-collection-export-*
