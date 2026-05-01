@@ -1,21 +1,22 @@
-# MTG Collection v1.0.8
+# MTG Collection v1.0.10
 
 ## ✨ New
-- **Add cards to existing collection from text** – new "Import Cards from Text" button on the Collection page. Paste a Moxfield/Archidekt-style list or load a `.txt` file; quantities are upserted into your existing collection (existing cards increment, no replacement).
-- **Dual lands counter** on the Build Deck page – set how many multi-color lands matching your commander's color identity should be included. Counts toward the total land budget.
-- **Smarter AI target** – the engine now asks the model for `99 − basics − nonbasics − duals − must-includes` non-land cards instead of asking for all 99. Faster, fewer wasted picks.
-- **Lands at the bottom** of the generated deck list, with **basic-land tiles collapsed** to one tile per color (with `(N)` count badge). No more pages of identical Plains art.
-- **Smaller commander preview** after deck generation (~half size).
-- **My Decks sort dropdown** – Name / Card count / Commander / Type.
-- **Analyze & Suggest popup** redesigned with side-by-side swap recommendations: current card → suggested card, at ~3"×3" tile size with arrows so you can actually read them.
-- **Circular progress indicator** on collection imports (with percent in the center) replaces the linear bar.
+- **Import deck from text (.txt)** – new "Import Deck" flow on the Collection page. Paste a Moxfield/Archidekt/plain-text decklist (or load a `.txt`) and any cards not already in your collection are auto-fetched from Scryfall and added. The imported deck lands directly in My Decks.
+  - ⚠️ **Format requirement:** the **commander must be at the top of the decklist** (above the 99 mainboard cards) **and must also be named in the deck title block**. The parser also recognises an explicit `Commander` / `Command Zone` section header and the `*CMDR*` inline marker, but commander-on-line-1-AND-titled is the most reliable combo.
+  - Lines like `1 Sol Ring`, `1x Sol Ring`, or just `Sol Ring` all work. `//` and `#` lines are treated as comments. Anything under `Sideboard` / `Maybeboard` is ignored.
+- **Build Status Floater** – a global, collapsible floating panel that polls the backend every 2.5 s and shows the active AI build phase, current step, and the most recent model "thoughts." You can navigate away from the Build Deck page (e.g. browse your collection or My Decks) without losing visibility into a running build.
+- **Configurable LLM via `.env`** – `mtg-collection/backend/.env` now controls which Ollama model the deck engine talks to (`OLLAMA_MODEL`, default `mtg-commander`) and the request timeout (`OLLAMA_TIMEOUT`, default 900 s). Switch between Mistral 7B and Mistral-Nemo 12B without rebuilding the app — just edit the file next to the exe and restart.
+- **New deck-build telemetry endpoints** – `GET /deck/build-status`, `GET /deck/build-stream` (SSE), and `POST /deck/reset` expose live progress and a kill switch for stuck builds.
 
-## 🐛 Fixes
-- Command Tower / Path of Ancestry are correctly treated as **nonbasic lands**, not basics.
+## 🐛 Fixes / hardening
+- Scryfall lookups now fall back gracefully on double-faced (`A // B`) card names during deck and collection imports.
+- Import flows upsert missing cards through Scryfall instead of failing outright.
+- Database / scryfall service error handling tightened.
 
 ## 📦 Build / Install
-1. Download `MTG-Collection-v1.0.8-win32-x64.zip` (~146 MB)
+1. Download `MTG-Collection-v1.0.10-win32-x64.zip` (~188 MB)
 2. Extract anywhere (e.g. `C:\Apps\MTG Collection`)
 3. Run `MTG Collection.exe`
 
-> Your `mtg_collection.db` and `saved_decks/` folder are kept next to the exe and persist across upgrades. Copy them over from your old install if you want to keep your collection and decks.
+> Your `mtg_collection.db` and `saved_decks/` folder are kept next to the exe and persist across upgrades. Copy them over from your v1.0.9 install if you want to keep your collection and decks.
+> The new `.env` lives next to the exe — edit it to change which Ollama model the deck engine uses.
