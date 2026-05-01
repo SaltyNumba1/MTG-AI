@@ -10,6 +10,19 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - **Must-Include Cards** – Force the AI to include specific cards (even ones you don't own) by listing them in the new "Must Include Cards" textbox on the Build Deck page. Cards are fetched from Scryfall and counted against the appropriate land/non-land budget.
 - **Saved decks** – Save generated decks to "My Decks", view stats (mana curve, color distribution, suggested basics), export decklists as TXT (Moxfield-friendly with commander marker), and run AI suggestions on existing decks.
 - **Manual decks** – Build decks by selecting cards from your collection and saving them directly to My Decks.
+- **Import deck from text (.txt)** – Paste or load a Moxfield/Archidekt/manual decklist on the Collection page to save it as a deck. Any cards not already in your collection are automatically fetched from Scryfall and added.
+- **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
+- **Configurable LLM via `.env`** – Switch the Ollama model and timeout without rebuilding the app by editing `mtg-collection/backend/.env` (`OLLAMA_MODEL`, `OLLAMA_TIMEOUT`).
+
+## What's New (v1.0.10)
+
+- 🪄 **Import deck from text** – new "Import Deck" flow on the Collection page. Accepts Moxfield/Archidekt/plain-text decklists; missing cards are auto-fetched from Scryfall and added to your collection. Imported decks land directly in My Decks.
+  - ⚠️ **Decklist format requirement:** the **commander must appear at the very top of the decklist** (above the 99 mainboard cards) **and must also be named in the deck title block**. The importer detects the commander from the first card line, the `Commander` / `Command Zone` section header, or a `*CMDR*` marker — the safest combo is "commander first + named in title".
+- 🛰️ **Build Status Floater** – a global, collapsible floating panel polls `/deck/build-status` every 2.5 s and surfaces the active build phase, current step, and the most recent AI thoughts so you can navigate away from the Build Deck page without losing visibility.
+- 🧠 **New deck-build telemetry endpoints** – `GET /deck/build-status`, `GET /deck/build-stream` (SSE), and `POST /deck/reset` expose live progress and a kill switch for stuck builds.
+- ⚙️ **Backend `.env` for model selection** – `mtg-collection/backend/.env` now controls `OLLAMA_MODEL` (default `mtg-commander`) and `OLLAMA_TIMEOUT` (default 15 min). Switch between Mistral 7B and Mistral-Nemo 12B by uncommenting the relevant line.
+- 🔁 **Scryfall auto-add on import** – text-based deck and collection imports upsert missing cards through Scryfall instead of failing.
+- 🗃️ **Database / Scryfall service hardening** – improved error handling and lookup fallbacks for double-faced (`A // B`) card names.
 
 ## What's New (v1.0.8)
 
@@ -110,5 +123,7 @@ The published LoRA adapter is **Mistral-7B-specific** — it can't be applied to
 ## Tips
 
 - **Must Include Cards format**: `"Sol Ring" "Arcane Signet" "Command Tower"` – each name in double quotes, separated by spaces or newlines.
-- **Stuck deck build**: if the model hangs, a "Force Reset Model" button appears after 45 seconds.
+- **Importing a decklist (.txt)**: place the **commander on the first line** of the decklist *and* set it in the title/header block before importing. The parser also recognises a `Commander` (or `Command Zone`) section header and the `*CMDR*` inline marker, but commander-at-top-plus-titled is the most reliable combo. Lines like `1 Sol Ring`, `1x Sol Ring`, or just `Sol Ring` all work; `//` and `#` lines are treated as comments; anything under `Sideboard` / `Maybeboard` is ignored.
+- **Stuck deck build**: if the model hangs, a "Force Reset Model" button appears after 45 seconds. You can also navigate away and watch progress in the Build Status Floater, then hit `POST /deck/reset` (or the Reset button) to clear a wedged build.
+- **Switching LLM**: edit `mtg-collection/backend/.env` (next to the exe in packaged builds) and set `OLLAMA_MODEL=...`. Restart the backend / app.
 - **Logs**: `mtg-collection/backend/dist/llm_deckbuilder.log` (runs from the packaged exe's CWD).

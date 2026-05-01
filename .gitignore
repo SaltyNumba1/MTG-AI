@@ -37,5 +37,8 @@ mtg-collection/training/mistral-commander-q4.gguf
 # Build logs
 *.log
 
+# Internal notes (not for public repo)
+Context.md
+
 # Large CSV exports
 archidekt-collection-export-*
