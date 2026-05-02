@@ -304,10 +304,9 @@ def _saved_decks_dir() -> Path:
     """Return the saved_decks directory.
 
     Priority:
-    1. $SAVED_DECKS_DIR (if set)
-    2. Repo packaged frontend release resources path (if it exists)
-    3. When frozen, a "saved_decks" folder next to the executable
-    4. Fallback to backend/saved_decks in-source (used during development)
+    1. $SAVED_DECKS_DIR (if set) — injected by Electron pointing to userData
+    2. When frozen, a "saved_decks" folder next to the executable
+    3. Fallback to backend/saved_decks in-source (used during development)
     """
     import os
     import sys
@@ -317,31 +316,11 @@ def _saved_decks_dir() -> Path:
     if env:
         return Path(env).resolve()
 
-    # 2) Prefer the repo's packaged frontend release resources path when present
-    #    This keeps dev and packaged runs writing to the same folder when the
-    #    frontend release exists in the repo.
-    try:
-        repo_release_saved = (
-            Path(__file__).resolve().parents[2]
-            / "frontend"
-            / "release"
-            / "MTG Collection-win32-x64"
-            / "resources"
-            / "backend"
-            / "dist"
-            / "saved_decks"
-        )
-        if repo_release_saved.exists():
-            return repo_release_saved
-    except Exception:
-        # If any path resolution fails, continue to other fallbacks
-        pass
-
-    # 3) When frozen (PyInstaller), keep saved_decks next to the executable
+    # 2) When frozen (PyInstaller), keep saved_decks next to the executable
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent / "saved_decks"
 
-    # 4) Development fallback: saved_decks next to backend package
+    # 3) Development fallback: saved_decks next to backend package
     return Path(__file__).resolve().parents[1] / "saved_decks"
 
 

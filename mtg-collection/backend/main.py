@@ -51,6 +51,14 @@ async def startup():
         logger.exception("Database initialization failed")
         raise
 
+    # Ensure the saved_decks directory exists so users can copy files into it
+    # before saving their first deck through the app.
+    try:
+        from routes.deckbuilder import _saved_decks_dir
+        _saved_decks_dir().mkdir(parents=True, exist_ok=True)
+    except Exception:
+        logger.warning("Could not pre-create saved_decks directory", exc_info=True)
+
 
 app.include_router(collection_router)
 app.include_router(deck_router)

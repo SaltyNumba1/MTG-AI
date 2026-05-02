@@ -816,39 +816,66 @@ def build_deck_with_llm(
     llm_timed_out = False
 
     try:
-        # Always stream so we can stop early once the JSON object is complete
-        started_stream = time.monotonic()
+        import queue as _queue
         model_options = {"temperature": 0.7, "num_predict": OLLAMA_NUM_PREDICT}
         timed_out = False
-        response = client.chat(
-            model=OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            options=model_options,
-            stream=True,
-        )
-        for chunk in response:
-            content = chunk.get("message", {}).get("content", "")
-            if content:
-                if stream_callback:
-                    stream_callback(content)
-                raw += content
+        _chunk_queue: _queue.Queue = _queue.Queue()
+        _abort = threading.Event()
 
-            # Hard cap generation time to avoid long hangs waiting for model completion.
-            if OLLAMA_MAX_GENERATION_SEC > 0 and (time.monotonic() - started_stream) >= OLLAMA_MAX_GENERATION_SEC:
+        def _llm_worker():
+            try:
+                response = client.chat(
+                    model=OLLAMA_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ],
+                    options=model_options,
+                    stream=True,
+                )
+                for chunk in response:
+                    if _abort.is_set():
+                        break
+                    content = chunk.get("message", {}).get("content", "")
+                    if content:
+                        _chunk_queue.put(("chunk", content))
+                _chunk_queue.put(("done", None))
+            except Exception as exc:
+                _chunk_queue.put(("error", exc))
+
+        _worker = threading.Thread(target=_llm_worker, daemon=True)
+        _worker.start()
+
+        # Drain the queue on the main thread with a hard wall-clock deadline.
+        # This fires even if the first token hasn't arrived yet.
+        _deadline = time.monotonic() + (OLLAMA_MAX_GENERATION_SEC if OLLAMA_MAX_GENERATION_SEC > 0 else float("inf"))
+        while True:
+            remaining = _deadline - time.monotonic()
+            if remaining <= 0:
+                _abort.set()
                 timed_out = True
                 break
-
-            # Early stop: once output is parseable into a valid selection payload.
-            if '"card_indices"' in raw:
-                try:
-                    parsed = extract_json(raw)
-                    if isinstance(parsed, dict) and isinstance(parsed.get("card_indices"), list):
-                        break
-                except Exception:
-                    pass
+            try:
+                kind, value = _chunk_queue.get(timeout=min(1.0, remaining))
+            except _queue.Empty:
+                continue
+            if kind == "chunk":
+                if stream_callback:
+                    stream_callback(value)
+                raw += value
+                # Early stop: once output is parseable into a valid selection payload.
+                if '"card_indices"' in raw:
+                    try:
+                        parsed = extract_json(raw)
+                        if isinstance(parsed, dict) and isinstance(parsed.get("card_indices"), list):
+                            _abort.set()
+                            break
+                    except Exception:
+                        pass
+            elif kind == "done":
+                break
+            elif kind == "error":
+                raise value
 
         if timed_out:
             raise TimeoutError(

@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -8,12 +9,20 @@ from sqlalchemy import text
 _raw_db_url = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./mtg_collection.db")
 _prefix = "sqlite+aiosqlite:///"
 
-# Normalize sqlite URL: resolve relative paths relative to the backend package directory
+# Normalize sqlite URL: resolve relative paths relative to a stable directory.
+# When running as a frozen PyInstaller exe, __file__ points inside a temp _MEIPASS
+# extraction dir which is destroyed between runs.  Use the exe's own directory instead
+# so the database persists across app restarts.
 if _raw_db_url.startswith(_prefix):
     raw_path = _raw_db_url[len(_prefix) :]
     p = Path(raw_path)
     if not p.is_absolute():
-        pkg_base = Path(__file__).resolve().parents[1]
+        if getattr(sys, "frozen", False):
+            # Packaged: place DB next to the exe (set by Electron via DATABASE_URL env var)
+            pkg_base = Path(sys.executable).resolve().parent
+        else:
+            # Development: place DB at the repo root (one level above backend/)
+            pkg_base = Path(__file__).resolve().parents[1]
         p = (pkg_base / p).resolve()
     DATABASE_URL = _prefix + str(p)
 else:

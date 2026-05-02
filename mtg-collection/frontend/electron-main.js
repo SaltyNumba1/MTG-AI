@@ -136,10 +136,22 @@ function startBackend() {
 
   logStartup(`Starting backend: ${backend.command} ${backend.args.join(" ")} in ${backend.cwd}`);
 
+  // Derive stable, writable, per-user paths for the DB and saved decks.
+  // app.getPath("userData") survives app reinstalls and is always writable.
+  const userDataDir = app.getPath("userData");
+  const backendEnv = Object.assign({}, process.env, {
+    DATABASE_URL: `sqlite+aiosqlite:///${path.join(userDataDir, "mtg_collection.db").replace(/\\/g, "/")}`,
+    SAVED_DECKS_DIR: path.join(userDataDir, "saved_decks"),
+    OLLAMA_MAX_GENERATION_SEC: "720",   // 12 min wall-clock cap for LLM generation
+    OLLAMA_TIMEOUT: "900",              // 15 min HTTP timeout (must be >= above)
+  });
+  logStartup(`DATABASE_URL → ${backendEnv.DATABASE_URL}`);
+  logStartup(`SAVED_DECKS_DIR → ${backendEnv.SAVED_DECKS_DIR}`);
+
   backendProcess = spawn(backend.command, backend.args, {
     cwd: backend.cwd,
     shell: false,
-    env: process.env,
+    env: backendEnv,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
