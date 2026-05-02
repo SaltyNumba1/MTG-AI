@@ -87,6 +87,29 @@ The builder now also shows an **estimated deck cost** using available TCG pricin
 
 ---
 
+## v1.0.11 — Data Persistence & Stability Fixes
+
+### 🐛 Critical Fixes
+
+- **Collection and decks now persist across app restarts.** The SQLite database was being written to a temp folder (`%TEMP%`) in the packaged app instead of a permanent location. Both the database and saved decks now live in `%APPDATA%\MTG Collection\` and survive upgrades, reinstalls, and reboots.
+- **`saved_decks` folder auto-created on first launch.** The folder is now created automatically at startup — no manual folder creation needed.
+- **AI deck builder no longer hangs indefinitely.** The LLM timeout check previously only fired between received tokens, meaning a cold model load (which can take several minutes before generating any output) would bypass the timeout entirely and hang until the 15-minute HTTP limit. The backend now enforces a hard wall-clock deadline regardless of when the first token arrives.
+- **All API calls now work correctly in the packaged app.** The frontend was hardcoded to port 8001 — the Vite dev proxy masked this in development but caused silent failures in the packaged app (imports appeared to stall, the progress indicator never appeared). Fixed to route correctly in both dev and production.
+
+### 📁 Data Location (v1.0.11+)
+
+Your collection database and saved decks are stored in:
+
+```
+C:\Users\<you>\AppData\Roaming\MTG Collection\
+  mtg_collection.db
+  saved_decks\
+```
+
+This folder persists across upgrades. If upgrading from v1.0.10 or earlier, copy your existing `saved_decks\` JSON/TXT pairs into this folder to restore your decks.
+
+---
+
 ## My Decks Features
 
 - **Analyze & Suggest Improvements** now calls the backend and returns AI suggestions.
