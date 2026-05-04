@@ -142,8 +142,8 @@ function startBackend() {
   const backendEnv = Object.assign({}, process.env, {
     DATABASE_URL: `sqlite+aiosqlite:///${path.join(userDataDir, "mtg_collection.db").replace(/\\/g, "/")}`,
     SAVED_DECKS_DIR: path.join(userDataDir, "saved_decks"),
-    OLLAMA_MAX_GENERATION_SEC: "720",   // 12 min wall-clock cap for LLM generation
-    OLLAMA_TIMEOUT: "900",              // 15 min HTTP timeout (must be >= above)
+    OLLAMA_MAX_GENERATION_SEC: "900",   // 15 min wall-clock cap for LLM generation
+    OLLAMA_TIMEOUT: "960",              // 16 min HTTP timeout (must be >= above)
   });
   logStartup(`DATABASE_URL → ${backendEnv.DATABASE_URL}`);
   logStartup(`SAVED_DECKS_DIR → ${backendEnv.SAVED_DECKS_DIR}`);

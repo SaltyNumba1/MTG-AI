@@ -507,22 +507,30 @@ export default function Collection() {
     return Array.from(s).sort();
   }, [cards]);
 
+  const SUPERTYPES = new Set(["Legendary", "Snow", "Basic", "World", "Ongoing"]);
+
   const typeOptions = useMemo(() => {
     const roots = new Set<string>();
     const compounds = new Set<string>();
     for (const c of cards) {
-      const tl = c.type_line || "";
+      // For DFC cards, type_line is "FaceA — Sub // FaceB — Sub". Use only the primary face.
+      const tl = (c.type_line || "").split(" // ")[0];
       const [rootPart, subPart] = tl.split("—");
       const root = (rootPart || "").trim();
       if (!root) continue;
-      // Split multi-type roots like "Legendary Creature" into the last word as the primary type bucket
-      const primary = root.split(/\s+/).pop() || root;
+      const rootWords = root.split(/\s+/).filter(Boolean);
+      const supertypes = rootWords.filter((w) => SUPERTYPES.has(w));
+      const types = rootWords.filter((w) => !SUPERTYPES.has(w));
+      const primary = types[types.length - 1] || rootWords[rootWords.length - 1];
       roots.add(primary);
+      // Supertype compounds (e.g. "Creature // Legendary")
+      for (const sup of supertypes) {
+        compounds.add(`${primary} // ${sup}`);
+      }
+      // Subtype compounds (e.g. "Creature // Wizard")
       const subs = (subPart || "").trim().split(/\s+/).map((s) => s.trim()).filter(Boolean);
-      if (subs) {
-        for (const sub of subs) {
-          compounds.add(`${primary} // ${sub}`);
-        }
+      for (const sub of subs) {
+        compounds.add(`${primary} // ${sub}`);
       }
     }
     return [
@@ -557,14 +565,24 @@ export default function Collection() {
         if (!matchesColorless && !matchesAny) return false;
       }
       if (typeFilter !== "all") {
-        const tl = (c.type_line || "");
+        // Use only the primary face for DFC cards
+        const tl = (c.type_line || "").split(" // ")[0];
         const [rootPart, subPart] = tl.split("—");
         const root = (rootPart || "").trim();
-        const primary = root.split(/\s+/).pop() || root;
+        const rootWords = root.split(/\s+/).filter(Boolean);
+        const supertypes = rootWords.filter((w) => SUPERTYPES.has(w));
+        const types = rootWords.filter((w) => !SUPERTYPES.has(w));
+        const primary = types[types.length - 1] || rootWords[rootWords.length - 1];
         const subs = (subPart || "").trim().split(/\s+/).map((s) => s.trim()).filter(Boolean);
         if (typeFilter.includes(" // ")) {
           const [wantPrimary, wantSub] = typeFilter.split(" // ").map((s) => s.trim());
-          if (primary !== wantPrimary || !subs.includes(wantSub)) return false;
+          if (primary !== wantPrimary) return false;
+          // Check supertypes (Legendary, Snow, etc.) separately from subtypes
+          if (SUPERTYPES.has(wantSub)) {
+            if (!supertypes.includes(wantSub)) return false;
+          } else {
+            if (!subs.includes(wantSub)) return false;
+          }
         } else {
           if (primary !== typeFilter) return false;
         }

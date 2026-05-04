@@ -45,3 +45,26 @@
   display: block;
   margin-bottom: 6px;
 }
+
+.card-set-bg-btn {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid #475569;
+  border-radius: 4px;
+  color: #c4b5fd;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 5px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+.mtg-card:hover .card-set-bg-btn { opacity: 1; }
+.card-set-bg-btn--active {
+  opacity: 1;
+  border-color: #a78bfa;
+  color: #a78bfa;
+}

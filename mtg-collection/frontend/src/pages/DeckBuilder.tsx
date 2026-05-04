@@ -51,6 +51,20 @@ interface BuildStatus {
   thoughts: BuildThought[];
 }
 
+interface DeckConstraint {
+  label: string;
+  match_field: string; // "type_line" | "oracle_text" | "keywords" | "any"
+  match_value: string;
+  min_count: number; // 0 = disabled
+  max_count?: number; // 0 = no cap
+}
+
+interface ConstraintSuggestion extends DeckConstraint {
+  suggested_min: number;
+  detected_from: string;
+  confidence: "high" | "medium";
+}
+
 const COLOR_SYMBOLS: Record<string, string> = {
   W: "☀️", U: "💧", B: "💀", R: "🔥", G: "🌲",
 };
@@ -137,12 +151,43 @@ export default function DeckBuilder() {
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
   const [keywordFilters, setKeywordFilters] = useState<string[]>([""]);
-  const DEFAULT_MUST_INCLUDE = '"Sol Ring" "Arcane Signet" "Commander\'s Sphere" "Path of Ancestry" "Command Tower"';
+  const DEFAULT_MUST_INCLUDE = '"Sol Ring" "Arcane Signet" "Commander\'s Sphere" "Path of Ancestry" "Command Tower" "Roaming Throne"';
   const [mustIncludeText, setMustIncludeText] = useState<string>(DEFAULT_MUST_INCLUDE);
   const [isHung, setIsHung] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [collection, setCollection] = useState<CollectionCard[]>([]);
   const hungCheckRef = useRef<number | null>(null);
+
+  // Constraint system
+  const [constraints, setConstraints] = useState<ConstraintSuggestion[]>([]);
+  const [constraintsPanelOpen, setConstraintsPanelOpen] = useState(true);
+  const [customConstraint, setCustomConstraint] = useState<{ match_field: string; match_value: string; min_count: number }>({
+    match_field: "type_line", match_value: "", min_count: 1,
+  });
+
+  // Card selection + exclusion for re-roll
+  const [selectedCardNames, setSelectedCardNames] = useState<Set<string>>(new Set());
+  const [excludedCardNames, setExcludedCardNames] = useState<string[]>([]);
+
+  // Card image preview modal
+  const [previewCard, setPreviewCard] = useState<CardEntry | null>(null);
+
+  // Tapped land cap + type-specific min/max constraints
+  const [tappedLandMax, setTappedLandMax] = useState(0);
+  const [artifactMin, setArtifactMin] = useState(0);
+  const [artifactMax, setArtifactMax] = useState(0);
+  const [sorceryMin, setSorceryMin] = useState(0);
+  const [sorceryMax, setSorceryMax] = useState(0);
+  const [instantMin, setInstantMin] = useState(0);
+  const [instantMax, setInstantMax] = useState(0);
+  const [enchantmentMin, setEnchantmentMin] = useState(0);
+  const [enchantmentMax, setEnchantmentMax] = useState(0);
+
+  // Edit mode: remove/add cards from built deck
+  const [deckModified, setDeckModified] = useState(false);
+  const [savedFilename, setSavedFilename] = useState<string | null>(null);
+  const [showAddFromCollection, setShowAddFromCollection] = useState(false);
+  const [addCollectionSearch, setAddCollectionSearch] = useState("");
 
   // Helper: get selected commander object
   const selectedCommanderObj = useMemo(
@@ -161,6 +206,23 @@ export default function DeckBuilder() {
       .then(({ data }) => setCollection(data))
       .catch(() => setCollection([]));
   }, []);
+
+  // Fetch commander profile (constraint suggestions) when commander changes
+  useEffect(() => {
+    if (!selectedCommander) {
+      setConstraints([]);
+      return;
+    }
+    api.get<ConstraintSuggestion[]>("/deck/commander-profile", { params: { commander_name: selectedCommander } })
+      .then(({ data }) => {
+        // Pre-enable high-confidence suggestions; leave medium ones disabled
+        setConstraints(data.map((s) => ({
+          ...s,
+          min_count: s.confidence === "high" ? s.suggested_min : 0,
+        })));
+      })
+      .catch(() => setConstraints([]));
+  }, [selectedCommander]);
 
   // When the user navigates away after a build has finished, clear the chat
   // so re-entering the page starts fresh.
@@ -187,6 +249,18 @@ export default function DeckBuilder() {
     }
     return { nonbasic, dual };
   }, [collection, selectedCommander, commanders]);
+
+  const collectionTypeCounts = useMemo(() => {
+    const counts: Record<string, number> = { Artifact: 0, Sorcery: 0, Instant: 0, Enchantment: 0 };
+    for (const c of collection) {
+      const tl = (c.type_line || "").toLowerCase();
+      if (tl.includes("artifact")) counts.Artifact += c.quantity || 0;
+      if (tl.includes("sorcery")) counts.Sorcery += c.quantity || 0;
+      if (tl.includes("instant")) counts.Instant += c.quantity || 0;
+      if (tl.includes("enchantment")) counts.Enchantment += c.quantity || 0;
+    }
+    return counts;
+  }, [collection]);
 
   useEffect(() => {
     if (!building) {
@@ -217,12 +291,16 @@ export default function DeckBuilder() {
     return () => window.clearInterval(timer);
   }, [building]);
 
-  const handleBuild = async () => {
+  const handleBuild = async (isReroll = false, overrideExcluded?: string[]) => {
     if (!selectedCommander || !prompt.trim()) return;
     setBuilding(true);
     setError("");
     setSaveMessage(null);
     setResult(null);
+    setSelectedCardNames(new Set());
+    setDeckModified(false);
+    setSavedFilename(null);
+    if (!isReroll) setExcludedCardNames([]);
     setBuildStatus({
       active: true,
       phase: "starting",
@@ -242,6 +320,52 @@ export default function DeckBuilder() {
         )
       );
 
+      // Synthesize type constraints from dedicated min/max inputs
+      const typeConstraintDefs = [
+        { key: "Artifact", min: artifactMin, max: artifactMax },
+        { key: "Sorcery", min: sorceryMin, max: sorceryMax },
+        { key: "Instant", min: instantMin, max: instantMax },
+        { key: "Enchantment", min: enchantmentMin, max: enchantmentMax },
+      ];
+      const typeConstraints: DeckConstraint[] = typeConstraintDefs
+        .filter((t) => t.min > 0 || t.max > 0)
+        .map((t) => ({
+          label: `${t.key} min/max`,
+          match_field: "type_line",
+          match_value: t.key,
+          min_count: t.min,
+          max_count: t.max || 0,
+        }));
+
+      // Merge type-counter constraints with commander constraints.
+      // For the same match_field+match_value: take the higher min and the lower non-zero max.
+      const activeCommanderConstraints = constraints.filter(
+        (c) => (c.min_count > 0) || ((c.max_count ?? 0) > 0)
+      );
+      const mergedMap = new Map<string, DeckConstraint>();
+      for (const c of activeCommanderConstraints) {
+        mergedMap.set(`${c.match_field}::${c.match_value}`, { ...c });
+      }
+      for (const t of typeConstraints) {
+        const key = `${t.match_field}::${t.match_value}`;
+        if (mergedMap.has(key)) {
+          const existing = mergedMap.get(key)!;
+          const mergedMin = Math.max(existing.min_count, t.min_count);
+          const existingMax = existing.max_count ?? 0;
+          const typeMax = t.max_count ?? 0;
+          const mergedMax =
+            existingMax > 0 && typeMax > 0
+              ? Math.min(existingMax, typeMax)
+              : existingMax > 0
+              ? existingMax
+              : typeMax;
+          mergedMap.set(key, { ...existing, min_count: mergedMin, max_count: mergedMax });
+        } else {
+          mergedMap.set(key, { ...t });
+        }
+      }
+      const allConstraints = Array.from(mergedMap.values());
+
       const { data } = await api.post<DeckResult>("/deck/build", {
         commander_name: selectedCommander,
         prompt,
@@ -250,9 +374,13 @@ export default function DeckBuilder() {
         dual_land_count: dualLandCount,
         keyword_filters: keywordFilters.filter((k) => k && k.trim()),
         must_include_cards: mustIncludeCards,
+        constraints: allConstraints.map(({ label, match_field, match_value, min_count, max_count }) => ({ label, match_field, match_value, min_count, max_count: max_count ?? 0 })),
+        excluded_card_names: isReroll ? (overrideExcluded ?? excludedCardNames) : [],
+        tapped_land_max: tappedLandMax,
       });
       setResult(data);
-      await saveDeckWithName(data, data.commander.name, true);
+      setDeckModified(false);
+      await saveDeckWithName(data, data.commander.name, true, allConstraints);
       try {
         const status = await api.get<BuildStatus>("/deck/build-status");
         setBuildStatus(status.data);
@@ -270,6 +398,8 @@ export default function DeckBuilder() {
   const handleReset = async () => {
     if (!isHung) return;
     setResetting(true);
+    setSelectedCardNames(new Set());
+    setExcludedCardNames([]);
     try {
       await api.post("/deck/reset");
       setBuilding(false);
@@ -302,6 +432,7 @@ export default function DeckBuilder() {
     deckResult: DeckResult,
     deckName: string,
     autoSave = false,
+    activeConstraints?: DeckConstraint[],
   ) => {
     setSaving(true);
     setSaveMessage(null);
@@ -312,8 +443,10 @@ export default function DeckBuilder() {
         commander: deckResult.commander,
         deck: deckResult.deck,
         description: deckResult.description,
+        constraints: (activeConstraints || []).map(({ label, match_field, match_value, min_count }) => ({ label, match_field, match_value, min_count })),
       });
 
+      setSavedFilename(data.json_file);
       if (autoSave) {
         setSaveMessage({
           type: "success",
@@ -348,7 +481,35 @@ export default function DeckBuilder() {
     const suggestedName = result.commander.name;
     const deckName = window.prompt("Save deck as:", suggestedName);
     if (deckName === null) return;
-    await saveDeckWithName(result, deckName, false);
+    await saveDeckWithName(result, deckName, false, constraints.filter((c) => c.min_count > 0));
+  };
+
+  const handleSaveChanges = async () => {
+    if (!result || !savedFilename) return;
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      await api.put(`/deck/saved/${savedFilename}`, { deck: result.deck });
+      setDeckModified(false);
+      setSaveMessage({ type: "success", text: "Deck changes saved." });
+    } catch (err: any) {
+      setSaveMessage({ type: "error", text: err.response?.data?.detail || "Failed to save changes" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddCardFromCollection = async (cardName: string) => {
+    if (!result) return;
+    try {
+      const { data: card } = await api.get<CardEntry>(`/deck/card-lookup?name=${encodeURIComponent(cardName)}`);
+      setResult((prev) => prev ? { ...prev, deck: [...prev.deck, card] } : prev);
+      setDeckModified(true);
+      setShowAddFromCollection(false);
+      setAddCollectionSearch("");
+    } catch (err: any) {
+      setSaveMessage({ type: "error", text: err.response?.data?.detail || `Card '${cardName}' not found` });
+    }
   };
 
   const groups = result ? groupByType(result.deck) : {};
@@ -439,6 +600,150 @@ export default function DeckBuilder() {
             </small>
           </div>
         </div>
+
+        {/* Deck Constraints Panel */}
+        <div className="deckbuilder-constraints-panel">
+          <button
+            className="deckbuilder-constraints-toggle"
+            onClick={() => setConstraintsPanelOpen((o) => !o)}
+            type="button"
+          >
+            Deck Constraints {constraints.filter((c) => c.min_count > 0).length > 0 && `(${constraints.filter((c) => c.min_count > 0).length} active)`}
+            <span className="deckbuilder-constraints-chevron">{constraintsPanelOpen ? "▲" : "▼"}</span>
+          </button>
+          {constraintsPanelOpen && (
+            <div className="deckbuilder-constraints-body">
+              {constraints.length === 0 && (
+                <small className="deckbuilder-hint">No constraints auto-detected — add one manually below.</small>
+              )}
+              {constraints.map((c, idx) => (
+                <div key={idx} className={`deckbuilder-constraint-row${c.min_count > 0 ? " enabled" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={c.min_count > 0}
+                    onChange={(e) => {
+                      setConstraints((prev) => prev.map((item, i) =>
+                        i === idx ? { ...item, min_count: e.target.checked ? item.suggested_min : 0 } : item
+                      ));
+                    }}
+                    className="deckbuilder-constraint-checkbox"
+                  />
+                  <span className={`deckbuilder-constraint-label${c.min_count > 0 ? "" : " disabled"}`}>
+                    {c.label}
+                  </span>
+                  {c.confidence === "high" && c.min_count > 0 && (
+                    <span className="deckbuilder-confidence-badge" title={`Auto-enabled: ${c.detected_from}`}>
+                      ⚡ auto
+                    </span>
+                  )}
+                  {c.confidence === "medium" && (
+                    <span className="deckbuilder-confidence-badge medium" title={c.detected_from}>
+                      ~ suggested
+                    </span>
+                  )}
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={c.min_count > 0 ? c.min_count : c.suggested_min}
+                    disabled={c.min_count === 0}
+                    onChange={(e) => {
+                      const val = Math.max(1, Number(e.target.value));
+                      setConstraints((prev) => prev.map((item, i) =>
+                        i === idx ? { ...item, min_count: val, suggested_min: val } : item
+                      ));
+                    }}
+                    className="deckbuilder-constraint-count"
+                    title="Minimum card count for this constraint"
+                  />
+                  <span className="deckbuilder-constraint-minmax-label">max</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={c.max_count ?? 0}
+                    disabled={c.min_count === 0}
+                    onChange={(e) => {
+                      const val = Math.max(0, Number(e.target.value));
+                      setConstraints((prev) => prev.map((item, i) =>
+                        i === idx ? { ...item, max_count: val } : item
+                      ));
+                    }}
+                    className="deckbuilder-constraint-count"
+                    title="Maximum card count (0 = no cap)"
+                  />
+                  <span
+                    className="deckbuilder-constraint-field-badge"
+                    title={`Match field: ${c.match_field} | Value: "${c.match_value}"`}
+                  >
+                    {c.match_field === "type_line" ? "type" : c.match_field === "oracle_text" ? "text" : c.match_field}
+                  </span>
+                  <button
+                    className="deckbuilder-constraint-remove"
+                    onClick={() => setConstraints((prev) => prev.filter((_, i) => i !== idx))}
+                    title="Remove constraint"
+                    type="button"
+                  >×</button>
+                </div>
+              ))}
+              {/* Add custom constraint */}
+              <div className="deckbuilder-constraint-add-row">
+                <select
+                  value={customConstraint.match_field}
+                  onChange={(e) => setCustomConstraint((p) => ({ ...p, match_field: e.target.value }))}
+                  className="deckbuilder-constraint-field-select"
+                  title="Field to search"
+                >
+                  <option value="type_line">Type Line</option>
+                  <option value="oracle_text">Oracle Text</option>
+                  <option value="keywords">Keywords</option>
+                  <option value="any">Any Field</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder='e.g. "Pirate" or "Instant|Sorcery"'
+                  value={customConstraint.match_value}
+                  onChange={(e) => setCustomConstraint((p) => ({ ...p, match_value: e.target.value }))}
+                  className="deckbuilder-constraint-value-input"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={customConstraint.min_count}
+                  onChange={(e) => setCustomConstraint((p) => ({ ...p, min_count: Math.max(1, Number(e.target.value)) }))}
+                  className="deckbuilder-constraint-count"
+                  title="Minimum count"
+                />
+                <button
+                  type="button"
+                  className="btn-secondary deckbuilder-constraint-add-btn"
+                  disabled={!customConstraint.match_value.trim()}
+                  onClick={() => {
+                    if (!customConstraint.match_value.trim()) return;
+                    const label = `${customConstraint.match_value} (${customConstraint.match_field})`;
+                    setConstraints((prev) => [...prev, {
+                      label,
+                      match_field: customConstraint.match_field,
+                      match_value: customConstraint.match_value.trim(),
+                      min_count: customConstraint.min_count,
+                      suggested_min: customConstraint.min_count,
+                      detected_from: "Custom constraint",
+                      confidence: "high",
+                    }]);
+                    setCustomConstraint({ match_field: "type_line", match_value: "", min_count: 1 });
+                  }}
+                >
+                  + Add
+                </button>
+              </div>
+              <small className="deckbuilder-hint">
+                Use <code>|</code> for OR matching (e.g. <code>Instant|Sorcery</code>). Min count = floor enforced after AI picks.
+              </small>
+            </div>
+          )}
+        </div>
+
         <div>
           <label className="deckbuilder-label">
             Commander
@@ -505,6 +810,9 @@ export default function DeckBuilder() {
               {selectedCommander ? "" : " (select a commander to filter by color identity)"}
             </small>
           </div>
+        </div>
+
+        <div className="deckbuilder-lands-row">
           <div>
             <label className="deckbuilder-label">
               Number of Dual Lands
@@ -522,15 +830,95 @@ export default function DeckBuilder() {
               You own <strong>{landCounts.dual}</strong> compatible dual land{landCounts.dual === 1 ? "" : "s"}
             </small>
           </div>
+          <div>
+            <label className="deckbuilder-label">Max Tapped Lands</label>
+            <input
+              type="number"
+              min={0}
+              max={37}
+              value={tappedLandMax}
+              onChange={(e) => setTappedLandMax(Number(e.target.value))}
+              className="deckbuilder-land-input"
+              title="Limit how many lands enter the battlefield tapped. 0 = no limit."
+            />
+            <small className="deckbuilder-land-hint">0 = no limit</small>
+          </div>
+        </div>
+
+        <div className="deckbuilder-type-counters">
+          {([
+            { key: "Artifact", min: artifactMin, setMin: setArtifactMin, max: artifactMax, setMax: setArtifactMax },
+            { key: "Sorcery", min: sorceryMin, setMin: setSorceryMin, max: sorceryMax, setMax: setSorceryMax },
+            { key: "Instant", min: instantMin, setMin: setInstantMin, max: instantMax, setMax: setInstantMax },
+            { key: "Enchantment", min: enchantmentMin, setMin: setEnchantmentMin, max: enchantmentMax, setMax: setEnchantmentMax },
+          ] as { key: string; min: number; setMin: (v: number) => void; max: number; setMax: (v: number) => void }[]).map(({ key, min, setMin, max, setMax }) => (
+            <div key={key} className="deckbuilder-type-block">
+              <span className="deckbuilder-type-label">{key}</span>
+              <small className="deckbuilder-type-avail">{collectionTypeCounts[key] ?? 0} owned</small>
+              <div className="deckbuilder-type-minmax">
+                <label>Min</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={40}
+                  value={min}
+                  onChange={(e) => setMin(Number(e.target.value))}
+                  className="deckbuilder-type-count-input"
+                  title={`${key} minimum count`}
+                />
+                <label>Max</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={40}
+                  value={max}
+                  onChange={(e) => setMax(Number(e.target.value))}
+                  className="deckbuilder-type-count-input"
+                  title={`${key} maximum count (0 = no cap)`}
+                />
+              </div>
+            </div>
+          ))}
         </div>
 
         <button
           className="btn-primary deckbuilder-generate-btn"
-          onClick={handleBuild}
+          onClick={() => handleBuild(false)}
           disabled={building || !selectedCommander || !prompt.trim()}
         >
           {building ? "Building deck... (this may take ~30s)" : "Generate Deck"}
         </button>
+
+        {excludedCardNames.length > 0 && (
+          <div className="deckbuilder-reroll-row">
+            <button
+              className="btn-secondary deckbuilder-reroll-btn"
+              onClick={() => handleBuild(true)}
+              disabled={building || !selectedCommander || !prompt.trim()}
+            >
+              Re-roll ({excludedCardNames.length} excluded)
+            </button>
+            <div className="deckbuilder-excluded-pills">
+              {excludedCardNames.slice(0, 8).map((name) => (
+                <span key={name} className="deckbuilder-excluded-pill">
+                  {name}
+                  <button
+                    className="deckbuilder-pill-remove"
+                    onClick={() => setExcludedCardNames((prev) => prev.filter((n) => n !== name))}
+                    title="Remove from exclusion list"
+                  >×</button>
+                </span>
+              ))}
+              {excludedCardNames.length > 8 && (
+                <span className="deckbuilder-excluded-more">+{excludedCardNames.length - 8} more</span>
+              )}
+              <button
+                className="deckbuilder-excluded-clear"
+                onClick={() => setExcludedCardNames([])}
+              >× Clear All</button>
+            </div>
+          </div>
+        )}
 
         {isHung && (
           <button
@@ -661,6 +1049,62 @@ export default function DeckBuilder() {
             </div>
           </div>
 
+          {/* Selection action bar */}
+          {selectedCardNames.size > 0 && (
+            <div className="deckbuilder-selection-bar">
+              <span>{selectedCardNames.size} card{selectedCardNames.size > 1 ? "s" : ""} selected</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setExcludedCardNames((prev) =>
+                    Array.from(new Set([...prev, ...Array.from(selectedCardNames)]))
+                  );
+                  setSelectedCardNames(new Set());
+                }}
+              >
+                Exclude from Regen
+              </button>
+              <button
+                type="button"
+                className="deckbuilder-remove-selected-btn"
+                onClick={() => {
+                  setResult((prev) => prev
+                    ? { ...prev, deck: prev.deck.filter((c) => !selectedCardNames.has(c.name)) }
+                    : prev
+                  );
+                  setDeckModified(true);
+                  setSelectedCardNames(new Set());
+                }}
+              >
+                🗑 Remove Selected
+              </button>
+              <button
+                type="button"
+                className="deckbuilder-reroll-btn deckbuilder-reroll-btn--inline"
+                onClick={() => {
+                  const merged = Array.from(new Set([...excludedCardNames, ...Array.from(selectedCardNames)]));
+                  setExcludedCardNames(merged);
+                  setSelectedCardNames(new Set());
+                  handleBuild(true, merged);
+                }}
+              >
+                🎲 Re-Roll Without Selected
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setSelectedCardNames(new Set())}
+              >
+                Clear Selection
+              </button>
+            </div>
+          )}
+
+          <p className="deckbuilder-select-hint">
+            ✓ Check cards below to exclude them from the next re-roll.
+          </p>
+
           {Object.entries(groups)
             .sort(([a], [b]) => {
               const aIsLand = a.toLowerCase().includes("land");
@@ -698,12 +1142,34 @@ export default function DeckBuilder() {
                   <div className="card-grid">
                     {displayCards.map(({ card, count }) => (
                       <div key={card.id + card.name} className="deckbuilder-card-tile-wrap">
-                        <CardPreview
-                          name={card.name}
-                          imageUri={card.image_uri}
-                          subtitle={`CMC ${card.cmc}`}
-                          tcgplayerPrice={card.tcgplayer_price}
-                        />
+                        {!isLandGroup && (
+                          <input
+                            type="checkbox"
+                            className="deckbuilder-card-tile-checkbox"
+                            checked={selectedCardNames.has(card.name)}
+                            onChange={(e) => {
+                              const next = new Set(selectedCardNames);
+                              if (e.target.checked) next.add(card.name);
+                              else next.delete(card.name);
+                              setSelectedCardNames(next);
+                            }}
+                            title={`Select "${card.name}" to exclude from re-roll`}
+                          />
+                        )}
+                        <div
+                          className="deckbuilder-result-tile"
+                          onClick={() => setPreviewCard(card)}
+                          title="Click to preview"
+                        >
+                          {card.image_uri
+                            ? <img src={card.image_uri} alt={card.name} loading="lazy" />
+                            : <div className="deckbuilder-result-tile-noimg">{card.name}</div>
+                          }
+                          <div className="deckbuilder-result-tile-info">
+                            <span className="deckbuilder-result-tile-name">{card.name}</span>
+                            <span className="deckbuilder-result-tile-meta">CMC {card.cmc}{card.tcgplayer_price ? ` · $${Number(card.tcgplayer_price).toFixed(2)}` : ""}</span>
+                          </div>
+                        </div>
                         {count > 1 && <span className="deckbuilder-card-count-badge">({count})</span>}
                       </div>
                     ))}
@@ -711,6 +1177,102 @@ export default function DeckBuilder() {
                 </div>
               );
             })}
+        </div>
+      )}
+
+      {/* Save changes / add-from-collection bar */}
+      {result && (
+        <div className="deckbuilder-save-changes-bar">
+          {deckModified && savedFilename && (
+            <>
+              <span className="deckbuilder-save-changes-label">
+                ⚠ Unsaved changes ({result.deck.length} cards)
+              </span>
+              <button
+                type="button"
+                className="btn-primary deckbuilder-save-changes-btn"
+                onClick={handleSaveChanges}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "💾 Save Changes"}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setShowAddFromCollection(true)}
+          >
+            + Add from Collection
+          </button>
+        </div>
+      )}
+
+      {/* Add from Collection modal */}
+      {showAddFromCollection && (
+        <div className="collection-modal-overlay" onClick={() => setShowAddFromCollection(false)}>
+          <div className="deckbuilder-add-collection-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="deckbuilder-add-collection-header">
+              <h3>Add Card from Collection</h3>
+              <button
+                type="button"
+                className="deckbuilder-card-modal-close"
+                onClick={() => setShowAddFromCollection(false)}
+                aria-label="Close"
+              >✕</button>
+            </div>
+            <input
+              type="text"
+              placeholder="Search card name..."
+              value={addCollectionSearch}
+              onChange={(e) => setAddCollectionSearch(e.target.value)}
+              className="deckbuilder-add-collection-search"
+              autoFocus
+            />
+            <div className="deckbuilder-add-collection-list">
+              {collection
+                .filter((c) => {
+                  if (!addCollectionSearch.trim()) return true;
+                  return c.name.toLowerCase().includes(addCollectionSearch.toLowerCase());
+                })
+                .slice(0, 50)
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="deckbuilder-add-collection-item"
+                    onClick={() => handleAddCardFromCollection(c.name)}
+                  >
+                    <span className="deckbuilder-add-collection-name">{c.name}</span>
+                    <span className="deckbuilder-add-collection-type">{c.type_line}</span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Card image preview modal */}
+      {previewCard && (
+        <div className="collection-modal-overlay" onClick={() => setPreviewCard(null)}>
+          <div className="deckbuilder-card-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="deckbuilder-card-modal-close"
+              onClick={() => setPreviewCard(null)}
+              aria-label="Close preview"
+            >✕</button>
+            {previewCard.image_uri && (
+              <img src={previewCard.image_uri} alt={previewCard.name} />
+            )}
+            <div className="deckbuilder-card-modal-info">
+              <span className="deckbuilder-card-modal-name">{previewCard.name}</span>
+              <span className="deckbuilder-card-modal-meta">
+                CMC {previewCard.cmc}
+                {previewCard.tcgplayer_price ? ` · TCG $${Number(previewCard.tcgplayer_price).toFixed(2)}` : ""}
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>

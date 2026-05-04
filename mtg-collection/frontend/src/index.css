@@ -33,9 +33,11 @@
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
-  background: #1a1a2e;
+  background: radial-gradient(ellipse 120% 60% at 50% -10%, #3b1f6e 0%, #1a1a2e 55%);
+  background-attachment: fixed;
   color: #e0e0e0;
   min-height: 100vh;
+  zoom: 1.25;
 }
 
 a { color: #a78bfa; text-decoration: none; }
@@ -181,6 +183,20 @@ input:focus, select:focus, textarea:focus {
 
 .page { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
 .page-title { font-size: 24px; font-weight: 700; margin-bottom: 20px; color: #a78bfa; }
+
+.bg-mana-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bg-mana-symbol {
+  position: absolute;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+}
 
 nav {
   background: #16213e;

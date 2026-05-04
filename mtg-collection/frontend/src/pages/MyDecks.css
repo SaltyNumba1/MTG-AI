@@ -1,3 +1,5 @@
+.my-decks-deck-price { color: #86efac; }
+
 .my-decks-toolbar {
   display: flex;
   gap: 10px;
@@ -153,4 +155,87 @@
 .my-decks-card-sort-label {
   font-size: 0.9rem;
   opacity: 0.85;
+}
+
+/* ── Edit mode tile wrapper ──────────────────────────────── */
+.my-decks-edit-tile-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* Suppress hover zoom/lift so the checkbox stays reachable */
+.my-decks-edit-tile-wrap .mtg-card:hover {
+  transform: none;
+  z-index: auto;
+}
+.my-decks-edit-tile-wrap .card-image-shell {
+  cursor: default;
+}
+.my-decks-edit-tile-wrap .card-image-shell:hover img {
+  transform: none;
+}
+/* Hide the set-bg button in edit mode so it doesn't overlap the checkbox */
+.my-decks-edit-tile-wrap .card-set-bg-btn {
+  display: none;
+}
+
+.my-decks-tile-checkbox {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 10;
+  width: 16px;
+  height: 16px;
+  accent-color: #22c55e;
+  cursor: pointer;
+}
+
+/* ── Remove bar ──────────────────────────────────────────── */
+.my-decks-remove-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fca5a5;
+}
+
+/* ── Add from Collection item ────────────────────────────── */
+.my-decks-add-collection-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  color: #e2e8f0;
+  transition: background 0.1s, border-color 0.1s;
+  gap: 8px;
+}
+
+.my-decks-add-collection-item:hover {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
+.my-decks-add-collection-item span {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.my-decks-add-collection-item small {
+  font-size: 11px;
+  color: #64748b;
 }

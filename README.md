@@ -14,6 +14,20 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
 - **Configurable LLM via `.env`** – Switch the Ollama model and timeout without rebuilding the app by editing `mtg-collection/backend/.env` (`OLLAMA_MODEL`, `OLLAMA_TIMEOUT`).
 
+## What's New (v1.0.12)
+
+- 🎯 **Deck Constraints Panel** — after selecting a commander the app auto-detects deck-building themes (tribal, spellslinger, artifacts, lifegain, tokens, sacrifice, and 30+ more archetypes) from oracle text. High-confidence constraints are auto-enabled; each shows a configurable min and optional max count. Add fully custom constraints via field / value / count inputs.
+- 🔢 **Type Counters** — Artifact, Sorcery, Instant, and Enchantment each get dedicated Min / Max inputs on the build form. Shows how many you own.
+- 🛑 **Max Tapped Lands** — cap the number of tapped lands placed by the engine.
+- 🎲 **Re-Roll + Card Exclusion** — check any deck card to exclude it from the next build, then hit Re-Roll. Excluded cards are shown as dismissible pills and persisted for the session.
+- 🖊 **My Decks Edit Mode** — toggle edit mode to check-and-remove cards, add cards from your collection, and save changes back to the deck file.
+- 🖼 **Background Art** — click the 🖼 button on any card image to set it as the full-screen app background (persisted via localStorage).
+- 💰 **Deck Price** — My Decks now shows the total TCGplayer price of every card in the deck.
+- 🌌 **UI Theming** — radial purple gradient background, mana symbol scatter overlay, global 25% zoom.
+- 🐛 **Collection type filter fix** — DFC cards and Legendary supertype now filter correctly (~224 legendary creatures vs 3).
+- ⚙️ **Deck variety** — candidate pool shuffled per build; LLM temperature randomised (0.70–0.88).
+- 🔧 **New backend endpoints** — `GET /deck/commander-profile`, `GET /deck/card-lookup`, `PUT /deck/saved/:file`.
+
 ## What's New (v1.0.10)
 
 - 🪄 **Import deck from text** – new "Import Deck" flow on the Collection page. Accepts Moxfield/Archidekt/plain-text decklists; missing cards are auto-fetched from Scryfall and added to your collection. Imported decks land directly in My Decks.

@@ -80,6 +80,23 @@ export default function CardPreview({
   const displayUri = flipped && backUri ? backUri : imageUri;
   const canRotate = useMemo(() => name.includes("//") && Boolean(backUri), [name, backUri]);
 
+  const [isBg, setIsBg] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const stored = localStorage.getItem("mtg.bgArt");
+      setIsBg(stored !== null && (stored === imageUri || stored === backUri));
+    };
+    check();
+    window.addEventListener("mtg-set-bg", check);
+    return () => window.removeEventListener("mtg-set-bg", check);
+  }, [imageUri, backUri]);
+
+  const handleSetBg = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newVal = isBg ? null : (displayUri ?? null);
+    window.dispatchEvent(new CustomEvent("mtg-set-bg", { detail: newVal }));
+  };
+
   return (
     <div className={`mtg-card popout-${popoutSide}`} ref={cardRef}>
       {displayUri ? (
@@ -101,6 +118,13 @@ export default function CardPreview({
               {flipped ? "▶" : "🔄"}
             </button>
           )}
+          <button
+            className={`card-set-bg-btn${isBg ? " card-set-bg-btn--active" : ""}`}
+            onClick={handleSetBg}
+            title={isBg ? "Clear card art background" : "Set card art as background"}
+          >
+            🖼
+          </button>
         </div>
       ) : (
         <div className="card-no-image">No image</div>

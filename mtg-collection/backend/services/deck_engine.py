@@ -9,6 +9,7 @@ Default model is configurable via OLLAMA_MODEL env var (default: mistral).
 """
 import json
 import os
+import random
 import re
 import threading
 import time
@@ -21,7 +22,7 @@ import logging
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mtg-commander")
 # Increase default timeout to 900s (15 minutes)
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "900"))  # seconds
-OLLAMA_MAX_GENERATION_SEC = float(os.getenv("OLLAMA_MAX_GENERATION_SEC", "420"))
+OLLAMA_MAX_GENERATION_SEC = float(os.getenv("OLLAMA_MAX_GENERATION_SEC", "900"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "768"))
 ALLOW_LLM_TIMEOUT_FALLBACK = os.getenv("ALLOW_LLM_TIMEOUT_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
 BASE_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "500"))
@@ -250,6 +251,440 @@ def _dedupe_indices(indices: list[int]) -> list[int]:
     return unique
 
 
+# ---------------------------------------------------------------------------
+# Deck Constraint helpers
+# ---------------------------------------------------------------------------
+
+def _card_matches_constraint(card: dict, constraint: dict) -> bool:
+    """Return True if card satisfies the constraint's match_field / match_value."""
+    field = (constraint.get("match_field") or "any").lower()
+    raw_value = (constraint.get("match_value") or "").strip()
+    if not raw_value:
+        return False
+    terms = [t.strip().lower() for t in raw_value.split("|") if t.strip()]
+    if not terms:
+        return False
+
+    if field == "type_line":
+        haystack = (card.get("type_line") or "").lower()
+    elif field == "oracle_text":
+        haystack = (card.get("oracle_text") or "").lower()
+    elif field == "keywords":
+        haystack = " ".join(card.get("keywords") or []).lower()
+    else:  # "any"
+        haystack = _card_text_blob(card)
+
+    return any(t in haystack for t in terms)
+
+
+def _analyze_commander_profile(commander: dict) -> list[dict]:
+    """
+    Detect deck-building themes from a commander's oracle text and type line.
+    Returns a list of ConstraintSuggestion dicts, each with:
+        label, match_field, match_value, suggested_min,
+        detected_from (human-readable explanation), confidence ("high"|"medium")
+    """
+    oracle = (commander.get("oracle_text") or "").lower()
+    type_line = (commander.get("type_line") or "").lower()
+    name = (commander.get("name") or "")
+    suggestions: list[dict] = []
+    seen_values: set[str] = set()
+
+    def add(label: str, match_field: str, match_value: str, suggested_min: int,
+            detected_from: str, confidence: str = "high"):
+        key = f"{match_field}:{match_value.lower()}"
+        if key in seen_values:
+            return
+        seen_values.add(key)
+        suggestions.append({
+            "label": label,
+            "match_field": match_field,
+            "match_value": match_value,
+            "min_count": 0,
+            "suggested_min": suggested_min,
+            "detected_from": detected_from,
+            "confidence": confidence,
+        })
+
+    # --- Tribal detection ---
+    # Pattern: "Pirate you control", "Pirates you control", "target Pirate", "each Pirate", etc.
+    tribal_patterns = [
+        r"\b([A-Z][a-z]+)s?\s+you\s+control\b",
+        r"target\s+([A-Z][a-z]+)\b",
+        r"each\s+([A-Z][a-z]+)\b",
+        r"another\s+([A-Z][a-z]+)\b",
+        r"put\s+a\s+.*counter\s+on\s+target\s+([A-Z][a-z]+)\b",
+        r"whenever\s+a\s+([A-Z][a-z]+)\s+you\s+control",
+        r"whenever\s+another\s+([A-Z][a-z]+)\b",
+    ]
+    # Common non-creature words to exclude from tribal detection
+    _tribal_exclusions = {
+        "card", "cards", "permanent", "permanents", "player", "players",
+        "creature", "creatures", "land", "lands", "artifact", "artifacts",
+        "enchantment", "enchantments", "spell", "spells", "token", "tokens",
+        "counter", "counters", "ability", "abilities", "trigger", "effect",
+        "opponent", "opponents", "library", "graveyard", "battlefield",
+        "hand", "combat", "turn", "step", "phase", "cost", "mana",
+        "color", "colors", "power", "toughness", "loyalty", "source",
+        "target", "control", "controller", "owner", "zone", "stack",
+    }
+    found_tribal: set[str] = set()
+    for pat in tribal_patterns:
+        for m in re.finditer(pat, commander.get("oracle_text") or "", re.IGNORECASE):
+            word = m.group(1).lower()
+            if word not in _tribal_exclusions and len(word) > 2:
+                found_tribal.add(word)
+
+    # Also check commander's own creature subtypes from type_line
+    # e.g. "Legendary Creature — Human Pirate" → ["human", "pirate"]
+    if "—" in type_line:
+        subtypes_part = type_line.split("—", 1)[1]
+        for subtype in subtypes_part.split():
+            subtype = subtype.strip(".,;").lower()
+            if subtype and subtype not in _tribal_exclusions and len(subtype) > 2:
+                found_tribal.add(subtype)
+
+    for tribe in sorted(found_tribal):
+        # Use capitalized form for display and matching
+        tribe_display = tribe.capitalize()
+        confidence = "high" if any(
+            re.search(pat, commander.get("oracle_text") or "", re.IGNORECASE)
+            for pat in tribal_patterns
+        ) else "medium"
+        add(
+            label=f"{tribe_display} creatures",
+            match_field="type_line",
+            match_value=tribe_display,
+            suggested_min=10,
+            detected_from=f"Commander references or is a {tribe_display}",
+            confidence=confidence,
+        )
+
+    # --- Spellslinger ---
+    if re.search(r"whenever you cast (an? )?(instant or sorcery|noncreature spell)", oracle):
+        add("Instants & Sorceries", "type_line", "Instant|Sorcery", 15,
+            "Commander triggers on casting instants or sorceries", "high")
+    elif re.search(r"whenever you cast (an? )?noncreature spell", oracle):
+        add("Noncreature spells (no creatures)", "oracle_text", "noncreature", 12,
+            "Commander triggers on noncreature spells", "high")
+
+    # --- Artifacts ---
+    if re.search(r"whenever (an? )?artifact (enters|you control|is)", oracle):
+        add("Artifacts", "type_line", "Artifact", 10,
+            "Commander triggers on artifacts entering or being controlled", "high")
+    elif re.search(r"artifact\s+you\s+control|equipped|equip", oracle):
+        add("Artifacts", "type_line", "Artifact", 8,
+            "Commander cares about artifacts or Equipment", "medium")
+
+    # --- Equipment ---
+    if re.search(r"equipped creature|whenever (a creature )?becomes equipped|equip", oracle):
+        add("Equipment", "type_line", "Equipment", 6,
+            "Commander cares about Equipment", "high")
+
+    # --- Enchantments / Auras ---
+    if re.search(r"whenever (an? )?enchantment (enters|you control)", oracle):
+        add("Enchantments", "type_line", "Enchantment", 8,
+            "Commander triggers on enchantments entering", "high")
+    if re.search(r"enchant creature|whenever (this creature )?becomes enchanted|aura", oracle):
+        add("Auras (Voltron)", "type_line", "Aura", 6,
+            "Commander cares about Auras or enchanting creatures", "high")
+
+    # --- Vehicles ---
+    if re.search(r"crew|vehicle", oracle):
+        add("Vehicles", "type_line", "Vehicle", 4,
+            "Commander cares about Vehicles or Crew", "medium")
+
+    # --- ETB payoffs ---
+    if re.search(r"whenever (a |another )?(creature|permanent) (enters the battlefield|enters)", oracle):
+        add("Creatures (ETB payoffs)", "oracle_text", "enters", 10,
+            "Commander triggers on permanents entering the battlefield", "high")
+
+    # --- Lifegain ---
+    if re.search(r"whenever you gain life|gain.*life.*whenever|life.*you gain", oracle):
+        add("Lifegain cards", "oracle_text", "gain", 8,
+            "Commander rewards or triggers off gaining life", "high")
+    elif re.search(r"gain.*life", oracle):
+        add("Lifegain cards", "oracle_text", "gain", 6,
+            "Commander gains or cares about life", "medium")
+
+    # --- +1/+1 counters ---
+    if re.search(r"\+1/\+1 counter", oracle):
+        add("+1/+1 counter cards", "oracle_text", "+1/+1 counter", 10,
+            "Commander places or cares about +1/+1 counters", "high")
+
+    # --- -1/-1 counters ---
+    if re.search(r"-1/-1 counter", oracle):
+        add("-1/-1 counter cards", "oracle_text", "-1/-1 counter", 8,
+            "Commander places or cares about -1/-1 counters", "high")
+
+    # --- Experience counters ---
+    if re.search(r"experience counter", oracle):
+        add("Low-CMC creatures (experience)", "oracle_text", "experience", 6,
+            "Commander uses experience counters", "high")
+
+    # --- Graveyard / Reanimator ---
+    if re.search(r"from your graveyard|in your graveyard|return.*graveyard.*battlefield", oracle):
+        add("Graveyard recursion cards", "oracle_text", "graveyard", 6,
+            "Commander interacts with the graveyard", "high")
+
+    # --- Discard / Madness ---
+    if re.search(r"whenever you discard|madness", oracle):
+        add("Discard / Madness cards", "oracle_text", "discard|madness", 8,
+            "Commander triggers on discard or Madness", "high")
+
+    # --- Mill ---
+    if re.search(r"\bmill\b", oracle):
+        add("Mill cards", "oracle_text", "mill", 6,
+            "Commander mills or cares about milling", "high")
+
+    # --- Tokens ---
+    if re.search(r"whenever (a |another )?.*token|create (a |an? ).*token", oracle):
+        add("Token generators", "oracle_text", "token", 8,
+            "Commander creates or cares about tokens", "high")
+
+    # --- Sacrifice / Aristocrats ---
+    if re.search(r"sacrifice (a |another )?creature|whenever (a |another )?creature (dies|you control dies)", oracle):
+        add("Sacrifice / death-trigger cards", "oracle_text", "sacrifice|dies", 8,
+            "Commander sacrifices or triggers on creature death", "high")
+
+    # --- Landfall ---
+    if re.search(r"whenever (a |another )?land enters", oracle):
+        add("Ramp / Landfall cards", "oracle_text", "land enters", 8,
+            "Commander triggers on lands entering the battlefield", "high")
+
+    # --- Draw payoffs ---
+    if re.search(r"whenever you draw (a card|cards)", oracle):
+        add("Card draw spells", "oracle_text", "draw", 8,
+            "Commander rewards drawing cards", "high")
+
+    # --- Combat damage triggers ---
+    if re.search(r"whenever .{0,30} deals combat damage to a player", oracle):
+        add("Evasion creatures (combat damage)", "oracle_text", "combat damage", 8,
+            "Commander or its creatures reward dealing combat damage to players", "high")
+
+    # --- Attack triggers ---
+    if re.search(r"whenever .{0,30} attacks", oracle):
+        add("Attack-payoff cards", "oracle_text", "attacks", 8,
+            "Commander triggers when creatures attack", "high")
+
+    # --- Proliferate ---
+    if re.search(r"proliferate", oracle):
+        add("Proliferate cards", "oracle_text", "proliferate", 6,
+            "Commander proliferates or rewards proliferating", "high")
+
+    # --- Cycling ---
+    if re.search(r"whenever you cycle|cycling", oracle):
+        add("Cycling cards", "oracle_text", "cycling", 8,
+            "Commander triggers on cycling or rewards cycling", "high")
+
+    # --- Cast from exile ---
+    if re.search(r"(cast|play).{0,20}from (exile|the top of)", oracle):
+        add("Exile-cast enablers", "oracle_text", "from exile", 6,
+            "Commander lets you cast spells from exile", "high")
+
+    # --- Treasure ---
+    if re.search(r"treasure token|create.*treasure|whenever.*treasure", oracle):
+        add("Treasure generators", "oracle_text", "treasure", 6,
+            "Commander creates or cares about Treasure tokens", "high")
+
+    # --- Food ---
+    if re.search(r"food token|create.*food|whenever.*food", oracle):
+        add("Food generators", "oracle_text", "food", 6,
+            "Commander creates or cares about Food tokens", "high")
+
+    # --- Clues / Investigate ---
+    if re.search(r"investigate|whenever.*clue", oracle):
+        add("Clue / Investigate cards", "oracle_text", "investigate|clue", 6,
+            "Commander investigates or cares about Clues", "high")
+
+    # --- Copy / Storm ---
+    if re.search(r"\bstorm\b|copy target (instant or sorcery|spell)|whenever you cast.*copy", oracle):
+        add("Copy / Storm spells", "oracle_text", "copy", 8,
+            "Commander copies spells or has Storm", "high")
+
+    # --- Cascade ---
+    if re.search(r"\bcascade\b", oracle):
+        add("Cascade cards", "keywords", "cascade", 6,
+            "Commander has or rewards Cascade", "high")
+
+    # --- Morph / Manifest ---
+    if re.search(r"\bmorph\b|\bmanifest\b", oracle):
+        add("Morph / Manifest cards", "oracle_text", "morph|manifest", 6,
+            "Commander cares about Morph or Manifest", "high")
+
+    # --- Mutate ---
+    if re.search(r"\bmutate\b", oracle):
+        add("Mutate cards", "oracle_text", "mutate", 6,
+            "Commander cares about Mutate", "high")
+
+    # --- Historic / Sagas ---
+    if re.search(r"\bhistoric\b|\bsaga\b", oracle):
+        add("Historic / Saga permanents", "oracle_text", "historic|saga", 6,
+            "Commander cares about historic spells or Sagas", "high")
+
+    # --- Monarch / Initiative ---
+    if re.search(r"\bmonarch\b|\binitiative\b", oracle):
+        add("Monarch / Initiative cards", "oracle_text", "monarch|initiative", 4,
+            "Commander uses the Monarch or Initiative mechanic", "high")
+
+    # --- Dungeons ---
+    if re.search(r"venture into the dungeon|dungeon", oracle):
+        add("Dungeon / Venture cards", "oracle_text", "dungeon|venture", 6,
+            "Commander ventures into the dungeon", "high")
+
+    # --- Power ≥4 matters ---
+    if re.search(r"power (4 or greater|of 4 or more|4 or more)|creatures with power 4", oracle):
+        add("Power ≥4 creatures", "oracle_text", "power 4", 8,
+            "Commander rewards creatures with power 4 or greater", "high")
+
+    # --- Flying matters ---
+    if re.search(r"whenever (a |another )?(creature with flying|flying creature)", oracle):
+        add("Flying creatures", "oracle_text", "flying", 8,
+            "Commander triggers on creatures with flying", "high")
+
+    # --- Toughness matters ---
+    if re.search(r"assigns combat damage equal to its toughness|toughness instead", oracle):
+        add("High-toughness creatures", "oracle_text", "toughness", 8,
+            "Commander assigns damage based on toughness", "high")
+
+    # --- Stax / Tax ---
+    if re.search(r"opponents can't|each opponent (must|can't|loses|sacrifices)", oracle):
+        add("Stax / Tax permanents", "oracle_text", "opponents can't", 6,
+            "Commander restricts opponents' actions", "high")
+
+    return suggestions
+
+
+def _enforce_constraints(
+    deck: list[dict],
+    pool: list[dict],
+    constraints: list[dict],
+    must_include_names: Optional[set] = None,
+) -> list[dict]:
+    """
+    Post-rebalance enforcement:
+    - min_count: ensure at least N matching non-land cards.
+    - max_count (>0): ensure at most N matching non-land cards.
+    Never evicts must-include cards.
+    """
+    if not constraints:
+        return deck
+
+    has_active = any((c.get("min_count") or 0) > 0 or (c.get("max_count") or 0) > 0 for c in constraints)
+    if not has_active:
+        return deck
+
+    protected = must_include_names or set()
+
+    # ── Enforce minimums ────────────────────────────────────────────────────
+    for constraint in constraints:
+        floor = constraint.get("min_count") or 0
+        if floor <= 0:
+            continue
+        matching_deck = [c for c in deck if not is_land(c) and _card_matches_constraint(c, constraint)]
+        if len(matching_deck) >= floor:
+            continue
+
+        needed = floor - len(matching_deck)
+        deck_ids = {c.get("id") or c.get("name") for c in deck}
+
+        pool_matches = [
+            c for c in pool
+            if not is_land(c)
+            and _card_matches_constraint(c, constraint)
+            and (c.get("id") or c.get("name")) not in deck_ids
+        ]
+        if not pool_matches:
+            continue
+
+        swap_targets = [
+            (i, c) for i, c in enumerate(deck)
+            if not is_land(c)
+            and (c.get("name", "").lower() not in protected)
+            and not _card_matches_constraint(c, constraint)
+        ]
+        swap_targets.sort(key=lambda x: _card_cmc(x[1]), reverse=True)
+
+        for pool_card in pool_matches[:needed]:
+            if not swap_targets:
+                break
+            swap_idx, _ = swap_targets.pop(0)
+            deck[swap_idx] = pool_card
+            deck_ids.add(pool_card.get("id") or pool_card.get("name"))
+
+    # ── Enforce maximums ────────────────────────────────────────────────────
+    for constraint in constraints:
+        ceiling = constraint.get("max_count") or 0
+        if ceiling <= 0:
+            continue
+        matching_idxs = [
+            i for i, c in enumerate(deck)
+            if not is_land(c)
+            and _card_matches_constraint(c, constraint)
+            and c.get("name", "").lower() not in protected
+        ]
+        excess = len(matching_idxs) - ceiling
+        if excess <= 0:
+            continue
+
+        # Sort by CMC descending — evict highest-CMC matchers first
+        matching_idxs.sort(key=lambda i: _card_cmc(deck[i]), reverse=True)
+        evict_idxs = set(matching_idxs[:excess])
+        deck_ids = {c.get("id") or c.get("name") for c in deck}
+
+        replacements_pool = [
+            c for c in pool
+            if not is_land(c)
+            and not _card_matches_constraint(c, constraint)
+            and (c.get("id") or c.get("name")) not in deck_ids
+        ]
+        replacements_pool.sort(key=lambda c: _card_cmc(c))
+
+        for evict_i in sorted(evict_idxs):
+            if replacements_pool:
+                deck[evict_i] = replacements_pool.pop(0)
+            # else: remove card — deck will be shorter (safety net later pads basics)
+
+    return deck
+
+
+def _enforce_tapped_land_cap(
+    deck: list[dict],
+    pool: list[dict],
+    tapped_land_max: int,
+) -> list[dict]:
+    """Swap out excess tapped lands (oracle text contains 'enters the battlefield tapped')
+    for non-tapped lands from the pool. Does nothing when tapped_land_max <= 0."""
+    if tapped_land_max <= 0:
+        return deck
+
+    def is_tapped_land(card: dict) -> bool:
+        if not is_land(card):
+            return False
+        ot = (card.get("oracle_text") or "").lower()
+        return "enters the battlefield tapped" in ot or "enters tapped" in ot
+
+    tapped_idxs = [i for i, c in enumerate(deck) if is_tapped_land(c)]
+    excess = len(tapped_idxs) - tapped_land_max
+    if excess <= 0:
+        return deck
+
+    deck_ids = {c.get("id") or c.get("name") for c in deck}
+    non_tapped_pool = [
+        c for c in pool
+        if is_land(c)
+        and not is_tapped_land(c)
+        and (c.get("id") or c.get("name")) not in deck_ids
+    ]
+
+    for evict_i in tapped_idxs[:excess]:
+        if non_tapped_pool:
+            deck[evict_i] = non_tapped_pool.pop(0)
+        # If no untapped replacements available, leave as-is
+
+    return deck
+
+
 def _extract_numbered_card_indices(text: str) -> tuple[list[int], str]:
     """Parse fallback model output like '801. Card Name | ... 802. Card Name | ...'."""
     matches = list(re.finditer(r"(?:^|[\s,;])(\d{1,4})\.\s+", text))
@@ -362,6 +797,8 @@ def _rebalance_nonlands_for_quality(
     commander_name: str,
     keyword_filters: list[str],
     strict_mode: bool,
+    constraints: Optional[list[dict]] = None,
+    excluded_card_names: Optional[list[str]] = None,
 ) -> list[dict]:
     if nonland_target <= 0:
         return []
@@ -382,14 +819,20 @@ def _rebalance_nonlands_for_quality(
     normalized_keywords = _clean_keyword_filters(keyword_filters)
     if strict_mode and normalized_keywords:
         keyword_only = [c for c in deduped_nonlands if _card_matches_keywords(c, normalized_keywords)]
-        if len(keyword_only) >= max(12, int(nonland_target * 0.65)):
+        if len(keyword_only) >= max(12, int(nonland_target * 0.45)):
             deduped_nonlands = keyword_only
 
     is_akawalli = "akawalli" in (commander_name or "").lower()
+    active_constraints = [c for c in (constraints or []) if (c.get("min_count") or 0) > 0]
+    excluded_set = {n.lower() for n in (excluded_card_names or []) if n}
 
     def score(card: dict) -> float:
         card_id = card.get("id") or card.get("name")
         value = 0.0
+
+        # Excluded cards get a heavy penalty — only selected as absolute last resort
+        if card.get("name", "").lower() in excluded_set:
+            value -= 200.0
 
         if card_id in selected_ids:
             value += 25.0
@@ -399,6 +842,11 @@ def _rebalance_nonlands_for_quality(
 
         if is_akawalli:
             value += float(_akawalli_synergy_score(card) * (10 if strict_mode else 8))
+
+        # Constraint scoring: +80 per active constraint matched
+        for constraint in active_constraints:
+            if _card_matches_constraint(card, constraint):
+                value += 80.0
 
         cmc = _card_cmc(card)
         if cmc <= 2:
@@ -672,6 +1120,9 @@ def build_deck_with_llm(
     nonbasic_land_count: int = 5,
     dual_land_count: int = 0,
     strict_mode: bool = False,
+    constraints: Optional[list[dict]] = None,
+    excluded_card_names: Optional[list[str]] = None,
+    tapped_land_max: int = 0,
     progress_callback: Optional[Callable[[str], None]] = None,
     stream_callback: Optional[Callable[[str], None]] = None,
     current_deck: Optional[list[dict]] = None,
@@ -712,11 +1163,17 @@ def build_deck_with_llm(
         keyword_matches = [c for c in all_candidates if _card_matches_keywords(c, scoring_keywords)]
         keyword_non_matches = [c for c in all_candidates if not _card_matches_keywords(c, scoring_keywords)]
         keyword_match_count = len(keyword_matches)
+        # Shuffle within each group for deck variety (preserves synergy-first priority order)
+        random.shuffle(keyword_matches)
+        random.shuffle(keyword_non_matches)
         all_candidates = keyword_matches + keyword_non_matches
         if progress_callback:
             progress_callback(
                 f"Prioritized {len(keyword_matches)} synergy-matching cards from {len(all_candidates)} candidates"
             )
+    else:
+        # No keyword filters — shuffle the full pool so different runs pick different cards
+        random.shuffle(all_candidates)
 
     model_candidates = all_candidates
     model_candidate_cap = min(KEYWORD_MODEL_CANDIDATE_CAP, max(1, BASE_MODEL_CANDIDATES))
@@ -782,13 +1239,27 @@ def build_deck_with_llm(
             "\nThese cards MUST be included in your selection (they will be force-added if you skip them): "
             + ", ".join(must_include_names)
         )
+    # Build DECK REQUIREMENTS block from active constraints
+    active_constraints = [c for c in (constraints or []) if (c.get("min_count") or 0) > 0]
+    requirements_text = ""
+    if active_constraints:
+        req_lines = []
+        for c in active_constraints:
+            field_desc = {"type_line": "type line", "oracle_text": "oracle text",
+                          "keywords": "keywords", "any": "card text"}.get(c.get("match_field", "any"), "card text")
+            req_lines.append(
+                f"  - At least {c['min_count']} cards with \"{c['match_value']}\" in their {field_desc}"
+            )
+        requirements_text = (
+            "\nDECK REQUIREMENTS (hard minimums — you MUST meet these):\n" + "\n".join(req_lines)
+        )
     current_deck_text = ""
     if current_deck:
         current_deck_text = "\nCurrent deck:\n" + "\n".join(f"- {c.get('name', '')}" for c in current_deck)
     user_message = (
         f"Commander: {commander['name']} "
         f"(Color identity: {', '.join(commander.get('color_identity', []))})\n"
-        f"Request: {prompt}{synergy_text}{deck_shape_text}{must_include_text}\n"
+        f"Request: {prompt}{synergy_text}{deck_shape_text}{must_include_text}{requirements_text}\n"
         f"{current_deck_text}\n"
         f"Available cards:\n{card_list_text}"
     )
@@ -817,7 +1288,7 @@ def build_deck_with_llm(
 
     try:
         import queue as _queue
-        model_options = {"temperature": 0.7, "num_predict": OLLAMA_NUM_PREDICT}
+        model_options = {"temperature": round(random.uniform(0.70, 0.88), 2), "num_predict": OLLAMA_NUM_PREDICT}
         timed_out = False
         _chunk_queue: _queue.Queue = _queue.Queue()
         _abort = threading.Event()
@@ -944,6 +1415,8 @@ def build_deck_with_llm(
         commander.get("name", ""),
         scoring_keywords,
         strict_mode,
+        constraints=constraints,
+        excluded_card_names=excluded_card_names,
     )
     selected_lands = [c for c in selected if is_land(c)]
     selected = rebalanced_nonlands + selected_lands
@@ -960,6 +1433,21 @@ def build_deck_with_llm(
         commander_identity,
         dual_land_count=dual_land_count,
     )
+
+    # Enforce user-defined deck constraints (hard minimums/maximums by card type/text)
+    if constraints:
+        must_names_lower = {m["name"].lower() for m in (must_include_cards or [])}
+        selected = _enforce_constraints(selected, all_candidates, constraints, must_names_lower)
+        if progress_callback:
+            active_c = [c for c in constraints if (c.get("min_count") or 0) > 0 or (c.get("max_count") or 0) > 0]
+            if active_c:
+                progress_callback(f"Enforced {len(active_c)} deck constraint(s)")
+
+    # Enforce tapped-land cap
+    if tapped_land_max > 0:
+        selected = _enforce_tapped_land_cap(selected, all_candidates, tapped_land_max)
+        if progress_callback:
+            progress_callback(f"Enforced tapped land cap: max {tapped_land_max}")
 
     # Enforce must-include cards: swap into the final 99 if missing.
     if must_include_cards:
@@ -1019,6 +1507,9 @@ def generate_deck(
     dual_land_count: int = 0,
     strict_mode: bool = False,
     commander_override: Optional[dict] = None,
+    constraints: Optional[list[dict]] = None,
+    excluded_card_names: Optional[list[str]] = None,
+    tapped_land_max: int = 0,
     progress_callback: Optional[Callable[[str], None]] = None,
     current_deck: Optional[list[dict]] = None,
 ) -> dict:
@@ -1078,6 +1569,9 @@ def generate_deck(
         nonbasic_land_count=nonbasic_land_count,
         dual_land_count=dual_land_count,
         strict_mode=strict_mode,
+        constraints=constraints,
+        excluded_card_names=excluded_card_names,
+        tapped_land_max=tapped_land_max,
         progress_callback=progress_callback,
         current_deck=current_deck,
     )

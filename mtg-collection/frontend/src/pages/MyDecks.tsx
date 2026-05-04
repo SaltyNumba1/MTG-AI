@@ -35,6 +35,14 @@ interface SwapPair {
   in: any;
 }
 
+interface CollectionCard {
+  id: string;
+  name: string;
+  type_line: string;
+  color_identity: string[];
+  quantity: number;
+}
+
 export default function MyDecks() {
   const [showAnalyze, setShowAnalyze] = useState(false);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
@@ -81,7 +89,14 @@ export default function MyDecks() {
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [detail, setDetail] = useState<SavedDeckDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+  const [collection, setCollection] = useState<CollectionCard[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [selectedForRemoval, setSelectedForRemoval] = useState<Set<string>>(new Set());
+  const [deckModified, setDeckModified] = useState(false);
+  const [showAddFromCollection, setShowAddFromCollection] = useState(false);
+  const [addCollectionSearch, setAddCollectionSearch] = useState("");
 
   const loadDecks = async () => {
     try {
@@ -114,11 +129,17 @@ export default function MyDecks() {
 
   useEffect(() => {
     loadDecks();
+    api.get<CollectionCard[]>("/collection/")
+      .then(({ data }) => setCollection(data))
+      .catch(() => setCollection([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     loadSelectedDeck(selectedFile);
+    setEditMode(false);
+    setSelectedForRemoval(new Set());
+    setDeckModified(false);
   }, [selectedFile]);
 
   const exportDecklist = () => {
@@ -148,6 +169,34 @@ export default function MyDecks() {
       await loadDecks();
     } catch (err: any) {
       setMessage({ type: "error", text: err.response?.data?.detail || "Failed to delete deck" });
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!detail || !selectedFile) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      await api.put(`/deck/saved/${selectedFile}`, { deck: detail.deck });
+      setDeckModified(false);
+      setMessage({ type: "success", text: "Deck changes saved." });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.response?.data?.detail || "Failed to save changes" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddCardFromCollection = async (cardName: string) => {
+    if (!detail) return;
+    try {
+      const { data: card } = await api.get<CardEntry>(`/deck/card-lookup?name=${encodeURIComponent(cardName)}`);
+      setDetail((prev) => prev ? { ...prev, deck: [...prev.deck, card] } : prev);
+      setDeckModified(true);
+      setShowAddFromCollection(false);
+      setAddCollectionSearch("");
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.response?.data?.detail || `Card '${cardName}' not found` });
     }
   };
 
@@ -213,6 +262,23 @@ export default function MyDecks() {
               Add to Collection
             </button>
             <button className="btn-secondary" onClick={loadDecks}>Refresh</button>
+            <button
+              className={editMode ? "btn-primary" : "btn-secondary"}
+              onClick={() => { setEditMode((m) => !m); setSelectedForRemoval(new Set()); }}
+              disabled={!detail}
+            >
+              {editMode ? "✎ Editing..." : "✎ Edit Deck"}
+            </button>
+            {deckModified && (
+              <button className="btn-primary" onClick={handleSaveChanges} disabled={saving}>
+                {saving ? "Saving..." : "💾 Save Changes"}
+              </button>
+            )}
+            {detail && (
+              <button className="btn-secondary" onClick={() => setShowAddFromCollection(true)}>
+                + Add Cards
+              </button>
+            )}
         <button className="btn-danger" onClick={deleteDeck} disabled={!selectedFile}>Delete</button>
           </div>
       {loading ? (
@@ -225,6 +291,11 @@ export default function MyDecks() {
             <h2>{detail.name}</h2>
             <small>
               Saved: {detail.saved_at || "Unknown"} | Cards: {detail.card_count}
+              {(() => {
+                const total = (detail.deck || []).reduce((s, c) => s + (Number(c.tcgplayer_price) || 0), 0)
+                  + (Number(detail.commander?.tcgplayer_price) || 0);
+                return total > 0 ? <> | <strong className="my-decks-deck-price">Deck Price: ${total.toFixed(2)}</strong></> : null;
+              })()}
             </small>
             <h1 style={{ margin: "0.5em 0", color: '#7c3aed' }}>Commander</h1>
               </div>
@@ -280,17 +351,113 @@ export default function MyDecks() {
                   || a.card.name.localeCompare(b.card.name);
               });
               return grouped.map(({ card, quantity }, idx) => (
-                <CardPreview
-                  key={`${card.name}-${idx}`}
-                  name={card.name}
-                  imageUri={card.image_uri}
-                  subtitle={card.type_line || "Deck Card"}
-                  tcgplayerPrice={card.tcgplayer_price}
-                  quantity={quantity > 1 ? quantity : undefined}
-                />
+                editMode ? (
+                  <div key={`${card.name}-${idx}`} className="my-decks-edit-tile-wrap">
+                    <input
+                      type="checkbox"
+                      className="my-decks-tile-checkbox"
+                      checked={selectedForRemoval.has(card.name)}
+                      onChange={(e) => {
+                        const next = new Set(selectedForRemoval);
+                        if (e.target.checked) next.add(card.name);
+                        else next.delete(card.name);
+                        setSelectedForRemoval(next);
+                      }}
+                      title={`Select "${card.name}" to remove`}
+                    />
+                    <CardPreview
+                      name={card.name}
+                      imageUri={card.image_uri}
+                      subtitle={card.type_line || "Deck Card"}
+                      tcgplayerPrice={card.tcgplayer_price}
+                      quantity={quantity > 1 ? quantity : undefined}
+                    />
+                  </div>
+                ) : (
+                  <CardPreview
+                    key={`${card.name}-${idx}`}
+                    name={card.name}
+                    imageUri={card.image_uri}
+                    subtitle={card.type_line || "Deck Card"}
+                    tcgplayerPrice={card.tcgplayer_price}
+                    quantity={quantity > 1 ? quantity : undefined}
+                  />
+                )
               ));
             })()}
           </div>
+
+          {/* Remove selected bar */}
+          {editMode && selectedForRemoval.size > 0 && (
+            <div className="my-decks-remove-bar">
+              <span>{selectedForRemoval.size} card{selectedForRemoval.size > 1 ? "s" : ""} selected</span>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() => {
+                  setDetail((prev) => prev
+                    ? { ...prev, deck: prev.deck.filter((c) => !selectedForRemoval.has(c.name)) }
+                    : prev
+                  );
+                  setDeckModified(true);
+                  setSelectedForRemoval(new Set());
+                }}
+              >
+                🗑 Remove Selected
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setSelectedForRemoval(new Set())}
+              >
+                Clear Selection
+              </button>
+            </div>
+          )}
+
+          {/* Add from Collection modal */}
+          {showAddFromCollection && (
+            <div className="my-decks-modal-overlay" onClick={() => setShowAddFromCollection(false)}>
+              <div className="my-decks-modal" onClick={(e) => e.stopPropagation()}>
+                <h2>Add Card from Collection</h2>
+                <div className="my-decks-modal-body">
+                  <input
+                    type="text"
+                    placeholder="Search card name..."
+                    value={addCollectionSearch}
+                    onChange={(e) => setAddCollectionSearch(e.target.value)}
+                    className="my-decks-select"
+                    style={{ width: "100%", marginBottom: 8 }}
+                    autoFocus
+                    title="Search for a card to add"
+                  />
+                  <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                    {collection
+                      .filter((c) => {
+                        if (!addCollectionSearch.trim()) return true;
+                        return c.name.toLowerCase().includes(addCollectionSearch.toLowerCase());
+                      })
+                      .slice(0, 50)
+                      .map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="my-decks-add-collection-item"
+                          onClick={() => handleAddCardFromCollection(c.name)}
+                        >
+                          <span>{c.name}</span>
+                          <small>{c.type_line}</small>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+                <div className="my-decks-modal-footer">
+                  <button className="btn-secondary" onClick={() => setShowAddFromCollection(false)}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Analyze Modal */}
           {showAnalyze && (
             <div className="my-decks-modal-overlay">

@@ -11,10 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import get_db
 from models import Card
-from services.deck_engine import generate_deck
+from services.deck_engine import generate_deck, _analyze_commander_profile
 from services.scryfall import fetch_card_by_name, extract_card_fields
 
 router = APIRouter(prefix="/deck", tags=["deck"])
+
+
+class DeckConstraint(BaseModel):
+    label: str
+    match_field: str  # "type_line" | "oracle_text" | "keywords" | "any"
+    match_value: str  # substring or pipe-OR e.g. "Instant|Sorcery"
+    min_count: int = 0  # 0 = disabled
+    max_count: int = 0  # 0 = no cap
 
 
 class DeckRequest(BaseModel):
@@ -26,6 +34,9 @@ class DeckRequest(BaseModel):
     nonbasic_land_count: int = 12
     dual_land_count: int = 0
     strict_mode: bool = False
+    constraints: list[DeckConstraint] = []
+    excluded_card_names: list[str] = []
+    tapped_land_max: int = 0  # 0 = no cap
 
 
 class ImportDeckRequest(BaseModel):
@@ -255,6 +266,7 @@ class DeckSaveRequest(BaseModel):
     commander: dict
     deck: list[dict]
     description: str = ""
+    constraints: list[dict] = []
 
 
 BUILD_STATUS_LOCK = Lock()
@@ -423,6 +435,7 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
         _append_thought("Applying commander legality and color identity filters")
 
         # Run the synchronous Ollama call in a thread so we don't block the event loop
+        constraints_raw = [c.dict() for c in (req.constraints or [])]
         deck = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: generate_deck(
@@ -435,6 +448,9 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
                 nonbasic_land_count=getattr(req, "nonbasic_land_count", 5),
                 dual_land_count=getattr(req, "dual_land_count", 0),
                 strict_mode=getattr(req, "strict_mode", False),
+                constraints=constraints_raw,
+                excluded_card_names=list(req.excluded_card_names or []),
+                tapped_land_max=getattr(req, "tapped_land_max", 0),
                 progress_callback=_append_thought,
             ),
         )
@@ -469,6 +485,23 @@ async def reset_build():
     )
     _append_thought("⚠️ Build was force-reset by user.")
     return {"reset": True}
+
+
+@router.get("/commander-profile")
+async def commander_profile(commander_name: str, db: AsyncSession = Depends(get_db)):
+    """Return auto-detected constraint suggestions for a commander from the user's collection."""
+    result = await db.execute(select(Card))
+    cards = result.scalars().all()
+    commander = next((c for c in cards if c.name.lower() == commander_name.lower()), None)
+    if not commander:
+        return []
+    commander_dict = {
+        "name": commander.name,
+        "oracle_text": commander.oracle_text,
+        "type_line": commander.type_line,
+        "color_identity": commander.color_identity,
+    }
+    return _analyze_commander_profile(commander_dict)
 
 
 @router.get("/commanders")
@@ -512,6 +545,7 @@ async def save_deck(payload: DeckSaveRequest):
         "commander": payload.commander,
         "deck": payload.deck,
         "card_count": 1 + len(payload.deck),
+        "constraints": payload.constraints,
     }
 
     json_path.write_text(json.dumps(payload_data, indent=2), encoding="utf-8")
@@ -584,3 +618,60 @@ async def delete_saved_deck(deck_file: str):
     target.unlink(missing_ok=True)
     txt_target.unlink(missing_ok=True)
     return {"deleted": deck_file}
+
+
+@router.put("/saved/{deck_file}")
+async def update_saved_deck(deck_file: str, body: dict = Body(...)):
+    """Replace the deck card list in an existing saved deck file."""
+    if "/" in deck_file or "\\" in deck_file:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    deck_dir = _saved_decks_dir().resolve()
+    target = (deck_dir / deck_file).resolve()
+    if not str(target).startswith(str(deck_dir)):
+        raise HTTPException(status_code=400, detail="Invalid deck file")
+    if not target.exists() or target.suffix.lower() != ".json":
+        raise HTTPException(status_code=404, detail="Saved deck not found")
+
+    data = json.loads(target.read_text(encoding="utf-8"))
+    new_deck = body.get("deck", data.get("deck", []))
+    data["deck"] = new_deck
+    data["card_count"] = 1 + len(new_deck)  # +1 for commander
+
+    # Also regenerate the .txt sidecar
+    txt_target = target.with_suffix(".txt")
+    commander_name = (data.get("commander") or {}).get("name", "Unknown Commander")
+    card_lines = [f"1 {commander_name} *CMDR*", ""]
+    card_lines.extend([f"1 {c.get('name', 'Unknown Card')}" for c in new_deck])
+
+    target.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    txt_target.write_text("\n".join(card_lines), encoding="utf-8")
+    return {"message": "Deck updated", "file": deck_file, "card_count": data["card_count"]}
+
+
+@router.get("/card-lookup")
+async def card_lookup(name: str, db: AsyncSession = Depends(get_db)):
+    """Look up a card by name: DB first, then Scryfall fallback."""
+    result = await db.execute(select(Card).where(Card.name.ilike(name)))
+    card = result.scalars().first()
+    if card:
+        return {
+            "id": card.id,
+            "name": card.name,
+            "mana_cost": card.mana_cost,
+            "cmc": card.cmc,
+            "type_line": card.type_line,
+            "oracle_text": card.oracle_text,
+            "colors": card.colors,
+            "color_identity": card.color_identity,
+            "keywords": card.keywords,
+            "power": card.power,
+            "toughness": card.toughness,
+            "image_uri": card.image_uri,
+            "tcgplayer_price": card.tcgplayer_price,
+            "legalities": card.legalities,
+        }
+    # Scryfall fallback
+    data = await fetch_card_by_name(name)
+    if data:
+        return extract_card_fields(data)
+    raise HTTPException(status_code=404, detail=f"Card '{name}' not found")
