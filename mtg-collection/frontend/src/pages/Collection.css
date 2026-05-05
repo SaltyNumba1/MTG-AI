@@ -185,8 +185,8 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 150vw;
-  height: 150vh;
+  width: 100vw;
+  height: 100vh;
   background: rgba(1, 14, 44, 0.4);
   z-index: 100;
   display: flex;

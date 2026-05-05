@@ -28,6 +28,7 @@ interface CollectionCard {
   quantity: number;
   type_line: string;
   color_identity: string[];
+  cmc?: number;
 }
 
 interface DeckResult {
@@ -183,6 +184,13 @@ export default function DeckBuilder() {
   const [enchantmentMin, setEnchantmentMin] = useState(0);
   const [enchantmentMax, setEnchantmentMax] = useState(0);
 
+  // Mana Curve Controller
+  const CMC_BUCKETS = ["0", "1", "2", "3", "4", "5", "6", "7+"] as const;
+  type CmcBucket = typeof CMC_BUCKETS[number];
+  const [curveLimits, setCurveLimits] = useState<Record<CmcBucket, { min: number; max: number }>>(
+    Object.fromEntries(CMC_BUCKETS.map((b) => [b, { min: 0, max: 0 }])) as Record<CmcBucket, { min: number; max: number }>
+  );
+
   // Edit mode: remove/add cards from built deck
   const [deckModified, setDeckModified] = useState(false);
   const [savedFilename, setSavedFilename] = useState<string | null>(null);
@@ -262,6 +270,17 @@ export default function DeckBuilder() {
     return counts;
   }, [collection]);
 
+  const collectionCmcCounts = useMemo(() => {
+    const counts: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7+": 0 };
+    for (const c of collection) {
+      if ((c.type_line || "").toLowerCase().includes("land")) continue;
+      const cmc = Math.floor(Number(c.cmc) || 0);
+      const key = cmc >= 7 ? "7+" : String(cmc);
+      counts[key] = (counts[key] || 0) + (c.quantity || 0);
+    }
+    return counts;
+  }, [collection]);
+
   useEffect(() => {
     if (!building) {
       setIsHung(false);
@@ -337,6 +356,17 @@ export default function DeckBuilder() {
           max_count: t.max || 0,
         }));
 
+      // Synthesize mana curve constraints
+      const cmcConstraints: DeckConstraint[] = CMC_BUCKETS
+        .filter((b) => curveLimits[b].min > 0 || curveLimits[b].max > 0)
+        .map((b) => ({
+          label: `CMC ${b} min/max`,
+          match_field: "cmc",
+          match_value: b,
+          min_count: curveLimits[b].min,
+          max_count: curveLimits[b].max || 0,
+        }));
+
       // Merge type-counter constraints with commander constraints.
       // For the same match_field+match_value: take the higher min and the lower non-zero max.
       const activeCommanderConstraints = constraints.filter(
@@ -346,7 +376,7 @@ export default function DeckBuilder() {
       for (const c of activeCommanderConstraints) {
         mergedMap.set(`${c.match_field}::${c.match_value}`, { ...c });
       }
-      for (const t of typeConstraints) {
+      for (const t of [...typeConstraints, ...cmcConstraints]) {
         const key = `${t.match_field}::${t.match_value}`;
         if (mergedMap.has(key)) {
           const existing = mergedMap.get(key)!;
@@ -533,6 +563,29 @@ export default function DeckBuilder() {
 
       <div className="deckbuilder-layout">
       <div className="deckbuilder-form">
+        <div>
+          <label className="deckbuilder-label">
+            Commander
+          </label>
+          <select
+            aria-label="Commander"
+            value={selectedCommander}
+            onChange={(e) => setSelectedCommander(e.target.value)}
+          >
+            <option value="">- Select a commander -</option>
+            {commanders.map((c) => (
+              <option key={c.id} value={c.name}>
+                {c.name} {(c.color_identity || []).map((x) => COLOR_SYMBOLS[x] || x).join("")}
+              </option>
+            ))}
+          </select>
+          {commanders.length === 0 && (
+            <small className="deckbuilder-hint">
+              No legal legendary commanders found in your collection.
+            </small>
+          )}
+        </div>
+
         <div className="deckbuilder-filters-row">
           <div className="deckbuilder-filters-col">
             <label className="deckbuilder-label">
@@ -746,29 +799,6 @@ export default function DeckBuilder() {
 
         <div>
           <label className="deckbuilder-label">
-            Commander
-          </label>
-          <select
-            aria-label="Commander"
-            value={selectedCommander}
-            onChange={(e) => setSelectedCommander(e.target.value)}
-          >
-            <option value="">- Select a commander -</option>
-            {commanders.map((c) => (
-              <option key={c.id} value={c.name}>
-                {c.name} {(c.color_identity || []).map((x) => COLOR_SYMBOLS[x] || x).join("")}
-              </option>
-            ))}
-          </select>
-          {commanders.length === 0 && (
-            <small className="deckbuilder-hint">
-              No legal legendary commanders found in your collection.
-            </small>
-          )}
-        </div>
-
-        <div>
-          <label className="deckbuilder-label">
             Deck prompt
           </label>
           <textarea
@@ -879,6 +909,47 @@ export default function DeckBuilder() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="deckbuilder-mana-curve-section">
+          <label className="deckbuilder-label">Mana Curve Controller</label>
+          <small className="deckbuilder-hint" style={{ display: "block", marginBottom: 8 }}>
+            Set min/max card counts per mana value. 0 = no limit. Enforced after AI picks.
+          </small>
+          <div className="deckbuilder-type-counters">
+            {CMC_BUCKETS.map((bucket) => (
+              <div key={bucket} className="deckbuilder-type-block">
+                <span className="deckbuilder-type-label">MV {bucket}</span>
+                <small className="deckbuilder-type-avail">{collectionCmcCounts[bucket] ?? 0} owned</small>
+                <div className="deckbuilder-type-minmax">
+                  <label>Min</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={40}
+                    value={curveLimits[bucket].min}
+                    onChange={(e) =>
+                      setCurveLimits((prev) => ({ ...prev, [bucket]: { ...prev[bucket], min: Number(e.target.value) } }))
+                    }
+                    className="deckbuilder-type-count-input"
+                    title={`CMC ${bucket} minimum count`}
+                  />
+                  <label>Max</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={40}
+                    value={curveLimits[bucket].max}
+                    onChange={(e) =>
+                      setCurveLimits((prev) => ({ ...prev, [bucket]: { ...prev[bucket], max: Number(e.target.value) } }))
+                    }
+                    className="deckbuilder-type-count-input"
+                    title={`CMC ${bucket} maximum count (0 = no cap)`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <button

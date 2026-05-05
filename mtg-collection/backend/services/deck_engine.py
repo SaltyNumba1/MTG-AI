@@ -265,6 +265,21 @@ def _card_matches_constraint(card: dict, constraint: dict) -> bool:
     if not terms:
         return False
 
+    if field == "cmc":
+        # match_value is "0"-"6" for exact CMC, or "7+" for CMC >= 7
+        card_cmc = int(float(card.get("cmc") or 0))
+        for term in terms:
+            if term == "7+":
+                if card_cmc >= 7:
+                    return True
+            else:
+                try:
+                    if card_cmc == int(term):
+                        return True
+                except ValueError:
+                    pass
+        return False
+
     if field == "type_line":
         haystack = (card.get("type_line") or "").lower()
     elif field == "oracle_text":

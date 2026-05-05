@@ -42,8 +42,9 @@ export default function CardPreview({
     const el = cardRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const popoutWidth = 340 + 16; // popout plus gap
-    const spaceRight = Math.max(0, window.innerWidth - rect.right);
+    const popoutWidth = 340 + 60; // popout width plus safety margin (accounts for zoom/DPI)
+    const viewportWidth = document.documentElement.clientWidth;
+    const spaceRight = Math.max(0, viewportWidth - rect.right);
     const spaceLeft = Math.max(0, rect.left);
 
     // Prefer the side with enough room for the popout. If right side lacks space, show left.

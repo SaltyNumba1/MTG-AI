@@ -208,7 +208,7 @@ export default function Collection() {
   const [rarityFilter, setRarityFilter] = useState<string>("all");
   const [setFilter, setSetFilter] = useState<string>("all");
   const [manaCostFilter, setManaCostFilter] = useState<number[]>([]);
-  const [sortBy, setSortBy] = useState<"name" | "quantity" | "cmc" | "recent">("name");
+  const [sortBy, setSortBy] = useState<"name" | "quantity" | "cmc" | "recent" | "price">("name");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"set" | "adjust">("adjust");
   const [bulkValue, setBulkValue] = useState<number>(1);
@@ -596,6 +596,7 @@ export default function Collection() {
     rows.sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "quantity") return b.quantity - a.quantity || a.name.localeCompare(b.name);
+      if (sortBy === "price") return (Number(b.tcgplayer_price) || 0) - (Number(a.tcgplayer_price) || 0) || a.name.localeCompare(b.name);
       if (sortBy === "cmc") {
         const ca = Math.floor(Number(a.cmc) || 0);
         const cb = Math.floor(Number(b.cmc) || 0);
@@ -1146,12 +1147,13 @@ const payload: ManualDeckSavePayload = {
           aria-label="Sort cards"
           title="Sort cards"
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as "name" | "quantity" | "cmc" | "recent")}
+          onChange={(e) => setSortBy(e.target.value as "name" | "quantity" | "cmc" | "recent" | "price")}
           className="collection-sort"
         >
           <option value="name">Sort: Name</option>
           <option value="quantity">Sort: Quantity</option>
           <option value="cmc">Sort: CMC</option>
+          <option value="price">Sort: Price</option>
           <option value="recent">Sort: Recently Imported</option>
         </select>
       </div>

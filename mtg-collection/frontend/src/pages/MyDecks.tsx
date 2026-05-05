@@ -462,6 +462,13 @@ export default function MyDecks() {
           {showAnalyze && (
             <div className="my-decks-modal-overlay">
               <div className="my-decks-modal my-decks-modal-wide">
+                <button
+                  className="my-decks-analyze-close-btn"
+                  onClick={() => setShowAnalyze(false)}
+                  title="Close"
+                >
+                  ✕ Exit
+                </button>
                 <h2>AI Suggestions</h2>
                 <div className="my-decks-modal-body">
                   {analyzeLoading && <p>Analyzing your deck against your collection...</p>}
