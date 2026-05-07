@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
 import "./MyDecks.css";
@@ -48,12 +48,18 @@ export default function MyDecks() {
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
   const [analyzeSuggestions, setAnalyzeSuggestions] = useState<SwapPair[]>([]);
+  const [selectedSwapIndices, setSelectedSwapIndices] = useState<Set<number>>(new Set());
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const analyzeModalRef = useRef<HTMLDivElement | null>(null);
+  const analyzeDraggingRef = useRef({ active: false, offsetX: 0, offsetY: 0 });
+  const [analyzeModalPos, setAnalyzeModalPos] = useState({ x: 60, y: 40 });
   const [sortBy, setSortBy] = useState<"name" | "cmc" | "type" | "price">("type");
   const handleAnalyze = async () => {
     if (!selectedFile) return;
     setAnalyzeLoading(true);
     setAnalyzeResult(null);
     setAnalyzeSuggestions([]);
+    setSelectedSwapIndices(new Set());
     try {
       const { data } = await api.post("/deck/analyze-deck", { deck_file: selectedFile });
       const description = data?.suggestions?.description || "No summary provided.";
@@ -83,6 +89,32 @@ export default function MyDecks() {
       setAnalyzeResult(err.response?.data?.detail || "Analysis failed");
     } finally {
       setAnalyzeLoading(false);
+    }
+  };
+  const applySelectedSwaps = async () => {
+    if (!detail || !selectedFile || selectedSwapIndices.size === 0) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const newDeck = detail.deck.slice();
+      for (const idx of Array.from(selectedSwapIndices).sort((a, b) => b - a)) {
+        const swap = analyzeSuggestions[idx];
+        if (swap.out) {
+          const outIdx = newDeck.findIndex((c) => c.name.toLowerCase() === swap.out!.name.toLowerCase());
+          if (outIdx !== -1) newDeck.splice(outIdx, 1);
+        }
+        newDeck.push(swap.in);
+      }
+      await api.put(`/deck/saved/${selectedFile}`, { deck: newDeck });
+      setDetail((prev) => prev ? { ...prev, deck: newDeck } : prev);
+      setDeckModified(false);
+      setMessage({ type: "success", text: `Applied ${selectedSwapIndices.size} swap(s) and saved.` });
+      setShowAnalyze(false);
+      setSelectedSwapIndices(new Set());
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.response?.data?.detail || "Failed to apply swaps" });
+    } finally {
+      setSaving(false);
     }
   };
   const [decks, setDecks] = useState<SavedDeckSummary[]>([]);
@@ -141,6 +173,48 @@ export default function MyDecks() {
     setSelectedForRemoval(new Set());
     setDeckModified(false);
   }, [selectedFile]);
+
+  useEffect(() => {
+    if (!selectAllRef.current || analyzeSuggestions.length === 0) return;
+    const s = selectedSwapIndices.size;
+    const n = analyzeSuggestions.length;
+    selectAllRef.current.indeterminate = s > 0 && s < n;
+  }, [selectedSwapIndices, analyzeSuggestions]);
+
+  useEffect(() => {
+    if (!showAnalyze) return;
+    const w = window.innerWidth || 900;
+    const h = window.innerHeight || 700;
+    setAnalyzeModalPos({ x: Math.max(20, Math.round(w / 2 - 540)), y: Math.max(20, Math.round(h / 2 - 320)) });
+  }, [showAnalyze]);
+
+  const startAnalyzeDrag = (e: React.MouseEvent) => {
+    const el = analyzeModalRef.current;
+    if (!el) return;
+    analyzeDraggingRef.current.active = true;
+    const rect = el.getBoundingClientRect();
+    analyzeDraggingRef.current.offsetX = e.clientX - rect.left;
+    analyzeDraggingRef.current.offsetY = e.clientY - rect.top;
+    const onMove = (ev: MouseEvent) => {
+      if (!analyzeDraggingRef.current.active) return;
+      setAnalyzeModalPos({ x: ev.clientX - analyzeDraggingRef.current.offsetX, y: ev.clientY - analyzeDraggingRef.current.offsetY });
+    };
+    const onUp = () => {
+      analyzeDraggingRef.current.active = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const toggleSwapIndex = (idx: number) => {
+    setSelectedSwapIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
 
   const exportDecklist = () => {
     if (!detail) return;
@@ -460,8 +534,11 @@ export default function MyDecks() {
 
           {/* Analyze Modal */}
           {showAnalyze && (
-            <div className="my-decks-modal-overlay">
-              <div className="my-decks-modal my-decks-modal-wide">
+            <div className="my-decks-modal-overlay my-decks-modal-overlay--bare">
+              <div
+                className="my-decks-modal my-decks-modal-wide"
+                ref={analyzeModalRef}
+                style={{ left: analyzeModalPos.x, top: analyzeModalPos.y }}>
                 <button
                   className="my-decks-analyze-close-btn"
                   onClick={() => setShowAnalyze(false)}
@@ -469,15 +546,55 @@ export default function MyDecks() {
                 >
                   ✕ Exit
                 </button>
-                <h2>AI Suggestions</h2>
+                <h2 className="my-decks-analyze-drag-handle" onMouseDown={startAnalyzeDrag}>AI Suggestions</h2>
                 <div className="my-decks-modal-body">
                   {analyzeLoading && <p>Analyzing your deck against your collection...</p>}
                   {analyzeResult && <p className="my-decks-modal-summary">{analyzeResult}</p>}
                   {analyzeSuggestions.length > 0 && (
                     <div className="my-decks-swap-list">
-                      <h3>Suggested swaps ({analyzeSuggestions.length})</h3>
+                      <div className="my-decks-swap-toolbar">
+                        <label className="my-decks-swap-select-all">
+                          <input
+                            type="checkbox"
+                            className="my-decks-swap-checkbox"
+                            ref={selectAllRef}
+                            checked={analyzeSuggestions.length > 0 && selectedSwapIndices.size === analyzeSuggestions.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSwapIndices(new Set(analyzeSuggestions.map((_, i) => i)));
+                              } else {
+                                setSelectedSwapIndices(new Set());
+                              }
+                            }}
+                          />
+                          Suggested swaps ({analyzeSuggestions.length})
+                        </label>
+                        <button
+                          className="btn-primary"
+                          disabled={selectedSwapIndices.size === 0 || analyzeLoading || saving}
+                          onClick={applySelectedSwaps}
+                        >
+                          Apply {selectedSwapIndices.size > 0 ? selectedSwapIndices.size : ""} Selected
+                        </button>
+                      </div>
                       {analyzeSuggestions.map((swap, idx) => (
-                        <div key={`swap-${idx}`} className="my-decks-swap-row">
+                        <div
+                          key={`swap-${idx}`}
+                          className={`my-decks-swap-row${selectedSwapIndices.has(idx) ? " my-decks-swap-row--selected" : ""}`}
+                          onClick={() => setSelectedSwapIndices((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(idx)) next.delete(idx); else next.add(idx);
+                            return next;
+                          })}
+                        >
+                          <input
+                            type="checkbox"
+                            className="my-decks-swap-checkbox"
+                            aria-label={`Select swap ${idx + 1}`}
+                            checked={selectedSwapIndices.has(idx)}
+                            onChange={() => {}}
+                            onClick={(e) => e.stopPropagation()}
+                          />
                           <div className="my-decks-swap-tile">
                             {swap.out ? (
                               <CardPreview

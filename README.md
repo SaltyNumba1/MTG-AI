@@ -14,7 +14,7 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
 - **Local LLM (no cloud)** – Deck generation runs fully offline via a bundled `llama-server` (llama.cpp Vulkan). Timeout tunable via `OLLAMA_TIMEOUT` in `mtg-collection/backend/.env`.
 
-## What's New (v1.0.13)
+## What's New (v1.0.14)
 
 - ⚡ **AMD GPU acceleration** — replaced Ollama with a bundled [llama.cpp](https://github.com/ggml-org/llama.cpp) Vulkan backend (`llama-server`). The model now runs entirely on the GPU (tested: AMD RX 5700, 7.5/8.0 GB VRAM used). No Ollama installation required.
 - 🚀 **~3× faster deck generation** — GPU inference via Vulkan + `--batch-size 2048` for faster prefill on large candidate pools. Benchmark: 554 candidates in ~416 s on RX 5700 (was CPU-only before).
