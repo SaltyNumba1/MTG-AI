@@ -1,11 +1,10 @@
 """
 Deck building engine.
 Step 1 (rule-based): filter collection to legal, color-identity-matching candidates.
-Step 2 (LLM): send candidates + user prompt to a local Ollama model to select the final 99 cards.
+Step 2 (LLM): send candidates + user prompt to a local llama-server (Vulkan) instance to select the final 99 cards.
 
-Requires Ollama running locally: https://ollama.com
-Recommended models: mistral, llama3, gemma2
-Default model is configurable via OLLAMA_MODEL env var (default: mistral).
+Requires llama-server running locally on port 8081 (bundled with the app).
+Default model path is configurable via LLAMA_MODEL_PATH env var.
 """
 import json
 import os
@@ -14,7 +13,7 @@ import re
 import threading
 import time
 from typing import Callable, Optional
-import ollama
+from openai import OpenAI
 from services.synergy_engine import resolve_synergies
 
 
@@ -24,6 +23,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mtg-commander")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "900"))  # seconds
 OLLAMA_MAX_GENERATION_SEC = float(os.getenv("OLLAMA_MAX_GENERATION_SEC", "900"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "768"))
+LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://127.0.0.1:8081/v1")
 ALLOW_LLM_TIMEOUT_FALLBACK = os.getenv("ALLOW_LLM_TIMEOUT_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
 BASE_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "500"))
 KEYWORD_MODEL_CANDIDATE_CAP = 750
@@ -1283,7 +1283,7 @@ def build_deck_with_llm(
         progress_callback(f"Asking AI to select {ai_pick_target} non-land cards from {len(model_candidates)} candidates")
 
 
-    client = ollama.Client(timeout=OLLAMA_TIMEOUT)
+    client = OpenAI(base_url=LLAMA_SERVER_URL, api_key="not-needed", timeout=OLLAMA_TIMEOUT)
     raw = ""
     heartbeat_stop = threading.Event()
 
@@ -1310,19 +1310,20 @@ def build_deck_with_llm(
 
         def _llm_worker():
             try:
-                response = client.chat(
-                    model=OLLAMA_MODEL,
+                response = client.chat.completions.create(
+                    model="mtg-commander",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_message},
                     ],
-                    options=model_options,
+                    temperature=model_options["temperature"],
+                    max_tokens=model_options["num_predict"],
                     stream=True,
                 )
                 for chunk in response:
                     if _abort.is_set():
                         break
-                    content = chunk.get("message", {}).get("content", "")
+                    content = chunk.choices[0].delta.content or ""
                     if content:
                         _chunk_queue.put(("chunk", content))
                 _chunk_queue.put(("done", None))
@@ -1374,7 +1375,7 @@ def build_deck_with_llm(
         # If the model ended without a parseable result, fail fast with a clear error.
         extract_json(raw)
     except ValueError as e:
-        logger.error(f"Ollama LLM call produced unparsable output: {e}")
+        logger.error(f"LLM call produced unparsable output: {e}")
         if progress_callback:
             progress_callback(f"LLM output was not parseable: {e}")
         if ALLOW_LLM_TIMEOUT_FALLBACK:
@@ -1382,7 +1383,7 @@ def build_deck_with_llm(
         else:
             raise
     except TimeoutError as e:
-        logger.error(f"Ollama LLM call timed out: {e}")
+        logger.error(f"LLM call timed out: {e}")
         if progress_callback:
             progress_callback(f"LLM timeout: {e}")
         if ALLOW_LLM_TIMEOUT_FALLBACK:
@@ -1390,7 +1391,7 @@ def build_deck_with_llm(
         else:
             raise
     except Exception as e:
-        logger.error(f"Ollama LLM call failed: {e}")
+        logger.error(f"LLM call failed: {e}")
         if progress_callback:
             progress_callback(f"LLM error: {e}")
         raise

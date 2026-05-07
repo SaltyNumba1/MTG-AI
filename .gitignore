@@ -29,6 +29,9 @@ mtg-collection/frontend/node_modules/
 tokenizer.json
 tokenizer_config.json
 
+# llama.cpp Vulkan binaries (ship in release zip, not in git)
+mtg-collection/frontend/llama-server/
+
 # Training LoRA output
 mtg-collection/training/mistral-commander-lora.zip
 mtg-collection/training/adapter_model.safetensors

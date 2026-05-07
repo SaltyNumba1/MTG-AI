@@ -1,6 +1,21 @@
-# MTG Collection v1.0.12
+# MTG Collection v1.0.13
 
-See full release notes in [release-notes-v1.0.12.md](release-notes-v1.0.12.md).
+See full release notes in [release-notes-v1.0.13.md](release-notes-v1.0.13.md).
+
+## ⚡ Highlights
+
+- **AMD GPU acceleration** — bundled llama.cpp Vulkan backend replaces Ollama. No install required.
+- **7.5/8.0 GB VRAM used** on AMD RX 5700 during generation.
+- **20 480 token context** — handles large collections without truncation.
+- **`--batch-size 2048`** — faster prefill on large candidate pools.
+- **Self-contained** — `llama-server.exe` + 22 DLLs ship inside the app.
+
+## 📦 Build / Install
+
+1. Download `MTG-Collection-v1.0.13-win32-x64.zip`
+2. Extract anywhere
+3. Place `mistral-commander-q4.gguf` at `%APPDATA%\mtg-collection-frontend\models\model.gguf`
+4. Run `MTG Commander Generator.exe`
 
 ## ✨ Highlights
 

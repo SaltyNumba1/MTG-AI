@@ -8,8 +8,95 @@ const frontendDir = path.join(__dirname);
 const backendDir = path.join(__dirname, "..", "backend");
 const packagedBackendDir = path.join(process.resourcesPath || __dirname, "backend");
 let backendProcess = null;
+let llamaProcess = null;
 let isQuitting = false;
 let mainWindow = null;
+
+const LLAMA_PORT = 8081;
+const LLAMA_CTX = 20480;
+const LLAMA_GPU_LAYERS = 99; // offload all layers to Vulkan GPU
+
+function getLlamaServerDir() {
+  // Packaged: resources/llama-server/  Dev: frontend/llama-server/
+  const packaged = path.join(process.resourcesPath || __dirname, "llama-server");
+  const dev = path.join(__dirname, "llama-server");
+  if (fs.existsSync(packaged)) return packaged;
+  return dev;
+}
+
+function getModelPath() {
+  const userDataDir = app.getPath("userData");
+  return path.join(userDataDir, "models", "model.gguf");
+}
+
+function ensureModelCopied() {
+  const dest = getModelPath();
+  if (fs.existsSync(dest)) return true;
+
+  // Possible source locations for the GGUF (dev + packaged)
+  const candidates = [
+    path.join(__dirname, "..", "..", "training", "TRAIN_Mistral", "mistral-commander-q4.gguf"),
+    path.join(__dirname, "..", "..", "training", "TRAIN_NEMO", "mtg-commander-nemo-q4_k_m.gguf"),
+    path.join(process.resourcesPath || __dirname, "models", "model.gguf"),
+  ];
+
+  for (const src of candidates) {
+    if (fs.existsSync(src)) {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(src, dest);
+      logStartup(`Copied model from ${src} to ${dest}`);
+      return true;
+    }
+  }
+  logStartup("WARNING: GGUF model not found in any candidate location");
+  return false;
+}
+
+function startLlamaServer() {
+  const serverDir = getLlamaServerDir();
+  const exe = path.join(serverDir, "llama-server.exe");
+  if (!fs.existsSync(exe)) {
+    logStartup(`llama-server.exe not found at ${exe}, skipping GPU inference`);
+    return;
+  }
+
+  const modelPath = getModelPath();
+  if (!ensureModelCopied()) {
+    logStartup("Model not available, skipping llama-server");
+    return;
+  }
+
+  logStartup(`Starting llama-server (Vulkan) on port ${LLAMA_PORT} with model ${modelPath}`);
+
+  // Build a clean child environment: delete Chromium's Vulkan overrides so
+  // the AMD GPU driver is discovered normally by the Vulkan loader.
+  // (schtasks ran as SYSTEM and had no GPU access; spawn with custom env works.)
+  const env = { ...process.env };
+  delete env.VK_ICD_FILENAMES;
+  delete env.VK_LAYER_PATH;
+
+  const userDataDir = app.getPath("userData");
+  const llamaLogPath = path.join(userDataDir, "llama-server.log");
+  const logFd = fs.openSync(llamaLogPath, "a");
+
+  const child = spawn(exe, [
+    "--model", modelPath,
+    "--port", String(LLAMA_PORT),
+    "--ctx-size", String(LLAMA_CTX),
+    "--n-gpu-layers", String(LLAMA_GPU_LAYERS),
+    "--batch-size", "2048",   // larger batch = faster prefill of long prompts
+    "--ubatch-size", "512",
+    "--host", "127.0.0.1",
+  ], {
+    cwd: serverDir,
+    env,
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+  });
+  child.unref();
+  fs.closeSync(logFd);
+  logStartup(`llama-server spawned (pid ${child.pid}), log: ${llamaLogPath}`);
+}
 
 async function checkBackendHealth(url = "http://127.0.0.1:8000/health", requestTimeoutMs = 1200) {
   const http = require("http");
@@ -144,6 +231,7 @@ function startBackend() {
     SAVED_DECKS_DIR: path.join(userDataDir, "saved_decks"),
     OLLAMA_MAX_GENERATION_SEC: "900",   // 15 min wall-clock cap for LLM generation
     OLLAMA_TIMEOUT: "960",              // 16 min HTTP timeout (must be >= above)
+    LLAMA_SERVER_URL: `http://127.0.0.1:${LLAMA_PORT}/v1`,
   });
   logStartup(`DATABASE_URL → ${backendEnv.DATABASE_URL}`);
   logStartup(`SAVED_DECKS_DIR → ${backendEnv.SAVED_DECKS_DIR}`);
@@ -255,6 +343,8 @@ app.whenReady().then(async () => {
     logStartup("Reusing existing backend on port 8000.");
   }
 
+  startLlamaServer();
+
   logStartup("Waiting for backend to be ready...");
   const ready = await waitForBackend("http://127.0.0.1:8000/health");
   logStartup(`Backend ready: ${ready}`);
@@ -282,4 +372,11 @@ app.on("before-quit", () => {
   if (backendProcess) {
     backendProcess.kill();
   }
+  // Kill llama-server by port (it was launched detached via schtasks)
+  try {
+    spawnSync("powershell.exe", ["-NoProfile", "-Command",
+      `Get-NetTCPConnection -LocalPort ${LLAMA_PORT} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }`
+    ]);
+    spawnSync("schtasks", ["/delete", "/tn", "MTGLlamaServer", "/f"], { stdio: "ignore" });
+  } catch {}
 });

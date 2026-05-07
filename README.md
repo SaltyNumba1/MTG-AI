@@ -12,7 +12,16 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - **Manual decks** – Build decks by selecting cards from your collection and saving them directly to My Decks.
 - **Import deck from text (.txt)** – Paste or load a Moxfield/Archidekt/manual decklist on the Collection page to save it as a deck. Any cards not already in your collection are automatically fetched from Scryfall and added.
 - **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
-- **Configurable LLM via `.env`** – Switch the Ollama model and timeout without rebuilding the app by editing `mtg-collection/backend/.env` (`OLLAMA_MODEL`, `OLLAMA_TIMEOUT`).
+- **Local LLM (no cloud)** – Deck generation runs fully offline via a bundled `llama-server` (llama.cpp Vulkan). Timeout tunable via `OLLAMA_TIMEOUT` in `mtg-collection/backend/.env`.
+
+## What's New (v1.0.13)
+
+- ⚡ **AMD GPU acceleration** — replaced Ollama with a bundled [llama.cpp](https://github.com/ggml-org/llama.cpp) Vulkan backend (`llama-server`). The model now runs entirely on the GPU (tested: AMD RX 5700, 7.5/8.0 GB VRAM used). No Ollama installation required.
+- 🚀 **~3× faster deck generation** — GPU inference via Vulkan + `--batch-size 2048` for faster prefill on large candidate pools. Benchmark: 554 candidates in ~416 s on RX 5700 (was CPU-only before).
+- 📦 **Self-contained** — `llama-server.exe` and all 22 required DLLs (`ggml-vulkan.dll`, `mtmd.dll`, etc.) ship inside the app. No external dependencies.
+- 🔧 **Context window 20 480 tokens** — handles large collections without truncation (up from 8 192).
+- 🛠 **Removed Ollama dependency** — backend now uses the `openai` Python client pointed at the local `llama-server` (OpenAI-compatible API). The `.env` `OLLAMA_MODEL` / `OLLAMA_TIMEOUT` vars are still respected for timeout tuning.
+- 🐛 **Fixed VS Code file-watcher lock** on `npm run desktop:package` — build now targets `C:\Temp\MTGPkg` then robocopy into the release folder.
 
 ## What's New (v1.0.12)
 
@@ -96,7 +105,7 @@ cd ..\frontend
 npm run desktop:package
 ```
 
-Output: `mtg-collection/frontend/release/MTG Collection-win32-x64/MTG Collection.exe`
+Output: `mtg-collection/frontend/release/MTG Commander Generator-win32-x64/MTG Commander Generator.exe`
 
 > Note: `npm run desktop:build` (electron-builder) requires Developer Mode / admin to extract `winCodeSign` symlinks. Use `desktop:package` unless you specifically need an installer.
 
