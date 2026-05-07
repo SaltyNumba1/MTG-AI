@@ -6,39 +6,31 @@ Store your Magic: The Gathering card collection and build Commander decks from i
 
 ## Requirements
 
-- [Ollama](https://ollama.com) (local AI runtime)
+- Windows 10/11 x64
+- A **Vulkan-capable GPU** (AMD, NVIDIA, or Intel) for GPU-accelerated deck generation
+  - CPU fallback is available but significantly slower
+- The model file `mistral-commander-q4.gguf` placed at:
+  `%APPDATA%\mtg-collection-frontend\models\model.gguf`
+  ([Download from Hugging Face](https://huggingface.co/SaltyNumba1/mistral-commander-lora))
 
-If you are using the packaged desktop app, you do not need to start the backend or frontend separately. The desktop app launches the bundled backend automatically.
+**No Ollama required.** The app bundles `llama-server` (llama.cpp Vulkan) and starts it automatically.
 
 ---
 
-## 1. Install Ollama
+## 1. Install the Model
 
-1. Download and install Ollama from **https://ollama.com/download**
-2. After installation, open a terminal and pull a model:
-
-```bash
-ollama pull mistral
+1. Download `mistral-commander-q4.gguf` (~4.1 GB) from [Hugging Face](https://huggingface.co/SaltyNumba1/mistral-commander-lora)
+2. Place it at:
 ```
-
-> `mistral` (~4 GB) is the default. For better deck suggestions, you can use a larger model:
-> ```bash
-> ollama pull llama3
-> ```
-> Then set `OLLAMA_MODEL=llama3` in `backend/.env`.
-
-3. Make sure Ollama is running before starting the app. It starts automatically on most systems after install, but you can also run it manually:
-
-```bash
-ollama serve
+C:\Users\<you>\AppData\Roaming\mtg-collection-frontend\models\model.gguf
 ```
 
 ---
 
 ## 2. Run the App
 
-1. Open the packaged MTG Collection desktop app.
-2. Wait a few seconds for the bundled backend to start.
+1. Open `MTG Commander Generator.exe`.
+2. Wait ~15 seconds for the backend and `llama-server` (GPU inference engine) to start.
 3. Import your collection and build decks inside the app.
 
 That is all most users need.
@@ -87,23 +79,26 @@ The builder now also shows an **estimated deck cost** using available TCG pricin
 
 ---
 
-## v1.0.11 — Data Persistence & Stability Fixes
+## v1.0.14 — AMD GPU Acceleration (llama.cpp Vulkan)
 
-### 🐛 Critical Fixes
+### ⚡ What's New
 
-- **Collection and decks now persist across app restarts.** The SQLite database was being written to a temp folder (`%TEMP%`) in the packaged app instead of a permanent location. Both the database and saved decks now live in `%APPDATA%\MTG Collection\` and survive upgrades, reinstalls, and reboots.
-- **`saved_decks` folder auto-created on first launch.** The folder is now created automatically at startup — no manual folder creation needed.
-- **AI deck builder no longer hangs indefinitely.** The LLM timeout check previously only fired between received tokens, meaning a cold model load (which can take several minutes before generating any output) would bypass the timeout entirely and hang until the 15-minute HTTP limit. The backend now enforces a hard wall-clock deadline regardless of when the first token arrives.
-- **All API calls now work correctly in the packaged app.** The frontend was hardcoded to port 8001 — the Vite dev proxy masked this in development but caused silent failures in the packaged app (imports appeared to stall, the progress indicator never appeared). Fixed to route correctly in both dev and production.
+- **Bundled `llama-server`** — `llama-server.exe` and all required Vulkan DLLs ship inside the app. No Ollama installation required.
+- **GPU inference** — tested on AMD RX 5700: 7.5/8.0 GB VRAM used. Deck generation runs entirely on the GPU.
+- **Faster prefill** — `--batch-size 2048` processes large card-list prompts faster.
+- **20 480 token context** — handles large collections without truncation.
+- **Diagnostic log** — `llama-server` output written to `%APPDATA%\mtg-collection-frontend\llama-server.log`.
 
 ### 📁 Data Location (v1.0.11+)
 
-Your collection database and saved decks are stored in:
+Your collection database, saved decks, and model are stored in:
 
 ```
-C:\Users\<you>\AppData\Roaming\MTG Collection\
+C:\Users\<you>\AppData\Roaming\mtg-collection-frontend\
   mtg_collection.db
   saved_decks\
+  models\model.gguf
+  llama-server.log
 ```
 
 This folder persists across upgrades. If upgrading from v1.0.10 or earlier, copy your existing `saved_decks\` JSON/TXT pairs into this folder to restore your decks.
