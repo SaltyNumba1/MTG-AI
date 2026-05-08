@@ -138,24 +138,43 @@ Two custom-trained models are available on Hugging Face:
 - **Switching LLM**: edit `mtg-collection/backend/.env` (next to the exe in packaged builds) and set `OLLAMA_MODEL=...`. Restart the backend / app.
 - **Logs**: `mtg-collection/backend/dist/llm_deckbuilder.log` (runs from the packaged exe's CWD).
 - <img width="2545" height="1385" alt="1pquGYIwry" src="https://github.com/user-attachments/assets/0f693ae3-672d-4e00-a904-69f438e9a16e" />
+
 <img width="2545" height="1385" alt="yiJ1LWyLgx" src="https://github.com/user-attachments/assets/c3d1dd22-7bfc-483b-9af2-03f593fdb77e" />
+
 <img width="2545" height="1385" alt="wu0IWYy590" src="https://github.com/user-attachments/assets/a4a77be3-b6c3-447e-9bda-12523e85879c" />
+
 <img width="2545" height="1385" alt="vujA6KECqe" src="https://github.com/user-attachments/assets/b6f0f412-cb17-4ede-99a4-9686539af045" />
+
 <img width="2545" height="1385" alt="UCKr7Ng8dl" src="https://github.com/user-attachments/assets/c5d1e8cb-e9cf-488d-80a3-31712dd57df4" />
+
 <img width="2545" height="1385" alt="swGQ5PnQxr" src="https://github.com/user-attachments/assets/f376320a-147a-45b2-98ec-da6b73fbe324" />
+
+
 <img width="2545" height="1385" alt="rT8MbxPOLw" src="https://github.com/user-attachments/assets/be29b01a-c528-41d5-89ec-3d58219f7f55" />
+
 <img width="2545" height="1385" alt="MTG_Commander_Generator_3GOAaLVCBs" src="https://github.com/user-attachments/assets/3ad6ceb5-b984-410b-84c1-875ffff6056a" />
+
 <img width="2545" height="1385" alt="LHDFXsdx5F" src="https://github.com/user-attachments/assets/3c81b99e-2c76-4400-bedd-e1b5f8b060e7" />
+
 <img width="2545" height="1385" alt="fLSlYwD1Vx" src="https://github.com/user-attachments/assets/34efbaee-7df4-410f-9a5a-1229e2c04978" />
+
 <img width="2545" height="1385" alt="fEMjemb0Kt" src="https://github.com/user-attachments/assets/68d23b3a-5ad7-4ce4-a57e-bb37c59849f4" />
+
 <img width="2545" height="1385" alt="f6OOtqmGzY" src="https://github.com/user-attachments/assets/64813f7d-47b0-468b-8b65-abb4d82d2776" />
+
 <img width="2545" height="1385" alt="dGQdMF4eGQ" src="https://github.com/user-attachments/assets/d3735835-35a3-4f82-a217-a79ee4aed4bb" />
+
 <img width="2545" height="1385" alt="DFDf4J1PDS" src="https://github.com/user-attachments/assets/9a773bb1-d78a-46ec-8f43-c19fca4692cf" />
+
 <img width="2544" height="1328" alt="D6JYHXcjKd" src="https://github.com/user-attachments/assets/1c468c10-ebcc-44a6-8cb4-15b79e3a718e" />
-<img width="2545" height="1385" alt="Aiqc7eKMGW" src="https://github.com/user-attachments/assets/9ef4376e-9f4b-43e2-ae08-f7bf254b61ab" />
+
 <img width="2545" height="1385" alt="8XzGXkNvcp" src="https://github.com/user-attachments/assets/09507221-7660-4a3b-a484-006f3f9d8972" />
+
 <img width="2545" height="1385" alt="7WcdWvG4tj" src="https://github.com/user-attachments/assets/c44d4ea1-c3ae-492b-9d64-bdc5d789c7b2" />
+
 <img width="2545" height="1385" alt="6BmYEYMmLy" src="https://github.com/user-attachments/assets/6a385818-7f93-4cc9-a07e-1d952178057e" />
+
 <img width="2545" height="1385" alt="5gkrUq8pQK" src="https://github.com/user-attachments/assets/572f4fe6-e3f8-41bb-9406-3aceb6d84360" />
+
 <img width="2545" height="1385" alt="4c3BAHt3Bd" src="https://github.com/user-attachments/assets/4a80e649-cd07-419c-aae2-d9c6f35f416c" />
 
