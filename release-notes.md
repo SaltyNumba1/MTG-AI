@@ -1,6 +1,6 @@
-# MTG Collection v1.0.13
+# MTG Collection v1.0.12.2
 
-See full release notes in [release-notes-v1.0.13.md](release-notes-v1.0.13.md).
+See full release notes in [release-notes-v1.0.12.2.md](release-notes-v1.0.12.2.md).
 
 ## ⚡ Highlights
 

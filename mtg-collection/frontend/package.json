@@ -1,6 +1,6 @@
 {
   "name": "mtg-collection-frontend",
-  "version": "1.0.0",
+  "version": "1.0.12.2",
   "description": "MTG Collection desktop app wrapper",
   "author": "",
   "main": "electron-main.js",

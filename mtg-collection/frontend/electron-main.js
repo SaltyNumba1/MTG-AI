@@ -16,7 +16,9 @@ let mainWindow = null;
 
 const LLAMA_PORT = 8081;
 const LLAMA_CTX = 20480;
-const LLAMA_GPU_LAYERS = 99; // offload all layers to Vulkan GPU
+// Adaptive GPU layer steps: try most layers first, step down on VRAM OOM, reach 0 for CPU fallback.
+const LLAMA_GPU_LAYER_STEPS = [99, 60, 40, 20, 0];
+let llamaStartPromise = null; // resolves when adaptive startup finishes
 
 function getLlamaServerDir() {
   // Packaged: resources/llama-server/  Dev: frontend/llama-server/
@@ -97,7 +99,28 @@ function ensureModelCopied() {
   return false;
 }
 
-function startLlamaServer() {
+// Returns true if the tail of the llama log contains VRAM OOM / abort markers.
+function checkLogForOOM(logPath) {
+  try {
+    if (!fs.existsSync(logPath)) return false;
+    const stat = fs.statSync(logPath);
+    const readSize = Math.min(stat.size, 32768);
+    const buf = Buffer.alloc(readSize);
+    const fd = fs.openSync(logPath, "r");
+    fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
+    fs.closeSync(fd);
+    const tail = buf.toString("utf8");
+    return /ErrorOutOfDeviceMemory|failed to allocate.*buffer|unable to allocate.*buffer|n_gpu_layers already set by user.*abort/i.test(tail);
+  } catch {
+    return false;
+  }
+}
+
+// Adaptive startup: tries GPU layer counts in descending order.
+// Falls back to CPU (0 layers) if every GPU attempt OOMs.
+// Runs async so the backend can start in parallel; stores the result in
+// llamaProcess / llamaServerStarted when a layer count succeeds.
+async function startLlamaServer() {
   const serverDir = getLlamaServerDir();
   const exe = path.join(serverDir, "llama-server.exe");
   if (!fs.existsSync(exe)) {
@@ -111,35 +134,76 @@ function startLlamaServer() {
     return;
   }
 
-  logStartup(`Starting llama-server (Vulkan) on port ${LLAMA_PORT} with model ${modelPath}`);
-
   // Build a clean child environment: delete Chromium's Vulkan overrides so
   // the AMD GPU driver is discovered normally by the Vulkan loader.
-  // (schtasks ran as SYSTEM and had no GPU access; spawn with custom env works.)
   const env = { ...process.env };
   delete env.VK_ICD_FILENAMES;
   delete env.VK_LAYER_PATH;
 
   const userDataDir = app.getPath("userData");
   const llamaLogPath = path.join(userDataDir, "llama-server.log");
-  const logFd = fs.openSync(llamaLogPath, "a");
 
-  llamaProcess = spawn(exe, [
-    "--model", modelPath,
-    "--port", String(LLAMA_PORT),
-    "--ctx-size", String(LLAMA_CTX),
-    "--n-gpu-layers", String(LLAMA_GPU_LAYERS),
-    "--batch-size", "2048",   // larger batch = faster prefill of long prompts
-    "--ubatch-size", "512",
-    "--host", "127.0.0.1",
-  ], {
-    cwd: serverDir,
-    env,
-    stdio: ["ignore", logFd, logFd],
-  });
-  fs.closeSync(logFd);
-  llamaServerStarted = true;
-  logStartup(`llama-server spawned (pid ${llamaProcess.pid}), log: ${llamaLogPath}`);
+  for (const gpuLayers of LLAMA_GPU_LAYER_STEPS) {
+    const label = gpuLayers === 0 ? "CPU only" : `${gpuLayers} GPU layers`;
+    logStartup(`Attempting llama-server with ${label}...`);
+    updateSplash(`Starting AI model (${label})\u2026`, 12);
+
+    // Each attempt gets its own fresh log so OOM detection reads only this run.
+    try { fs.writeFileSync(llamaLogPath, `--- attempt: ${label} ---\n`, "utf8"); } catch {}
+    const logFd = fs.openSync(llamaLogPath, "a");
+
+    const proc = spawn(exe, [
+      "--model", modelPath,
+      "--port", String(LLAMA_PORT),
+      "--ctx-size", String(LLAMA_CTX),
+      "--n-gpu-layers", String(gpuLayers),
+      "--batch-size", "2048",
+      "--ubatch-size", "512",
+      "--host", "127.0.0.1",
+    ], {
+      cwd: serverDir,
+      env,
+      stdio: ["ignore", logFd, logFd],
+    });
+    fs.closeSync(logFd);
+    logStartup(`llama-server spawned (pid ${proc.pid}) with ${label}, log: ${llamaLogPath}`);
+
+    // Watch for a fast crash (OOM exits within ~12 s).
+    // If still running after 12 s the model is loading — hand off to health polling.
+    const exitedEarly = await new Promise((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) { settled = true; resolve(false); }
+      }, 12000);
+      proc.once("exit", () => {
+        clearTimeout(timer);
+        if (!settled) { settled = true; resolve(true); }
+      });
+    });
+
+    if (!exitedEarly) {
+      // Process is still alive — it's loading normally.
+      llamaProcess = proc;
+      llamaServerStarted = true;
+      logStartup(`llama-server still running after 12 s with ${label} — proceeding to health wait`);
+      return;
+    }
+
+    // Process exited fast — check whether it was a VRAM OOM.
+    const isOOM = checkLogForOOM(llamaLogPath);
+    logStartup(`llama-server exited quickly with ${label}. OOM: ${isOOM}`);
+
+    if (!isOOM) {
+      logStartup("Non-OOM failure — stopping llama-server retries.");
+      return;
+    }
+
+    if (gpuLayers === 0) {
+      logStartup("CPU fallback also failed — giving up on llama-server.");
+      return;
+    }
+    // OOM on GPU attempt — loop continues with fewer layers.
+  }
 }
 
 async function checkBackendHealth(url = "http://127.0.0.1:8000/health", requestTimeoutMs = 1200) {
@@ -381,6 +445,10 @@ async function waitForBackend(url, timeoutMs = 15000) {
 // Waits for llama-server /health, updating the splash bar while polling.
 // Skips immediately if llama-server was never started (missing model).
 async function waitForLlamaWithProgress() {
+  // Wait for the adaptive startup loop to finish before polling health.
+  // This lets the backend start in parallel while retries are still running.
+  if (llamaStartPromise) await llamaStartPromise;
+
   if (!llamaServerStarted) {
     logStartup("llama-server was not started; skipping health wait");
     return false;
@@ -464,7 +532,7 @@ async function createSplash() {
     <h1>MTG Commander Generator</h1>
     <div id="status">Starting&hellip;</div>
     <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
-    <div class="version">v1.0.17</div>
+    <div class="version">v1.0.12.2</div>
   </body></html>`;
   await splashWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   splashWin.show();
@@ -495,9 +563,9 @@ app.whenReady().then(async () => {
   // Show splash immediately so the user sees activity instead of a blank taskbar.
   await createSplash();
 
-  // Step 1: Start llama-server first — model loading takes 10–90 s.
+  // Step 1: Fire llama-server adaptive startup — runs async so backend starts in parallel.
   updateSplash("Starting AI model\u2026", 10);
-  startLlamaServer();
+  llamaStartPromise = startLlamaServer();
 
   // Step 2: Start backend in parallel (it's fast; the model load dominates).
   updateSplash("Starting backend\u2026", 20);
