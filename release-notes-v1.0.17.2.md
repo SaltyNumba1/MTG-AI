@@ -1,4 +1,4 @@
-# MTG Collection v1.0.12.2
+# MTG Collection v1.0.17.2
 
 ## Adaptive GPU Retry + CPU Fallback Fix
 

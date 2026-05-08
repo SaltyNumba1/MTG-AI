@@ -532,7 +532,7 @@ async function createSplash() {
     <h1>MTG Commander Generator</h1>
     <div id="status">Starting&hellip;</div>
     <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
-    <div class="version">v1.0.12.2</div>
+    <div class="version">v1.0.17.2</div>
   </body></html>`;
   await splashWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   splashWin.show();

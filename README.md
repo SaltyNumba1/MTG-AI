@@ -14,7 +14,7 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - 📡 **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
 - 🔒 **Local LLM (no cloud)** – Deck generation runs fully offline via a bundled `llama-server` (llama.cpp Vulkan). No data leaves your machine.
 
-## What's New (v1.0.12.2)
+## What's New (v1.0.17.2)
 
 - 🔁 **Adaptive GPU fallback** — startup now retries `llama-server` with progressively fewer `--n-gpu-layers` values (`99 -> 60 -> 40 -> 20 -> 0`) when Vulkan VRAM is insufficient.
 - 💻 **Reliable CPU fallback** — if all GPU attempts fail, the app automatically starts in CPU mode (`--n-gpu-layers 0`) instead of remaining offline.
