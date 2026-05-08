@@ -9,6 +9,8 @@ const backendDir = path.join(__dirname, "..", "backend");
 const packagedBackendDir = path.join(process.resourcesPath || __dirname, "backend");
 let backendProcess = null;
 let llamaProcess = null;
+let llamaServerStarted = false;
+let splashWin = null;
 let isQuitting = false;
 let mainWindow = null;
 
@@ -24,9 +26,51 @@ function getLlamaServerDir() {
   return dev;
 }
 
+const MODEL_SELECT_TEMPLATE = [
+  "# MTG Commander Generator — Model Selection",
+  "# Uncomment ONE line below to select which model to load.",
+  "# Download models from:",
+  "#   7B  (recommended): https://huggingface.co/SaltyNumba1/MTG-Commander-Mistral-7B-Trained",
+  "#   12B:               https://huggingface.co/SaltyNumba1/Mistral-nemo-12B-MTG-Commander",
+  "#",
+  "# Place the downloaded .gguf file(s) in the same folder as this config file.",
+  "#",
+  "MODEL_FILE=mistral-commander-q4.gguf",
+  "# MODEL_FILE=mtg-commander-nemo-q3_k_m.gguf",
+  "# MODEL_FILE=mtg-commander-nemo-q4_k_m.gguf",
+].join("\r\n") + "\r\n";
+
 function getModelPath() {
   const userDataDir = app.getPath("userData");
-  return path.join(userDataDir, "models", "model.gguf");
+  const modelsDir = path.join(userDataDir, "models");
+  const configPath = path.join(modelsDir, "model-select.env");
+
+  // Auto-create the config on first launch so the user has a ready-to-edit file.
+  if (!fs.existsSync(configPath)) {
+    fs.mkdirSync(modelsDir, { recursive: true });
+    fs.writeFileSync(configPath, MODEL_SELECT_TEMPLATE, "utf8");
+    logStartup(`Created model config: ${configPath}`);
+  }
+
+  // Parse: first non-comment MODEL_FILE= line wins; fall back to model.gguf.
+  let modelFile = "model.gguf";
+  try {
+    const lines = fs.readFileSync(configPath, "utf8").split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("#") || trimmed === "") continue;
+      const match = trimmed.match(/^MODEL_FILE\s*=\s*(.+)$/);
+      if (match) {
+        modelFile = match[1].trim();
+        break;
+      }
+    }
+  } catch {
+    // fall through to fallback
+  }
+
+  logStartup(`Model file selected: ${modelFile}`);
+  return path.join(modelsDir, modelFile);
 }
 
 function ensureModelCopied() {
@@ -37,6 +81,7 @@ function ensureModelCopied() {
   const candidates = [
     path.join(__dirname, "..", "..", "training", "TRAIN_Mistral", "mistral-commander-q4.gguf"),
     path.join(__dirname, "..", "..", "training", "TRAIN_NEMO", "mtg-commander-nemo-q4_k_m.gguf"),
+    path.join(__dirname, "..", "..", "training", "TRAIN_NEMO", "mtg-commander-nemo-q3_k_m.gguf"),
     path.join(process.resourcesPath || __dirname, "models", "model.gguf"),
   ];
 
@@ -79,7 +124,7 @@ function startLlamaServer() {
   const llamaLogPath = path.join(userDataDir, "llama-server.log");
   const logFd = fs.openSync(llamaLogPath, "a");
 
-  const child = spawn(exe, [
+  llamaProcess = spawn(exe, [
     "--model", modelPath,
     "--port", String(LLAMA_PORT),
     "--ctx-size", String(LLAMA_CTX),
@@ -90,12 +135,11 @@ function startLlamaServer() {
   ], {
     cwd: serverDir,
     env,
-    detached: true,
     stdio: ["ignore", logFd, logFd],
   });
-  child.unref();
   fs.closeSync(logFd);
-  logStartup(`llama-server spawned (pid ${child.pid}), log: ${llamaLogPath}`);
+  llamaServerStarted = true;
+  logStartup(`llama-server spawned (pid ${llamaProcess.pid}), log: ${llamaLogPath}`);
 }
 
 async function checkBackendHealth(url = "http://127.0.0.1:8000/health", requestTimeoutMs = 1200) {
@@ -334,29 +378,185 @@ async function waitForBackend(url, timeoutMs = 15000) {
   return false;
 }
 
+// Waits for llama-server /health, updating the splash bar while polling.
+// Skips immediately if llama-server was never started (missing model).
+async function waitForLlamaWithProgress() {
+  if (!llamaServerStarted) {
+    logStartup("llama-server was not started; skipping health wait");
+    return false;
+  }
+  const http = require("http");
+  const timeoutMs = 120000; // 2 min — large models (12B) can take ~90s to load
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await new Promise((resolve, reject) => {
+        const req = http.get(`http://127.0.0.1:${LLAMA_PORT}/health`, (res) => {
+          res.resume(); resolve(res.statusCode);
+        });
+        req.on("error", reject);
+        req.setTimeout(1000, () => { req.destroy(); reject(new Error("timeout")); });
+      });
+      return true;
+    } catch {
+      const elapsed = Date.now() - start;
+      const pct = Math.min(95, 50 + Math.floor((elapsed / timeoutMs) * 45));
+      const secsElapsed = Math.floor(elapsed / 1000);
+      updateSplash(`Loading AI model\u2026 (${secsElapsed}s)`, pct);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  logStartup("llama-server did not respond within 120 s timeout");
+  return false;
+}
+
+// Detects whether llama-server loaded the model on GPU or CPU by scanning its log.
+function detectGpuMode() {
+  try {
+    const userDataDir = app.getPath("userData");
+    const llamaLogPath = path.join(userDataDir, "llama-server.log");
+    if (!fs.existsSync(llamaLogPath)) return "unknown";
+    // Read only the tail (64 KB) to handle large log files.
+    const stat = fs.statSync(llamaLogPath);
+    const readSize = Math.min(stat.size, 65536);
+    const buf = Buffer.alloc(readSize);
+    const fd = fs.openSync(llamaLogPath, "r");
+    fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
+    fs.closeSync(fd);
+    const tail = buf.toString("utf8");
+    // Zero-offload = CPU; any positive offload = GPU.
+    if (/offloaded\s+0\//i.test(tail)) return "cpu";
+    if (/offloaded\s+[1-9]\d*\//i.test(tail)) return "gpu";
+    if (/ggml_vulkan[^:]*Found\s+[1-9]/i.test(tail)) return "gpu";
+    if (/no Vulkan devices found/i.test(tail)) return "cpu";
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+// Creates a small frameless splash window using an inline data: URL — no external file needed.
+async function createSplash() {
+  const iconPath = path.join(__dirname, "build", "icon.ico");
+  splashWin = new BrowserWindow({
+    width: 440,
+    height: 240,
+    frame: false,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    show: false,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#1a1a2e;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;user-select:none}
+    .logo{font-size:2.8rem;margin-bottom:10px}
+    h1{font-size:1.05rem;color:#c0a0ff;font-weight:600;margin-bottom:22px;letter-spacing:.04em}
+    #status{font-size:.8rem;color:#aaa;margin-bottom:12px;min-height:1.1em;text-align:center;padding:0 16px}
+    .bar-bg{width:320px;height:4px;background:#2a2a4a;border-radius:4px;overflow:hidden}
+    .bar-fill{height:100%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:4px;transition:width .4s ease;width:5%}
+    .version{position:absolute;bottom:12px;font-size:.68rem;color:#444}
+  </style></head><body>
+    <div class="logo">&#x1F0CF;</div>
+    <h1>MTG Commander Generator</h1>
+    <div id="status">Starting&hellip;</div>
+    <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
+    <div class="version">v1.0.17</div>
+  </body></html>`;
+  await splashWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  splashWin.show();
+}
+
+function updateSplash(text, pct) {
+  if (!splashWin || splashWin.isDestroyed()) return;
+  const safeText = text.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  splashWin.webContents.executeJavaScript(
+    `document.getElementById('status').textContent='${safeText}';` +
+    `document.getElementById('bar').style.width='${Math.min(100, pct)}%';`
+  ).catch(() => {});
+}
+
+function closeSplash() {
+  if (splashWin && !splashWin.isDestroyed()) {
+    splashWin.close();
+    splashWin = null;
+  }
+}
+
 app.whenReady().then(async () => {
+  // Check for first launch before anything creates the userData dir.
+  const userDataDir = app.getPath("userData");
+  const lockFile = path.join(userDataDir, "launched.lock");
+  const isFirstLaunch = !fs.existsSync(lockFile);
+
+  // Show splash immediately so the user sees activity instead of a blank taskbar.
+  await createSplash();
+
+  // Step 1: Start llama-server first — model loading takes 10–90 s.
+  updateSplash("Starting AI model\u2026", 10);
+  startLlamaServer();
+
+  // Step 2: Start backend in parallel (it's fast; the model load dominates).
+  updateSplash("Starting backend\u2026", 20);
   const backendAlreadyRunning = await checkBackendHealth();
-  logStartup(`Backend already running before launch: ${backendAlreadyRunning}`);
   if (!backendAlreadyRunning) {
     startBackend();
   } else {
     logStartup("Reusing existing backend on port 8000.");
   }
 
-  startLlamaServer();
-
+  // Step 3: Wait for backend (15 s cap).
+  updateSplash("Waiting for backend\u2026", 35);
   logStartup("Waiting for backend to be ready...");
-  const ready = await waitForBackend("http://127.0.0.1:8000/health");
-  logStartup(`Backend ready: ${ready}`);
-  if (!ready) {
+  const backendReady = await waitForBackend("http://127.0.0.1:8000/health");
+  logStartup(`Backend ready: ${backendReady}`);
+  if (!backendReady) {
+    closeSplash();
     dialog.showErrorBox("MTG Collection", "Backend failed to start within 15 seconds.");
   }
+
+  // Step 4: Wait for llama-server health (120 s cap, progress updates splash).
+  updateSplash("Loading AI model\u2026", 50);
+  logStartup("Waiting for llama-server to be ready...");
+  const llamaReady = await waitForLlamaWithProgress();
+  logStartup(`llama-server ready: ${llamaReady}`);
+
+  // Step 5: Detect GPU vs CPU mode from the server log.
+  const gpuMode = detectGpuMode();
+  logStartup(`GPU mode detected: ${gpuMode}`);
+
+  updateSplash("Opening app\u2026", 100);
+
+  // Write first-launch lock so the setup modal won't appear again.
+  if (isFirstLaunch) {
+    try {
+      fs.mkdirSync(userDataDir, { recursive: true });
+      fs.writeFileSync(lockFile, new Date().toISOString(), "utf8");
+    } catch {}
+  }
+
+  // Brief pause so the completed bar is visible before the window opens.
+  await new Promise((r) => setTimeout(r, 300));
+  closeSplash();
   createWindow();
 
+  // Inject runtime status into the renderer once the page has loaded.
+  mainWindow.webContents.once("did-finish-load", () => {
+    const script = [
+      `localStorage.setItem('mtg.llamaMode','${gpuMode}');`,
+      `localStorage.setItem('mtg.llamaReady','${llamaReady ? "1" : "0"}');`,
+      isFirstLaunch ? `localStorage.setItem('mtg.firstLaunch','1');` : "",
+      // Fire a custom event so ModelStatus can react without a page reload.
+      `window.dispatchEvent(new CustomEvent('mtg-llama-status',{detail:{ready:${llamaReady},mode:'${gpuMode}'}}));`,
+    ].join("");
+    mainWindow.webContents.executeJavaScript(script).catch(() => {});
+  });
+
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
@@ -369,14 +569,25 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   isQuitting = true;
   if (mainWindow) saveWindowState(mainWindow);
+
+  // Kill the backend process tree (taskkill /F /T handles PyInstaller child processes).
   if (backendProcess) {
-    backendProcess.kill();
+    try {
+      spawnSync("taskkill", ["/F", "/T", "/PID", String(backendProcess.pid)], { stdio: "ignore" });
+    } catch {}
+    backendProcess = null;
   }
-  // Kill llama-server by port (it was launched detached via schtasks)
+
+  // Kill llama-server directly — we kept the handle (non-detached).
+  if (llamaProcess) {
+    try { llamaProcess.kill(); } catch {}
+    llamaProcess = null;
+  }
+
+  // Fallback: kill any remaining process still holding LLAMA_PORT.
   try {
     spawnSync("powershell.exe", ["-NoProfile", "-Command",
       `Get-NetTCPConnection -LocalPort ${LLAMA_PORT} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }`
-    ]);
-    spawnSync("schtasks", ["/delete", "/tn", "MTGLlamaServer", "/f"], { stdio: "ignore" });
+    ], { stdio: "ignore" });
   } catch {}
 });

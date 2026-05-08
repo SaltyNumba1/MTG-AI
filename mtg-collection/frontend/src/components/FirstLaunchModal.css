@@ -1,0 +1,167 @@
+.flm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.flm-modal {
+  background: #1e1b2e;
+  border: 1px solid #3a2f5e;
+  border-radius: 12px;
+  padding: 28px 32px;
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.65);
+  color: #e0e0e0;
+}
+
+.flm-title {
+  font-size: 1.25rem;
+  color: #c0a0ff;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.flm-intro {
+  font-size: 0.88rem;
+  color: #bbb;
+  margin-bottom: 18px;
+  line-height: 1.55;
+}
+
+.flm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-bottom: 22px;
+}
+
+.flm-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #333;
+  color: #888;
+  font-weight: 500;
+}
+
+.flm-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #2a2a3e;
+  vertical-align: middle;
+}
+
+.flm-table code {
+  background: #2a2540;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.74rem;
+  color: #d0b0ff;
+}
+
+.flm-table a {
+  color: #a78bfa;
+  text-decoration: none;
+}
+
+.flm-table a:hover {
+  text-decoration: underline;
+}
+
+.flm-badge {
+  background: #3b2f6e;
+  color: #c0a0ff;
+  font-size: 0.66rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.flm-steps {
+  font-size: 0.84rem;
+  color: #ccc;
+  line-height: 1.85;
+  margin-bottom: 22px;
+}
+
+.flm-steps p {
+  margin-bottom: 4px;
+}
+
+.flm-steps code {
+  background: #2a2540;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #d0b0ff;
+}
+
+.flm-path-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 6px;
+}
+
+.flm-path {
+  flex: 1;
+  background: #2a2540;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: #d0b0ff;
+  overflow-x: auto;
+  white-space: nowrap;
+  display: block;
+}
+
+.flm-copy-btn {
+  background: #3b2f6e;
+  color: #c0a0ff;
+  border: 1px solid #5a4a8e;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.flm-copy-btn:hover {
+  background: #4a3b8e;
+}
+
+.flm-hint {
+  font-size: 0.76rem;
+  color: #777;
+  margin-bottom: 6px !important;
+}
+
+.flm-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.flm-dismiss-btn {
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 22px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.flm-dismiss-btn:hover {
+  background: #6d28d9;
+}

@@ -1,43 +1,66 @@
-# MTG Collection & Deck Builder
+# 🃏 MTG Collection & Deck Builder
 
-Store your Magic: The Gathering card collection and build Commander decks from it using a local AI model.
-
----
-
-## Requirements
-
-- Windows 10/11 x64
-- A **Vulkan-capable GPU** (AMD, NVIDIA, or Intel) for GPU-accelerated deck generation
-  - CPU fallback is available but significantly slower
-- The model file `mistral-commander-q4.gguf` placed at:
-  `%APPDATA%\mtg-collection-frontend\models\model.gguf`
-  ([Download from Hugging Face](https://huggingface.co/SaltyNumba1/mistral-commander-lora))
-
-**No Ollama required.** The app bundles `llama-server` (llama.cpp Vulkan) and starts it automatically.
+Store your Magic: The Gathering card collection and build Commander decks from it using a **fully local AI model** — no cloud, no subscription, no Ollama.
 
 ---
 
-## 1. Install the Model
+## ✅ Requirements
 
-1. Download `mistral-commander-q4.gguf` (~4.1 GB) from [Hugging Face](https://huggingface.co/SaltyNumba1/mistral-commander-lora)
-2. Place it at:
-```
-C:\Users\<you>\AppData\Roaming\mtg-collection-frontend\models\model.gguf
-```
+- 🪟 Windows 10/11 x64
+- 🖥️ A **Vulkan-capable GPU** (AMD, NVIDIA, or Intel) recommended for GPU-accelerated deck generation
+  - CPU fallback is automatic — no GPU required, but generation takes ~5 minutes with the 7B model
+- 📦 A model `.gguf` file placed in `%APPDATA%\mtg-collection-frontend\models\` (see below)
+
+> **No Ollama required.** The app bundles `llama-server` (llama.cpp Vulkan) and starts it automatically on launch.
 
 ---
 
-## 2. Run the App
+## 🤖 1. Choose & Install a Model
+
+Three model files are available. Pick one based on your hardware:
+
+| Model | File | Download Size | Min GPU VRAM | Best For |
+|---|---|---|---|---|
+| **Mistral 7B** *(default)* | `mistral-commander-q4.gguf` | ~4.1 GB | 6 GB (or CPU-only) | Most users, laptops, 8 GB VRAM cards |
+| **Nemo 12B Q3** | `mtg-commander-nemo-q3_k_m.gguf` | ~6 GB | 8 GB VRAM | Mid-range GPUs (RX 5700, RTX 3070+) |
+| **Nemo 12B Q4** | `mtg-commander-nemo-q4_k_m.gguf` | ~7.5 GB | 10 GB VRAM | High-end GPUs (RX 6800+, RTX 3080+) |
+
+**Download links:**
+- Mistral 7B: [huggingface.co/SaltyNumba1/MTG-Commander-Mistral-7B-Trained](https://huggingface.co/SaltyNumba1/MTG-Commander-Mistral-7B-Trained)
+- Nemo 12B (Q3 & Q4): [huggingface.co/SaltyNumba1/Mistral-nemo-12B-MTG-Commander](https://huggingface.co/SaltyNumba1/Mistral-nemo-12B-MTG-Commander)
+
+### 📥 Install Steps
+
+1. **Download** your chosen `.gguf` file from the links above.
+2. **Place it** (without renaming) in:
+   ```
+   C:\Users\<you>\AppData\Roaming\mtg-collection-frontend\models\
+   ```
+3. **Select it** — open `model-select.env` in the same folder (auto-created on first launch) with any text editor and uncomment the matching line:
+   ```
+   # Uncomment ONE line:
+   MODEL_FILE=mistral-commander-q4.gguf
+   # MODEL_FILE=mtg-commander-nemo-q3_k_m.gguf
+   # MODEL_FILE=mtg-commander-nemo-q4_k_m.gguf
+   ```
+   Save the file and (re)launch the app.
+
+> 💡 **GPU note:** The bundled `llama-server` uses Vulkan and works on AMD, NVIDIA, and Intel GPUs automatically. NVIDIA users: Vulkan is functional but a CUDA-optimized release is planned for better NVIDIA performance. Without a GPU the app falls back to CPU inference (~5 min for 7B model on most laptops).
+
+---
+
+## 🚀 2. Run the App
 
 1. Open `MTG Commander Generator.exe`.
-2. Wait ~15 seconds for the backend and `llama-server` (GPU inference engine) to start.
-3. Import your collection and build decks inside the app.
+2. A **splash screen** appears while the AI model and backend start up — this takes 15–90 s depending on your model size and GPU.
+3. Once the main window opens, the nav bar shows 🟢 **AI Ready (GPU)** when the model is loaded.
+4. Import your collection and build decks.
 
 That is all most users need.
 
 ---
 
-## Importing Your Collection
+## 📂 Importing Your Collection
 
 The app accepts CSV exports from:
 
@@ -50,11 +73,11 @@ The app accepts CSV exports from:
 
 ---
 
-## Building a Deck
+## 🧠 Building a Deck
 
 1. Import your collection on the **Collection** page.
 2. Go to the **Build Deck** page.
-3. Select a commander - only legendary creatures from your collection are shown.
+3. Select a commander — only legendary creatures from your collection are shown.
 4. Describe the deck you want, for example:
    - *"Aggressive token swarm with anthem effects"*
    - *"Control deck focused on counterspells and card draw"*
@@ -63,19 +86,33 @@ The app accepts CSV exports from:
 6. Export the finished decklist as a `.txt` file (compatible with Moxfield and Archidekt import).
 
 Defaults:
-- Basic lands: **25**
-- Nonbasic lands: **12**
+- 🌿 Basic lands: **25**
+- 🗺️ Nonbasic lands: **12**
 
-The builder now also shows an **estimated deck cost** using available TCG pricing data.
+💰 The builder shows an **estimated deck cost** using available TCG pricing data.
 
 ---
 
-## Collection Features
+## 🗃️ Collection Features
 
-- **Import Deck** modal can now save directly to **My Decks** and supports an optional deck name.
-- **Color filter** includes a **Colorless** option for non-colored cards.
-- Use card checkboxes plus **Save Selected as Deck** to create a manual deck from your collection.
-- Backup/restore uses a safer SQLite backup flow for more complete backups.
+- 📥 **Import Deck** modal can save directly to **My Decks** and supports an optional deck name.
+- 🎨 **Color filter** includes a **Colorless** option for non-colored cards.
+- ✅ Use card checkboxes plus **Save Selected as Deck** to create a manual deck from your collection.
+- 💾 Backup/restore uses a safer SQLite backup flow for more complete backups.
+
+---
+
+## v1.0.17 — Startup UX, AI Status Badge & First-Launch Setup
+
+### ⚡ What's New
+
+- **Splash screen** — branded loading window with progress bar appears instantly on launch. No more blank window while the AI model loads.
+- **Ordered startup** — llama-server starts first (model load takes 10–90 s for 12B), backend starts in parallel, main window opens only when both are ready.
+- **120-second model wait** — polls `llama-server` health up to 2 minutes with a live elapsed timer; accommodates the slower Nemo 12B load time.
+- **AI status badge** — nav bar shows live model state: 🟢 GPU, 🟡 CPU (with generation time warning), 🔴 Offline (with install path). Updates every 5 s.
+- **First-launch setup modal** — walks new users through GGUF download with model comparison table, HF links, and one-click copy of the install path. Shown once, never again.
+- **Clean exit** — `taskkill /F /T` terminates the entire PyInstaller backend process tree; llama-server handle retained for direct kill. No orphaned processes.
+- **`GET /health/llama`** — new backend endpoint proxies the llama-server health check, keeping all status polling on a single API origin.
 
 ---
 
@@ -117,57 +154,3 @@ This folder persists across upgrades. If upgrading from v1.0.10 or earlier, copy
 A built-in **Help** page is available in the top navigation with quick how-to guidance for import, deck building, manual deck saving, and backup/restore.
 
 ---
-
-## Optional: Development Setup
-
-Only use these steps if you are running the project from source or working on the codebase.
-
-- Python 3.10+
-- Node.js 18+
-
-### Backend
-
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS / Linux
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
-
-The API will be available at **http://localhost:8000**.
-
----
-
-### Frontend
-
-Open a second terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The app will be available at **http://localhost:5173**.
-
----
-
-## Configuration
-
-Create a `backend/.env` file to override defaults:
-
-```env
-OLLAMA_MODEL=mistral   # Change to llama3, gemma2, etc.
-```
-
----
-
-## Experimental: Training Data Scaffold
-
-This repo now includes a separate `training/` folder for building and validating Commander deck datasets before model fine-tuning.
-
-Use it if you want to curate decklists, evaluate Hugging Face sources, or prepare JSONL for supervised tuning. It does not change the app runtime path, which still uses Ollama through the backend.
-
-See `training/README.md` for the dataset format and preprocessing script.

@@ -70,6 +70,23 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/health/llama")
+async def health_llama():
+    """Proxy-check whether llama-server is reachable on its local port."""
+    import asyncio
+    import urllib.request
+
+    def _check() -> bool:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8081/health", timeout=2) as r:
+                return r.status < 500
+        except Exception:
+            return False
+
+    ok = await asyncio.get_event_loop().run_in_executor(None, _check)
+    return {"status": "online" if ok else "offline"}
+
+
 if __name__ == "__main__":
     # Entry point used for standalone packaged backend executable.
     # Pass app directly instead of module string for PyInstaller compatibility

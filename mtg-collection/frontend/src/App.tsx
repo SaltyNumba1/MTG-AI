@@ -5,6 +5,8 @@ import DeckBuilder from "./pages/DeckBuilder";
 import MyDecks from "./pages/MyDecks";
 import Help from "./pages/Help";
 import BuildStatusFloater from "./components/BuildStatusFloater";
+import ModelStatus from "./components/ModelStatus";
+import FirstLaunchModal from "./components/FirstLaunchModal";
 
 const MANA_SCATTER = [
   { symbol: "☀️", top: "5%",  left: "2%",  size: "7rem",   opacity: 0.07,  rotate: -15 },
@@ -85,6 +87,7 @@ export default function App() {
         <NavLink to="/deck">Build Deck</NavLink>
         <NavLink to="/my-decks">My Decks</NavLink>
         <NavLink to="/help">Help</NavLink>
+        <ModelStatus />
       </nav>
       <Routes>
         <Route path="/" element={<Navigate to="/collection" replace />} />
@@ -94,6 +97,7 @@ export default function App() {
         <Route path="/help" element={<Help />} />
       </Routes>
       <BuildStatusFloater />
+      <FirstLaunchModal />
     </>
   );
 }
