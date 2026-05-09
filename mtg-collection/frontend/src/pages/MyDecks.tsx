@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
+import BracketBadge, { BracketInfo } from "../components/BracketBadge";
 import "./MyDecks.css";
 
 interface SavedDeckSummary {
@@ -9,6 +10,7 @@ interface SavedDeckSummary {
   saved_at: string | null;
   commander: string;
   card_count: number;
+  bracket?: number;
 }
 
 interface CardEntry {
@@ -28,6 +30,7 @@ interface SavedDeckDetail {
   commander: CardEntry;
   deck: CardEntry[];
   card_count: number;
+  bracket?: BracketInfo;
 }
 
 interface SwapPair {
@@ -292,7 +295,7 @@ export default function MyDecks() {
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((deck) => (
             <option key={deck.file} value={deck.file}>
-              {deck.name} ({deck.card_count} cards)
+              {deck.name} ({deck.card_count} cards){deck.bracket ? ` [B${deck.bracket}]` : ""}
             </option>
           ))}
         </select>
@@ -363,6 +366,7 @@ export default function MyDecks() {
         <div>
           <div className="my-decks-meta">
             <h2>{detail.name}</h2>
+            <BracketBadge info={detail.bracket} showDetails />
             <small>
               Saved: {detail.saved_at || "Unknown"} | Cards: {detail.card_count}
               {(() => {

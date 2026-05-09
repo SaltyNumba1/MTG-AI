@@ -7,9 +7,9 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     proxy: {
-      "/collection": "http://localhost:8000",
-      "/deck": "http://localhost:8000",
-      "/health": "http://localhost:8000",
+      "/collection": "http://127.0.0.1:8000",
+      "/deck": "http://127.0.0.1:8000",
+      "/health": "http://127.0.0.1:8000",
     },
   },
 });

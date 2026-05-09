@@ -19,6 +19,8 @@ const LLAMA_CTX = 20480;
 // Adaptive GPU layer steps: try most layers first, step down on VRAM OOM, reach 0 for CPU fallback.
 const LLAMA_GPU_LAYER_STEPS = [99, 60, 40, 20, 0];
 let llamaStartPromise = null; // resolves when adaptive startup finishes
+const ICON_PATH = path.join(__dirname, "build", "icon.ico");
+const LOGO_PATH = path.join(__dirname, "build", "icon.png");
 
 function getLlamaServerDir() {
   // Packaged: resources/llama-server/  Dev: frontend/llama-server/
@@ -382,14 +384,13 @@ function startBackend() {
 }
 
 function createWindow() {
-  const iconPath = path.join(__dirname, "build", "icon.ico");
   const state = loadWindowState();
   const win = new BrowserWindow({
     width: state.width || 1200,
     height: state.height || 860,
     x: state.x,
     y: state.y,
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: fs.existsSync(ICON_PATH) ? ICON_PATH : undefined,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -505,7 +506,6 @@ function detectGpuMode() {
 
 // Creates a small frameless splash window using an inline data: URL — no external file needed.
 async function createSplash() {
-  const iconPath = path.join(__dirname, "build", "icon.ico");
   splashWin = new BrowserWindow({
     width: 440,
     height: 240,
@@ -514,21 +514,24 @@ async function createSplash() {
     center: true,
     alwaysOnTop: true,
     show: false,
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: fs.existsSync(ICON_PATH) ? ICON_PATH : undefined,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   });
+  const logoDataUri = fs.existsSync(LOGO_PATH)
+    ? `data:image/png;base64,${fs.readFileSync(LOGO_PATH).toString("base64")}`
+    : "";
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#1a1a2e;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;user-select:none}
-    .logo{font-size:2.8rem;margin-bottom:10px}
+    .logo{width:72px;height:72px;object-fit:contain;margin-bottom:10px}
     h1{font-size:1.05rem;color:#c0a0ff;font-weight:600;margin-bottom:22px;letter-spacing:.04em}
     #status{font-size:.8rem;color:#aaa;margin-bottom:12px;min-height:1.1em;text-align:center;padding:0 16px}
     .bar-bg{width:320px;height:4px;background:#2a2a4a;border-radius:4px;overflow:hidden}
     .bar-fill{height:100%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:4px;transition:width .4s ease;width:5%}
     .version{position:absolute;bottom:12px;font-size:.68rem;color:#444}
   </style></head><body>
-    <div class="logo">&#x1F0CF;</div>
+    ${logoDataUri ? `<img class="logo" src="${logoDataUri}" alt="">` : ""}
     <h1>MTG Commander Generator</h1>
     <div id="status">Starting&hellip;</div>
     <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>

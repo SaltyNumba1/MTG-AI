@@ -1,6 +1,6 @@
-# MTG Collection v1.0.17.2
+# MTG Collection v1.0.17.4
 
-See full release notes in [release-notes-v1.0.17.2.md](release-notes-v1.0.17.2.md).
+See full release notes in [release-notes-v1.0.17.4.md](release-notes-v1.0.17.4.md).
 
 ## ⚡ Highlights
 

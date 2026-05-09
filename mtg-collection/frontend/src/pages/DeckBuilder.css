@@ -365,6 +365,28 @@
   opacity: 0.75;
 }
 
+.deckbuilder-color-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.deckbuilder-color-stat strong {
+  color: #e2e8f0;
+}
+
+.deckbuilder-color-stat-pips {
+  display: flex;
+  gap: 3px;
+  font-size: 1rem;
+}
+
 .deckbuilder-layout {
   display: flex;
   gap: 24px;

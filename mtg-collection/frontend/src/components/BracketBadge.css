@@ -1,0 +1,47 @@
+.bracket-badge-wrap {
+  margin: 6px 0;
+}
+
+.bracket-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  user-select: none;
+}
+
+/* Per-bracket colours */
+.bracket-1 { background: #16a34a; }   /* green  — Exhibition   */
+.bracket-2 { background: #2563eb; }   /* blue   — Core         */
+.bracket-3 { background: #d97706; }   /* amber  — Upgraded     */
+.bracket-4 { background: #ea580c; }   /* orange — Optimized    */
+.bracket-5 { background: #7c3aed; }   /* purple — cEDH         */
+
+/* Detail block shown when showDetails=true */
+.bracket-badge-details {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #d1d5db;
+  border-left: 2px solid #374151;
+  padding-left: 10px;
+}
+
+.bracket-badge-desc {
+  display: block;
+  margin-bottom: 5px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.bracket-badge-section {
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.bracket-badge-section strong {
+  color: #e5e7eb;
+  margin-right: 4px;
+}

@@ -102,6 +102,57 @@ Defaults:
 
 ---
 
+## v1.0.17.4 — Commander Bracket Ratings, Collection Color Counter & UX Polish
+
+### ⚡ What's New
+
+- **Commander Bracket Rating** — every generated and saved deck is automatically scored on WotC's 2025 Bracket system (1 Exhibition → 5 Competitive/cEDH). Badge shown on the deck builder result and every saved deck in My Decks.
+- **Target Bracket** — optional power-level dropdown in the deck builder (No preference / 1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized / 5 Competitive). Injects a directive into the AI prompt. Always a soft hint — the app only ever picks from cards you own.
+- **Collection color counter** — stat bar below the keyword filters shows how many unique non-land cards in your collection fit the selected commander's color identity. Updates instantly when commander changes.
+- **Splash screen logo** — app logo now renders correctly on all systems (fixes broken image caused by spaces in Windows paths).
+- **Nav bar cleanup** — removed emoji from the nav bar title.
+
+---
+
+## v1.0.17.3 — Adaptive GPU Retry & CPU Fallback
+
+### ⚡ What's New
+
+- **Adaptive GPU layer retry** — on startup, llama-server is launched with progressively fewer GPU layers until it succeeds:
+  1. `--n-gpu-layers 99`
+  2. `--n-gpu-layers 60`
+  3. `--n-gpu-layers 40`
+  4. `--n-gpu-layers 20`
+  5. `--n-gpu-layers 0` (CPU fallback)
+- **OOM detection** — the app reads the tail of `llama-server.log` to detect out-of-memory failures and decides when to step down to the next tier.
+- **Parallel startup preserved** — backend startup continues in parallel while adaptive retries complete; no regression in startup speed on healthy hardware.
+- **Correct health polling order** — startup wait logic now awaits adaptive llama initialization before beginning health polls.
+
+### Why This Matters
+Laptop GPUs and systems with limited free VRAM could previously fail silently when `--n-gpu-layers` was too high, leaving the app unable to start. The app now steps down automatically until the model loads — even falling back to CPU if needed.
+
+### Validation
+Confirmed expected step-down behavior on constrained VRAM hardware:
+- 99 layers → OOM
+- 60 layers → OOM
+- 40 layers → OOM
+- 20 layers → OOM
+- 0 layers (CPU) → model loads, `/health` reports ready
+
+---
+
+## v1.0.17.2 — UX Polish, Commander Bracket Rating & Collection Color Counter
+
+### ⚡ What's New
+
+- **Commander Bracket Rating** — every generated and saved deck is automatically scored on WotC's 2025 Bracket system (1 Exhibition → 5 Competitive/cEDH). The badge appears on the deck builder result and on every saved deck in My Decks. Scoring is based on Game Changers, strong tutors, combo enablers, extra turn spells, and mass land denial.
+- **Target Bracket** — optional power-level selector in the deck builder (No preference / 1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized / 5 Competitive). Injects a detailed directive into the AI prompt. This is a soft hint — the deck is always built from cards you own, so results reflect your actual collection.
+- **Collection color counter** — stat bar between the keyword filters and the Deck Constraints panel shows how many unique non-land cards in your collection fit the selected commander's color identity. Updates instantly when you change commander.
+- **Splash screen logo** — app logo now displays correctly on the loading splash screen.
+- **Nav bar cleanup** — removed emoji from nav bar title.
+
+---
+
 ## v1.0.17 — Startup UX, AI Status Badge & First-Launch Setup
 
 ### ⚡ What's New

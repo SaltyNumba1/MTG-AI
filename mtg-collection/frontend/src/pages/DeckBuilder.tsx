@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import MTG_KEYWORDS from "../mtg_keywords";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
+import BracketBadge, { BracketInfo } from "../components/BracketBadge";
 import "./DeckBuilder.css";
 
 interface Commander {
@@ -35,6 +36,7 @@ interface DeckResult {
   commander: CardEntry;
   deck: CardEntry[];
   description: string;
+  bracket?: BracketInfo;
 }
 
 interface BuildThought {
@@ -145,6 +147,7 @@ export default function DeckBuilder() {
   const [basicLandCount, setBasicLandCount] = useState(25);
   const [nonbasicLandCount, setNonbasicLandCount] = useState(12);
   const [dualLandCount, setDualLandCount] = useState(0);
+  const [targetBracket, setTargetBracket] = useState(0);
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<DeckResult | null>(null);
@@ -281,6 +284,21 @@ export default function DeckBuilder() {
     return counts;
   }, [collection]);
 
+  const collectionColorCount = useMemo(() => {
+    if (!selectedCommanderObj) return null;
+    const ci = new Set(selectedCommanderObj.color_identity);
+    let total = 0;
+    for (const c of collection) {
+      const tl = (c.type_line || "").toLowerCase();
+      if (tl.includes("land")) continue;
+      const cardColors = c.color_identity || [];
+      if (cardColors.every((color) => ci.has(color))) {
+        total += 1;
+      }
+    }
+    return total;
+  }, [collection, selectedCommanderObj]);
+
   useEffect(() => {
     if (!building) {
       setIsHung(false);
@@ -407,6 +425,7 @@ export default function DeckBuilder() {
         constraints: allConstraints.map(({ label, match_field, match_value, min_count, max_count }) => ({ label, match_field, match_value, min_count, max_count: max_count ?? 0 })),
         excluded_card_names: isReroll ? (overrideExcluded ?? excludedCardNames) : [],
         tapped_land_max: tappedLandMax,
+        target_bracket: targetBracket,
       });
       setResult(data);
       setDeckModified(false);
@@ -474,6 +493,7 @@ export default function DeckBuilder() {
         deck: deckResult.deck,
         description: deckResult.description,
         constraints: (activeConstraints || []).map(({ label, match_field, match_value, min_count }) => ({ label, match_field, match_value, min_count })),
+        bracket: deckResult.bracket ?? {},
       });
 
       setSavedFilename(data.json_file);
@@ -584,6 +604,18 @@ export default function DeckBuilder() {
               No legal legendary commanders found in your collection.
             </small>
           )}
+          {selectedCommanderObj && collectionColorCount !== null && (
+            <div className="deckbuilder-color-stat">
+              <span className="deckbuilder-color-stat-pips">
+                {(selectedCommanderObj.color_identity || []).map((c) => (
+                  <span key={c}>{COLOR_SYMBOLS[c] || c}</span>
+                ))}
+              </span>
+              <span>
+                <strong>{collectionColorCount}</strong> card{collectionColorCount === 1 ? "" : "s"} in your collection match this color identity
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="deckbuilder-filters-row">
@@ -634,7 +666,6 @@ export default function DeckBuilder() {
             <small className="deckbuilder-hint">
               These keywords help the AI suggest synergistic cards, but do not hard-filter the deck.
             </small>
-          </div>
           <div className="deckbuilder-filters-col">
             <label className="deckbuilder-label">
               Must Include Cards
@@ -645,14 +676,14 @@ export default function DeckBuilder() {
               rows={5}
               spellCheck={false}
               placeholder={'"Sol Ring" "Arcane Signet" "Command Tower"'}
-              className="deckbuilder-must-include"
-            />
+              className="deckbuilder-must-include"/>
             <small className="deckbuilder-hint">
               Wrap each card name in double quotes. These will be force-included in the deck even if you don't own them
               (fetched from Scryfall). Lands among them count toward the nonbasic land count.
             </small>
           </div>
         </div>
+      </div>
 
         {/* Deck Constraints Panel */}
         <div className="deckbuilder-constraints-panel">
@@ -807,6 +838,25 @@ export default function DeckBuilder() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
+        </div>
+
+        <div>
+          <label className="deckbuilder-label">Target Bracket (optional)</label>
+          <select
+            aria-label="Target Bracket"
+            value={targetBracket}
+            onChange={(e) => setTargetBracket(Number(e.target.value))}
+          >
+            <option value={0}>No preference</option>
+            <option value={1}>1 — Exhibition (ultra-casual, no staples)</option>
+            <option value={2}>2 — Core (precon power level)</option>
+            <option value={3}>3 — Upgraded (1–3 Game Changers, combos OK)</option>
+            <option value={4}>4 — Optimized (high power, any staple)</option>
+            <option value={5}>5 — Competitive (cEDH, fastest win)</option>
+          </select>
+          <small className="deckbuilder-hint">
+            Adds power-level guidance to the AI prompt. This is a soft hint — not a hard filter.
+          </small>
         </div>
 
         <div className="deckbuilder-lands-row">
@@ -1056,6 +1106,7 @@ export default function DeckBuilder() {
               <p className="deckbuilder-result-desc">
                 {result.description}
               </p>
+              <BracketBadge info={result.bracket} showDetails />
               <div className={missingCount === 0 ? "deckbuilder-result-complete" : "deckbuilder-result-missing"}>
                 Total Cards: {totalGeneratedCount}/100
                 {missingCount > 0 ? ` (${missingCount} missing)` : " (complete)"}

@@ -37,6 +37,7 @@ class DeckRequest(BaseModel):
     constraints: list[DeckConstraint] = []
     excluded_card_names: list[str] = []
     tapped_land_max: int = 0  # 0 = no cap
+    target_bracket: int = 0  # 0 = no preference
 
 
 class ImportDeckRequest(BaseModel):
@@ -267,6 +268,7 @@ class DeckSaveRequest(BaseModel):
     deck: list[dict]
     description: str = ""
     constraints: list[dict] = []
+    bracket: dict = {}
 
 
 BUILD_STATUS_LOCK = Lock()
@@ -451,6 +453,7 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
                 constraints=constraints_raw,
                 excluded_card_names=list(req.excluded_card_names or []),
                 tapped_land_max=getattr(req, "tapped_land_max", 0),
+                target_bracket=getattr(req, "target_bracket", 0),
                 progress_callback=_append_thought,
             ),
         )
@@ -546,6 +549,7 @@ async def save_deck(payload: DeckSaveRequest):
         "deck": payload.deck,
         "card_count": 1 + len(payload.deck),
         "constraints": payload.constraints,
+        "bracket": payload.bracket,
     }
 
     json_path.write_text(json.dumps(payload_data, indent=2), encoding="utf-8")
@@ -575,6 +579,7 @@ async def list_saved_decks():
                     "saved_at": data.get("saved_at"),
                     "commander": (data.get("commander") or {}).get("name", ""),
                     "card_count": data.get("card_count", 0),
+                    "bracket": (data.get("bracket") or {}).get("bracket", 0),
                 }
             )
         except Exception:
@@ -600,7 +605,17 @@ async def get_saved_deck(deck_file: str):
         raise HTTPException(status_code=400, detail="Invalid deck file")
     if not target.exists() or target.suffix.lower() != ".json":
         raise HTTPException(status_code=404, detail="Saved deck not found")
-    return json.loads(target.read_text(encoding="utf-8"))
+    data = json.loads(target.read_text(encoding="utf-8"))
+    # Retroactively compute bracket for decks saved before this feature was added,
+    # or saved with an empty bracket dict (e.g. deck built before bracket engine ran)
+    if not data.get("bracket"):
+        from services.bracket_engine import calculate_bracket
+        card_names = (
+            [c.get("name", "") for c in data.get("deck", [])]
+            + [(data.get("commander") or {}).get("name", "")]
+        )
+        data["bracket"] = calculate_bracket(card_names)
+    return data
 
 
 @router.delete("/saved/{deck_file}")

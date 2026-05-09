@@ -1141,6 +1141,7 @@ def build_deck_with_llm(
     progress_callback: Optional[Callable[[str], None]] = None,
     stream_callback: Optional[Callable[[str], None]] = None,
     current_deck: Optional[list[dict]] = None,
+    target_bracket: int = 0,
 ) -> dict:
     """
     Ask the local Ollama model to pick 99 cards from candidates.
@@ -1239,6 +1240,16 @@ def build_deck_with_llm(
         synergy_text = f"\nSynergy keywords to prioritize: {', '.join(normalized_keywords)}"
     else:
         synergy_text = ""
+
+    if target_bracket > 0:
+        from services.bracket_engine import get_bracket_prompt_directive
+        bracket_directive = get_bracket_prompt_directive(target_bracket)
+        if bracket_directive:
+            synergy_text += f"\n\n{bracket_directive}"
+            if progress_callback:
+                progress_callback(
+                    f"Targeting Bracket {target_bracket} — power level directive injected"
+                )
 
     deck_shape_text = (
         f"\nTarget deck composition: {max(0, 99 - min(99, total_land_budget))} non-lands "
@@ -1505,10 +1516,19 @@ def build_deck_with_llm(
     if progress_callback:
         progress_callback("Deck assembly complete")
 
+    from services.bracket_engine import calculate_bracket
+    all_names = [c.get("name", "") for c in selected[:99]] + [commander.get("name", "")]
+    bracket_info = calculate_bracket(all_names, commander.get("name", ""))
+    if progress_callback:
+        progress_callback(
+            f"Deck rated Bracket {bracket_info['bracket']} ({bracket_info['label']})"
+        )
+
     return {
         "commander": commander,
         "deck": selected[:99],
         "description": result.get("description", ""),
+        "bracket": bracket_info,
     }
 
 
@@ -1528,6 +1548,7 @@ def generate_deck(
     tapped_land_max: int = 0,
     progress_callback: Optional[Callable[[str], None]] = None,
     current_deck: Optional[list[dict]] = None,
+    target_bracket: int = 0,
 ) -> dict:
     """Main entry point for deck generation."""
     if progress_callback:
@@ -1590,4 +1611,5 @@ def generate_deck(
         tapped_land_max=tapped_land_max,
         progress_callback=progress_callback,
         current_deck=current_deck,
+        target_bracket=target_bracket,
     )
