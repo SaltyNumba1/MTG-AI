@@ -1,4 +1,6 @@
-# 🃏 MTG-AI
+# <img width="800" height="900" alt="icon" src="https://github.com/user-attachments/assets/8959f63d-ae61-49de-a34e-d9e707a7f51d" />
+
+ MTG-AI
 
 A desktop app for managing your Magic: The Gathering collection and building Commander decks with the help of a **fully local AI model** — no cloud, no subscription, no Ollama. FastAPI backend + React/Vite frontend, packaged as an Electron app for Windows.
 
@@ -197,8 +199,10 @@ Two custom-trained models are available on Hugging Face:
 
 <img width="2545" height="1385" alt="4c3BAHt3Bd" src="https://github.com/user-attachments/assets/4a80e649-cd07-419c-aae2-d9c6f35f416c" />
 
-<!-- v1.0.18 screenshots — upload images to GitHub and replace these placeholders with the resulting img tags -->
-<!-- SCREENSHOT 1: Printing modal grid — Prophetic Prism with many printings -->
-<!-- SCREENSHOT 2: Printing modal grid — Strider, Ranger of the North (2 printings) -->
-<!-- SCREENSHOT 3: My Decks view — Food and Fellowship, Bracket 3, Frodo commander -->
+<img width="2545" height="1385" alt="MTG_Commander_Generator_RB8Hm3j18s" src="https://github.com/user-attachments/assets/445f5f41-c490-4453-ab56-bcf9136e6e22" />
+
+<img width="2545" height="1385" alt="MTG_Commander_Generator_qRhoyrtQJq" src="https://github.com/user-attachments/assets/c96168ff-5e46-4e8c-b29d-f570c7072ed0" />
+
+<img width="2545" height="1385" alt="MTG_Commander_Generator_uX3EHwF4XI" src="https://github.com/user-attachments/assets/b4e95e49-5379-44c5-85dd-a560e6e4ca35" />
+
 
