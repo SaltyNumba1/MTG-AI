@@ -44,28 +44,28 @@ export default function ModelStatus() {
   }, []);
 
   let dotClass = "model-status-dot";
-  let label = "AI Model";
+  let label = "DeepBrew";
   let tooltip = "";
 
   if (status === "loading") {
     dotClass += " model-status-dot--loading";
-    label = "AI \u2026";
+    label = "DeepBrew …";
     tooltip = "Checking model status\u2026";
   } else if (status === "offline") {
     dotClass += " model-status-dot--offline";
-    label = "AI Offline";
+    label = "DeepBrew Offline";
     tooltip =
       "Model not loaded. Check that your .gguf file is in " +
       "%APPDATA%\\mtg-collection-frontend\\models\\ and restart the app.";
   } else if (gpuMode === "cpu") {
     dotClass += " model-status-dot--cpu";
-    label = "AI Ready (CPU)";
+    label = "DeepBrew (CPU)";
     tooltip =
       "Running on CPU \u2014 expect ~5 min generation time. " +
       "A Vulkan-capable GPU will speed this up significantly.";
   } else {
     dotClass += " model-status-dot--online";
-    label = gpuMode === "gpu" ? "AI Ready (GPU)" : "AI Ready";
+    label = gpuMode === "gpu" ? "DeepBrew (GPU)" : "DeepBrew Ready";
     tooltip =
       gpuMode === "gpu"
         ? "Model loaded and running on GPU."

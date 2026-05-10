@@ -1,7 +1,7 @@
 {
   "name": "mtg-collection-frontend",
-  "version": "1.0.17.4",
-  "description": "MTG Collection desktop app wrapper",
+  "version": "1.0.18",
+  "description": "DeepBrew — Local GPU-accelerated MTG Commander deck builder",
   "author": "",
   "main": "electron-main.js",
   "scripts": {
@@ -35,7 +35,7 @@
   },
   "build": {
     "appId": "com.mtg.collection",
-    "productName": "MTG Collection",
+    "productName": "DeepBrew",
     "forceCodeSigning": false,
     "win": {
       "icon": "build/icon.ico",

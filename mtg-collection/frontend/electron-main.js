@@ -324,7 +324,7 @@ function startBackend() {
   const backend = getBackendCommand();
   if (!backend) {
     dialog.showErrorBox(
-      "MTG Collection",
+      "DeepBrew",
       "Unable to start the backend. Please install Python or build the backend executable before running the desktop app."
     );
     app.quit();
@@ -378,7 +378,7 @@ function startBackend() {
 
   backendProcess.on("error", (error) => {
     logStartup(`Backend failed to start: ${error.message}`);
-    dialog.showErrorBox("MTG Collection", `Backend failed to start: ${error.message}`);
+    dialog.showErrorBox("DeepBrew", `Backend failed to start: ${error.message}`);
     app.quit();
   });
 }
@@ -586,7 +586,7 @@ app.whenReady().then(async () => {
   logStartup(`Backend ready: ${backendReady}`);
   if (!backendReady) {
     closeSplash();
-    dialog.showErrorBox("MTG Collection", "Backend failed to start within 15 seconds.");
+    dialog.showErrorBox("DeepBrew", "Backend failed to start within 15 seconds.");
   }
 
   // Step 4: Wait for llama-server health (120 s cap, progress updates splash).

@@ -579,7 +579,7 @@ export default function DeckBuilder() {
 
   return (
     <div className="page">
-      <h1 className="page-title">Build a Commander Deck</h1>
+      <h1 className="page-title">DeepBrew — Build a Commander Deck</h1>
 
       <div className="deckbuilder-layout">
       <div className="deckbuilder-form">
@@ -1074,7 +1074,7 @@ export default function DeckBuilder() {
 
       {(building || (buildStatus?.thoughts?.length ?? 0) > 0) && (
         <div className="alert alert-info deckbuilder-build-progress">
-          <div className="deckbuilder-build-progress-title">AI Build Process</div>
+          <div className="deckbuilder-build-progress-title">DeepBrew Thought Stream</div>
           <small className="deckbuilder-build-progress-msg">
             {buildStatus?.message || "Deck builder is working..."}
           </small>

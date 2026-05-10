@@ -82,7 +82,7 @@ export default function App() {
         ))}
       </div>
       <nav>
-        <span className="logo">MTG Deck Builder</span>
+        <span className="logo">DeepBrew</span>
         <NavLink to="/collection">Collection</NavLink>
         <NavLink to="/deck">Build Deck</NavLink>
         <NavLink to="/my-decks">My Decks</NavLink>

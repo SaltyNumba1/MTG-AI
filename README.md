@@ -14,6 +14,18 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - 📡 **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
 - 🔒 **Local LLM (no cloud)** – Deck generation runs fully offline via a bundled `llama-server` (llama.cpp Vulkan). No data leaves your machine.
 
+## What's New (v1.0.18)
+
+- 🏆 **WotC Bracket power-level targeting** — the deck builder now actively prioritizes high-power cards from your collection based on the target bracket you select:
+  - **Bracket 4/5**: auto-injects game changers (Rhystic Study, Mana Drain, Dockside Extortionist, Necropotence + 52 more), combo enablers (Isochron Scepter, Thassa's Oracle, Mikaeus + 52 more), and tutor-equivalents from your collection.
+  - **Bracket 5**: also injects extra-turn spells (Time Warp, Nexus of Fate, Temporal Manipulation + more).
+  - Scoring bonuses applied during rebalancing: +70 game changers, +60 combo enablers, +55 extra turns, +50 tutors.
+  - CMC >5 penalty (−15) for non-power cards at Bracket 4+ keeps curves tight.
+- 🔎 **Oracle-text fallback classification** — cards that "search your library" (tutor-equivalents) or "take an extra turn" (extra-turn-equivalents) are detected automatically from oracle text even if not in the curated named sets. Lands (including fetchlands) are excluded from tutor classification.
+- 🃏 **Expanded curated card sets** — GAME_CHANGERS expanded to 56 cards across all colors; COMBO_ENABLERS expanded to 55 cards across 6 combo categories (infinite mana, infinite tokens/ETB, infinite damage/win-cons, library-win, graveyard loops, untap enablers, extra-turn loops).
+- ⚖️ **Bracket threshold deduplication** — cards counted as game changers no longer also inflate the tutor count when evaluating bracket thresholds, preventing false bracket inflation.
+- 🎨 **Printing picker redesigned as full-screen modal** — the 🎨 Art button now opens a centered overlay with all printings in a responsive auto-fill grid. Each cell shows full card art at the correct 63:88 aspect ratio with set/number label. Active printing has a purple border highlight; clicking the backdrop or ✕ closes without changing selection. Rendered via React portal to `document.body` — never clipped by card containers.
+
 ## What's New (v1.0.17.2)
 
 - 🔁 **Adaptive GPU fallback** — startup now retries `llama-server` with progressively fewer `--n-gpu-layers` values (`99 -> 60 -> 40 -> 20 -> 0`) when Vulkan VRAM is insufficient.
@@ -184,4 +196,9 @@ Two custom-trained models are available on Hugging Face:
 <img width="2545" height="1385" alt="5gkrUq8pQK" src="https://github.com/user-attachments/assets/572f4fe6-e3f8-41bb-9406-3aceb6d84360" />
 
 <img width="2545" height="1385" alt="4c3BAHt3Bd" src="https://github.com/user-attachments/assets/4a80e649-cd07-419c-aae2-d9c6f35f416c" />
+
+<!-- v1.0.18 screenshots — upload images to GitHub and replace these placeholders with the resulting img tags -->
+<!-- SCREENSHOT 1: Printing modal grid — Prophetic Prism with many printings -->
+<!-- SCREENSHOT 2: Printing modal grid — Strider, Ranger of the North (2 printings) -->
+<!-- SCREENSHOT 3: My Decks view — Food and Fellowship, Bracket 3, Frodo commander -->
 

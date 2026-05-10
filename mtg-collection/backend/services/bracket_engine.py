@@ -15,27 +15,68 @@ from __future__ import annotations
 # Card sets — all lowercase for case-insensitive matching
 # ---------------------------------------------------------------------------
 
-# WotC's official Game Changer list (as of 2025)
+# WotC's official Game Changer list (as of 2025) — extended with widely recognised
+# high-power staples. Cards that also appear in STRONG_TUTORS or COMBO_ENABLERS are
+# listed here too for scoring weight; calculate_bracket deduplicates so they only
+# count toward one threshold.
 GAME_CHANGERS: set[str] = {
-    "rhystic study",
-    "smothering tithe",
-    "jeweled lotus",
-    "dockside extortionist",
-    "mana crypt",
-    "demonic tutor",
-    "cyclonic rift",
-    "necropotence",
-    "trouble in pairs",
-    "opposition agent",
+    # White
     "drannith magistrate",
-    "mana drain",
-    "ancient tomb",
-    "mana vault",
-    "the one ring",
+    "smothering tithe",
+    "teferi's protection",
+    "enlightened tutor",
+    "humility",
+    "farewell",
+    "serra's sanctum",
     "parallel lives",
-    "deflecting swat",
-    "fierce guardianship",
+
+    # Blue
+    "rhystic study",
     "mystic remora",
+    "cyclonic rift",
+    "fierce guardianship",
+    "mana drain",
+    "force of will",
+    "intuition",
+    "consecrated sphinx",
+    "trouble in pairs",
+
+    # Black
+    "demonic tutor",
+    "vampiric tutor",
+    "imperial seal",
+    "necropotence",
+    "opposition agent",
+    "orcish bowmasters",
+    "bolas's citadel",
+
+    # Red
+    "dockside extortionist",
+    "deflecting swat",
+    "jeska's will",
+
+    # Green
+    "gaea's cradle",
+    "survival of the fittest",
+    "sylvan library",
+    "worldly tutor",
+    "seedborn muse",
+    "natural order",
+
+    # Colorless / Artifacts / Lands
+    "mana crypt",
+    "mana vault",
+    "jeweled lotus",
+    "the one ring",
+    "ancient tomb",
+    "mox diamond",
+    "chrome mox",
+    "grim monolith",
+    "mox opal",
+    "lion's eye diamond",
+    "field of the dead",
+    "the tabernacle at pendrell vale",
+    "mishra's workshop",
 }
 
 EXTRA_TURN_SPELLS: set[str] = {
@@ -109,34 +150,63 @@ STRONG_TUTORS: set[str] = {
 
 # Known combo enablers — cards that form or enable two-card infinite combos
 COMBO_ENABLERS: set[str] = {
+    # Infinite Mana
+    "basalt monolith",
+    "rings of brighthearth",
+    "power artifact",
+    "isochron scepter",
+    "dramatic reversal",
+    "ashnod's altar",
+    "phyrexian altar",
+    "forsaken monument",
+    "auriok salvagers",
+    "lion's eye diamond",
+
+    # Infinite Tokens / ETB
+    "kiki-jiki, mirror breaker",
+    "splinter twin",
+    "pestermite",
+    "deceiver exarch",
+    "village bell-ringer",
+    "felidar guardian",
+    "restoration angel",
+    "emiel the blessed",
+    "peregrine drake",
+    "deadeye navigator",
+
+    # Infinite Damage / Win-Cons
+    "walking ballista",
+    "heliod, sun-crowned",
+    "exquisite blood",
+    "sanguine bond",
+    "sanguine blood",
+
+    # Library-Win / Consultation Package
     "thassa's oracle",
     "demonic consultation",
     "tainted pact",
     "doomsday",
+    "laboratory maniac",
+    "jace, wielder of mysteries",
+
+    # Graveyard / Recursion Loops
     "hermit druid",
     "underworld breach",
     "timetwister",
-    "laboratory maniac",
-    "jace, wielder of mysteries",
-    "isochron scepter",
-    "dramatic reversal",
-    "freed from the real",
-    "pemmin's aura",
-    "heliod, sun-crowned",
-    "walking ballista",
-    "kiki-jiki, mirror breaker",
-    "splinter twin",
-    "exquisite blood",
-    "sanguine bond",
-    "basalt monolith",
-    "rings of brighthearth",
-    "power artifact",
-    "breya, etherium shaper",
-    "auriok salvagers",
-    "lion's eye diamond",
     "food chain",
     "squee, the immortal",
     "misthollow griffin",
+    "breya, etherium shaper",
+
+    # Untap Enablers
+    "freed from the real",
+    "pemmin's aura",
+
+    # Extra Turn Loops (included here as they enable loops in certain builds)
+    "time warp",
+    "temporal manipulation",
+    "nexus of fate",
+    "beacon of tomorrows",
 }
 
 BRACKET_LABELS: dict[int, str] = {
@@ -172,6 +242,84 @@ BRACKET_DESCRIPTIONS: dict[int, str] = {
 
 
 # ---------------------------------------------------------------------------
+# Oracle text patterns for functional equivalents
+# (used by deck_engine.py to score/inject cards that aren't in the named sets
+#  but perform the same role — keeps bracket logic consistent with the keyword
+#  filter pipeline which already searches oracle text via _card_matches_keywords)
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+TUTOR_ORACLE_PATTERNS: list[str] = ["search your library"]
+EXTRA_TURN_ORACLE_PATTERNS: list[str] = ["take an extra turn", "takes an extra turn"]
+
+# Matches oracle text that searches for a basic land (Plains/Island/Swamp/Mountain/Forest).
+# Covers both "basic land card" and "basic Forest card" / "basic Plains or Island card" etc.
+# These are ramp spells, not tutors, and should not count as tutor equivalents.
+_BASIC_LAND_SEARCH_RE = _re.compile(
+    r"basic\s+(land|plains|island|swamp|mountain|forest)\b", _re.IGNORECASE
+)
+
+
+def _card_oracle_lower(card: dict) -> str:
+    return (card.get("oracle_text") or "").lower()
+
+
+def is_game_changer(card: dict) -> bool:
+    """Exact name match only — Game Changers are too diverse for reliable oracle patterns."""
+    return (card.get("name") or "").lower() in GAME_CHANGERS
+
+
+def is_combo_enabler(card: dict) -> bool:
+    """Exact name match only — combo pieces are too specific for reliable oracle patterns."""
+    return (card.get("name") or "").lower() in COMBO_ENABLERS
+
+
+def is_tutor_equivalent(card: dict) -> bool:
+    """True for named strong tutors OR any non-land card that searches the library
+    for non-basic cards.
+
+    Lands are excluded entirely — fetchlands and other land-based searchers are
+    mana-fixing, not tutors.
+    Ramp spells that only fetch basic lands (Rampant Growth, Cultivate, panoramas, etc.)
+    are excluded via the basic-land-type pattern.
+    """
+    if (card.get("name") or "").lower() in STRONG_TUTORS:
+        return True
+    # Lands are never tutors
+    if "land" in (card.get("type_line") or "").lower():
+        return False
+    oracle = _card_oracle_lower(card)
+    if "search your library" not in oracle:
+        return False
+    return not _BASIC_LAND_SEARCH_RE.search(oracle)
+
+
+def is_extra_turn_equivalent(card: dict) -> bool:
+    """True for named extra-turn spells OR any card with take-an-extra-turn oracle text."""
+    if (card.get("name") or "").lower() in EXTRA_TURN_SPELLS:
+        return True
+    oracle = _card_oracle_lower(card)
+    return any(p in oracle for p in EXTRA_TURN_ORACLE_PATTERNS)
+
+
+def is_bracket_vip(card: dict, target_bracket: int) -> bool:
+    """True if the card qualifies as a VIP auto-include for the given bracket.
+
+    Uses oracle-text fallbacks so functional equivalents of named power cards are
+    caught even when the exact card name is not in a named set.
+      B4+: Game Changers (name), Combo Enablers (name), Tutor-equivalents (oracle)
+      B5:  additionally Extra Turn equivalents (oracle)
+    """
+    if target_bracket >= 4:
+        if is_game_changer(card) or is_combo_enabler(card) or is_tutor_equivalent(card):
+            return True
+    if target_bracket >= 5 and is_extra_turn_equivalent(card):
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Core functions
 # ---------------------------------------------------------------------------
 
@@ -200,6 +348,7 @@ def calculate_bracket(card_names: list[str], commander_name: str = "") -> dict:
     found_gc = sorted(
         n for n in GAME_CHANGERS if n in normalized
     )
+    found_gc_set = set(found_gc)
     found_extra = sorted(
         n for n in EXTRA_TURN_SPELLS if n in normalized
     )
@@ -209,8 +358,10 @@ def calculate_bracket(card_names: list[str], commander_name: str = "") -> dict:
     found_combo = sorted(
         n for n in COMBO_ENABLERS if n in normalized
     )
+    # Exclude tutors already counted as Game Changers to avoid double-counting
+    # toward bracket thresholds (they still carry full GC weight for scoring).
     found_tutors = [
-        n for n in STRONG_TUTORS if n in normalized
+        n for n in STRONG_TUTORS if n in normalized and n not in found_gc_set
     ]
 
     gc_count = len(found_gc)

@@ -814,6 +814,7 @@ def _rebalance_nonlands_for_quality(
     strict_mode: bool,
     constraints: Optional[list[dict]] = None,
     excluded_card_names: Optional[list[str]] = None,
+    target_bracket: int = 0,
 ) -> list[dict]:
     if nonland_target <= 0:
         return []
@@ -841,6 +842,18 @@ def _rebalance_nonlands_for_quality(
     active_constraints = [c for c in (constraints or []) if (c.get("min_count") or 0) > 0]
     excluded_set = {n.lower() for n in (excluded_card_names or []) if n}
 
+    # Bracket-aware power card classification — uses oracle-text helpers so functional
+    # equivalents are caught the same way the keyword filter pipeline does (oracle search).
+    if target_bracket >= 3:
+        from services.bracket_engine import (
+            is_game_changer as _is_game_changer,
+            is_combo_enabler as _is_combo_enabler,
+            is_tutor_equivalent as _is_tutor_equiv,
+            is_extra_turn_equivalent as _is_extra_turn_equiv,
+        )
+    else:
+        _is_game_changer = _is_combo_enabler = _is_tutor_equiv = _is_extra_turn_equiv = lambda _: False
+
     def score(card: dict) -> float:
         card_id = card.get("id") or card.get("name")
         value = 0.0
@@ -863,6 +876,16 @@ def _rebalance_nonlands_for_quality(
             if _card_matches_constraint(card, constraint):
                 value += 80.0
 
+        # Bracket power card bonuses — oracle-aware, mirrors the keyword filter pipeline
+        if target_bracket >= 4 and _is_game_changer(card):
+            value += 70.0
+        if target_bracket >= 3 and _is_combo_enabler(card):
+            value += 60.0
+        if target_bracket >= 5 and _is_extra_turn_equiv(card):
+            value += 55.0
+        if target_bracket >= 3 and _is_tutor_equiv(card):
+            value += 50.0
+
         cmc = _card_cmc(card)
         if cmc <= 2:
             value += 8.0
@@ -870,6 +893,9 @@ def _rebalance_nonlands_for_quality(
             value += 4.0
         elif cmc >= 6:
             value -= 5.0
+        # Additional CMC penalty for high-bracket builds — deprioritize expensive non-power cards
+        if target_bracket >= 4 and cmc > 5 and not _is_combo_enabler(card) and not _is_game_changer(card):
+            value -= 15.0
 
         return value
 
@@ -1444,6 +1470,7 @@ def build_deck_with_llm(
         strict_mode,
         constraints=constraints,
         excluded_card_names=excluded_card_names,
+        target_bracket=target_bracket,
     )
     selected_lands = [c for c in selected if is_land(c)]
     selected = rebalanced_nonlands + selected_lands
@@ -1588,6 +1615,25 @@ def generate_deck(
                 progress_callback(
                     f"Forcing {len(must_dicts)} must-include card(s) into deck: "
                     + ", ".join(c["name"] for c in must_dicts)
+                )
+
+    # Bracket VIP injection: for high brackets, auto-include owned power cards as must-includes
+    if target_bracket >= 4:
+        from services.bracket_engine import is_bracket_vip
+        already_must: set[str] = {c["name"].lower() for c in must_dicts}
+        commander_lower = commander["name"].lower()
+        vip_cards: list[dict] = []
+        for card in candidates:
+            key = card["name"].lower()
+            if is_bracket_vip(card, target_bracket) and key not in already_must and key != commander_lower:
+                vip_cards.append(card)
+                already_must.add(key)
+        if vip_cards:
+            must_dicts.extend(vip_cards)
+            if progress_callback:
+                progress_callback(
+                    f"Auto-injected {len(vip_cards)} VIP power card(s) for Bracket {target_bracket}: "
+                    + ", ".join(c["name"] for c in vip_cards)
                 )
 
     if len(candidates) < 20:
