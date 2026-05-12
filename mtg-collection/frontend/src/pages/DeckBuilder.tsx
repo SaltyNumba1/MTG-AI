@@ -144,7 +144,7 @@ export default function DeckBuilder() {
   const [commanders, setCommanders] = useState<Commander[]>([]);
   const [selectedCommander, setSelectedCommander] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [basicLandCount, setBasicLandCount] = useState(25);
+  const [basicLandCount, setBasicLandCount] = useState(15);
   const [nonbasicLandCount, setNonbasicLandCount] = useState(12);
   const [dualLandCount, setDualLandCount] = useState(0);
   const [targetBracket, setTargetBracket] = useState(0);
@@ -859,69 +859,56 @@ export default function DeckBuilder() {
           </small>
         </div>
 
-        <div className="deckbuilder-lands-row">
-          <div>
-            <label className="deckbuilder-label">
-              Number of Basic Lands
-            </label>
+        <div className="deckbuilder-type-counters">
+          <div className="deckbuilder-type-block">
+            <span className="deckbuilder-type-label">Basic Lands</span>
+            <small className="deckbuilder-type-avail">&nbsp;</small>
             <input
               type="number"
               min={0}
               max={100}
               value={basicLandCount}
               onChange={e => setBasicLandCount(Number(e.target.value))}
-              className="deckbuilder-land-input"
+              className="deckbuilder-type-count-input"
             />
           </div>
-          <div>
-            <label className="deckbuilder-label">
-              Number of Nonbasic Lands
-            </label>
+          <div className="deckbuilder-type-block">
+            <span className="deckbuilder-type-label">Nonbasic Lands</span>
+            <small className="deckbuilder-type-avail">{landCounts.nonbasic} owned{!selectedCommander ? " *" : ""}</small>
             <input
               type="number"
               min={0}
               max={100}
               value={nonbasicLandCount}
               onChange={e => setNonbasicLandCount(Number(e.target.value))}
-              className="deckbuilder-land-input"
+              className="deckbuilder-type-count-input"
             />
-            <small className="deckbuilder-land-hint">
-              You own <strong>{landCounts.nonbasic}</strong> compatible nonbasic land{landCounts.nonbasic === 1 ? "" : "s"}
-              {selectedCommander ? "" : " (select a commander to filter by color identity)"}
-            </small>
           </div>
-        </div>
-
-        <div className="deckbuilder-lands-row">
-          <div>
-            <label className="deckbuilder-label">
-              Number of Dual Lands
-            </label>
+          <div className="deckbuilder-type-block">
+            <span className="deckbuilder-type-label">Dual Lands</span>
+            <small className="deckbuilder-type-avail">{landCounts.dual} owned</small>
             <input
               type="number"
               min={0}
               max={100}
               value={dualLandCount}
               onChange={e => setDualLandCount(Number(e.target.value))}
-              className="deckbuilder-land-input"
+              className="deckbuilder-type-count-input"
               title="Multicolor lands matching your commander's color identity (e.g. shock lands, fetch lands)."
             />
-            <small className="deckbuilder-land-hint">
-              You own <strong>{landCounts.dual}</strong> compatible dual land{landCounts.dual === 1 ? "" : "s"}
-            </small>
           </div>
-          <div>
-            <label className="deckbuilder-label">Max Tapped Lands</label>
+          <div className="deckbuilder-type-block">
+            <span className="deckbuilder-type-label">Max Tapped</span>
+            <small className="deckbuilder-type-avail">0 = no limit</small>
             <input
               type="number"
               min={0}
               max={37}
               value={tappedLandMax}
               onChange={(e) => setTappedLandMax(Number(e.target.value))}
-              className="deckbuilder-land-input"
+              className="deckbuilder-type-count-input"
               title="Limit how many lands enter the battlefield tapped. 0 = no limit."
             />
-            <small className="deckbuilder-land-hint">0 = no limit</small>
           </div>
         </div>
 
