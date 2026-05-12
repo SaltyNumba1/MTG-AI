@@ -31,7 +31,7 @@ function getLlamaServerDir() {
 }
 
 const MODEL_SELECT_TEMPLATE = [
-  "# MTG Commander Generator — Model Selection",
+  "# DeepBrew — Model Selection",
   "# Uncomment ONE line below to select which model to load.",
   "# Download models from:",
   "#   7B  (recommended): https://huggingface.co/SaltyNumba1/MTG-Commander-Mistral-7B-Trained",
@@ -535,10 +535,10 @@ async function createSplash() {
     .version{position:absolute;bottom:12px;font-size:.68rem;color:#444}
   </style></head><body>
     ${logoDataUri ? `<img class="logo" src="${logoDataUri}" alt="">` : ""}
-    <h1>MTG Commander Generator</h1>
+    <h1>DeepBrew</h1>
     <div id="status">Starting&hellip;</div>
     <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
-    <div class="version">v1.0.17.2</div>
+    <div class="version">v${app.getVersion()}</div>
   </body></html>`;
   await splashWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   splashWin.show();
