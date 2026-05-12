@@ -85,6 +85,16 @@
   width: 60px;
 }
 
+/* Land counter section — reuses type-counters panel; add a header label */
+.deckbuilder-lands-section-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
 .deckbuilder-generate-btn {
   width: fit-content;
 }
@@ -571,10 +581,15 @@
 .deckbuilder-constraint-field-select {
   font-size: 12px;
   border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #334155;
+  background: #1e293b;
   color: #e2e8f0;
   padding: 4px 6px;
+}
+
+.deckbuilder-constraint-field-select:focus {
+  outline: none;
+  border-color: #7c3aed;
 }
 
 .deckbuilder-constraint-value-input {
@@ -582,10 +597,15 @@
   min-width: 120px;
   font-size: 12px;
   border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #334155;
+  background: #1e293b;
   color: #e2e8f0;
   padding: 4px 8px;
+}
+
+.deckbuilder-constraint-value-input:focus {
+  outline: none;
+  border-color: #7c3aed;
 }
 
 .deckbuilder-constraint-add-btn {
