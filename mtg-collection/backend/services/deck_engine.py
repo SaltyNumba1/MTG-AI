@@ -19,12 +19,8 @@ from services.synergy_engine import resolve_synergies
 
 import logging
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mtg-commander")
-# Increase default timeout to 900s (15 minutes)
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "900"))  # seconds
-OLLAMA_MAX_GENERATION_SEC = float(os.getenv("OLLAMA_MAX_GENERATION_SEC", "900"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "768"))
 LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://127.0.0.1:8081/v1")
-ALLOW_LLM_TIMEOUT_FALLBACK = os.getenv("ALLOW_LLM_TIMEOUT_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
 BASE_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "500"))
 KEYWORD_MODEL_CANDIDATE_CAP = 750
 MODEL_PROGRESS_HEARTBEAT_SEC = float(os.getenv("MODEL_PROGRESS_HEARTBEAT_SEC", "8"))
@@ -1320,7 +1316,7 @@ def build_deck_with_llm(
         progress_callback(f"Asking AI to select {ai_pick_target} non-land cards from {len(model_candidates)} candidates")
 
 
-    client = OpenAI(base_url=LLAMA_SERVER_URL, api_key="not-needed", timeout=OLLAMA_TIMEOUT)
+    client = OpenAI(base_url=LLAMA_SERVER_URL, api_key="not-needed", timeout=None)
     raw = ""
     heartbeat_stop = threading.Event()
 
@@ -1336,12 +1332,9 @@ def build_deck_with_llm(
         heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
         heartbeat_thread.start()
 
-    llm_timed_out = False
-
     try:
         import queue as _queue
         model_options = {"temperature": round(random.uniform(0.70, 0.88), 2), "num_predict": OLLAMA_NUM_PREDICT}
-        timed_out = False
         _chunk_queue: _queue.Queue = _queue.Queue()
         _abort = threading.Event()
 
@@ -1370,17 +1363,9 @@ def build_deck_with_llm(
         _worker = threading.Thread(target=_llm_worker, daemon=True)
         _worker.start()
 
-        # Drain the queue on the main thread with a hard wall-clock deadline.
-        # This fires even if the first token hasn't arrived yet.
-        _deadline = time.monotonic() + (OLLAMA_MAX_GENERATION_SEC if OLLAMA_MAX_GENERATION_SEC > 0 else float("inf"))
         while True:
-            remaining = _deadline - time.monotonic()
-            if remaining <= 0:
-                _abort.set()
-                timed_out = True
-                break
             try:
-                kind, value = _chunk_queue.get(timeout=min(1.0, remaining))
+                kind, value = _chunk_queue.get(timeout=1.0)
             except _queue.Empty:
                 continue
             if kind == "chunk":
@@ -1401,13 +1386,8 @@ def build_deck_with_llm(
             elif kind == "error":
                 raise value
 
-        if timed_out:
-            raise TimeoutError(
-                f"Model generation exceeded {OLLAMA_MAX_GENERATION_SEC:.0f}s before producing a complete response"
-            )
-
         if not raw.strip():
-            raise TimeoutError("Model returned no content")
+            raise ValueError("Model returned no content")
 
         # If the model ended without a parseable result, fail fast with a clear error.
         extract_json(raw)
@@ -1415,18 +1395,7 @@ def build_deck_with_llm(
         logger.error(f"LLM call produced unparsable output: {e}")
         if progress_callback:
             progress_callback(f"LLM output was not parseable: {e}")
-        if ALLOW_LLM_TIMEOUT_FALLBACK:
-            llm_timed_out = True
-        else:
-            raise
-    except TimeoutError as e:
-        logger.error(f"LLM call timed out: {e}")
-        if progress_callback:
-            progress_callback(f"LLM timeout: {e}")
-        if ALLOW_LLM_TIMEOUT_FALLBACK:
-            llm_timed_out = True
-        else:
-            raise
+        raise
     except Exception as e:
         logger.error(f"LLM call failed: {e}")
         if progress_callback:
@@ -1440,22 +1409,13 @@ def build_deck_with_llm(
     if progress_callback:
         progress_callback("Parsing AI response and validating card picks")
 
-    if llm_timed_out:
+    try:
+        result = extract_json(raw)
+    except Exception as e:
+        logger.error(f"Failed to parse LLM output: {e}\nRaw output: {raw[:500]}")
         if progress_callback:
-            progress_callback("Model timed out; using local fallback deck assembly")
-        result = {
-            "description": "LLM timed out; deck assembled from prioritized local candidates.",
-            "card_indices": [],
-            "card_names": [],
-        }
-    else:
-        try:
-            result = extract_json(raw)
-        except Exception as e:
-            logger.error(f"Failed to parse LLM output: {e}\nRaw output: {raw[:500]}")
-            if progress_callback:
-                progress_callback(f"Failed to parse LLM output: {e}")
-            raise
+            progress_callback(f"Failed to parse LLM output: {e}")
+        raise
 
     selected = _build_deck_selection(model_candidates, all_candidates, result)
 

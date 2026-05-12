@@ -47,6 +47,7 @@ class ImportDeckRequest(BaseModel):
 
 class AnalyzeDeckRequest(BaseModel):
     deck_file: str
+    keyword_filters: list[str] = []
 
 @router.post("/import-deck")
 
@@ -224,19 +225,26 @@ async def analyze_deck(req: AnalyzeDeckRequest, db: AsyncSession = Depends(get_d
         for c in cards
     ]
 
+    # Staple cards that should never be flagged as swap-out candidates.
+    ANALYZE_PROTECTED_STAPLES = [
+        "Sol Ring", "Arcane Signet", "Commander's Sphere",
+        "Path of Ancestry", "Command Tower",
+    ]
     # Use the deck_engine to generate suggestions (reuse generate_deck logic, but with a prompt for improvement)
     from services.deck_engine import generate_deck
     def progress_callback(msg):
         pass  # No streaming for now
+    tag_hint = f" Focus on: {', '.join(req.keyword_filters)}." if req.keyword_filters else ""
     suggestions = await asyncio.get_event_loop().run_in_executor(
         None,
         lambda: generate_deck(
-            prompt=f"Analyze and suggest improvements for this deck using my collection. Only suggest cards I own. Deck: {deck_data['name']}",
+            prompt=f"Analyze and suggest improvements for this deck using my collection. Only suggest cards I own. Deck: {deck_data['name']}.{tag_hint}",
             commander_name=deck_data['commander']['name'],
             collection=collection,
-            keyword_filters=[],
+            keyword_filters=req.keyword_filters,
             progress_callback=progress_callback,
             current_deck=deck_data['deck'],
+            excluded_card_names=ANALYZE_PROTECTED_STAPLES,
         ),
     )
     return {"suggestions": suggestions}
@@ -269,6 +277,8 @@ class DeckSaveRequest(BaseModel):
     description: str = ""
     constraints: list[dict] = []
     bracket: dict = {}
+    tags: list[str] = []
+    rating: int = 0
 
 
 BUILD_STATUS_LOCK = Lock()
@@ -550,6 +560,8 @@ async def save_deck(payload: DeckSaveRequest):
         "card_count": 1 + len(payload.deck),
         "constraints": payload.constraints,
         "bracket": payload.bracket,
+        "tags": payload.tags,
+        "rating": payload.rating,
     }
 
     json_path.write_text(json.dumps(payload_data, indent=2), encoding="utf-8")
@@ -580,6 +592,8 @@ async def list_saved_decks():
                     "commander": (data.get("commander") or {}).get("name", ""),
                     "card_count": data.get("card_count", 0),
                     "bracket": (data.get("bracket") or {}).get("bracket", 0),
+                    "tags": data.get("tags", []),
+                    "rating": data.get("rating", 0),
                 }
             )
         except Exception:
@@ -651,6 +665,10 @@ async def update_saved_deck(deck_file: str, body: dict = Body(...)):
     new_deck = body.get("deck", data.get("deck", []))
     data["deck"] = new_deck
     data["card_count"] = 1 + len(new_deck)  # +1 for commander
+    if "tags" in body:
+        data["tags"] = [str(t) for t in (body["tags"] or []) if t]
+    if "rating" in body:
+        data["rating"] = max(0, min(5, int(body["rating"])))
 
     # Also regenerate the .txt sidecar
     txt_target = target.with_suffix(".txt")

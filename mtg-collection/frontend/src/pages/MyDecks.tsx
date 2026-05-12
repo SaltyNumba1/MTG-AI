@@ -4,6 +4,17 @@ import CardPreview from "../components/CardPreview";
 import BracketBadge, { BracketInfo } from "../components/BracketBadge";
 import "./MyDecks.css";
 
+const ARCHETYPE_TAGS = [
+  "Ramp", "Card Draw", "Removal", "Tokens", "Tribal",
+  "Graveyard", "Combo", "Aggro", "Control", "Enchantments",
+  "Artifacts", "Voltron", "Lifegain", "Sacrifice", "Spellslinger",
+  "Blink", "+1/+1 Counters", "Stax", "Infect", "Mill",
+];
+const PROTECTED_FROM_SWAP = new Set([
+  "sol ring", "arcane signet", "commander's sphere",
+  "path of ancestry", "command tower",
+]);
+
 interface SavedDeckSummary {
   file: string;
   name: string;
@@ -11,6 +22,8 @@ interface SavedDeckSummary {
   commander: string;
   card_count: number;
   bracket?: number;
+  tags?: string[];
+  rating?: number;
 }
 
 interface CardEntry {
@@ -31,6 +44,8 @@ interface SavedDeckDetail {
   deck: CardEntry[];
   card_count: number;
   bracket?: BracketInfo;
+  tags?: string[];
+  rating?: number;
 }
 
 interface SwapPair {
@@ -57,24 +72,31 @@ export default function MyDecks() {
   const analyzeDraggingRef = useRef({ active: false, offsetX: 0, offsetY: 0 });
   const [analyzeModalPos, setAnalyzeModalPos] = useState({ x: 60, y: 40 });
   const [sortBy, setSortBy] = useState<"name" | "cmc" | "type" | "price">("type");
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (keywordFilters: string[] = []) => {
     if (!selectedFile) return;
+    setShowPreAnalyze(false);
+    setShowAnalyze(true);
     setAnalyzeLoading(true);
     setAnalyzeResult(null);
     setAnalyzeSuggestions([]);
     setSelectedSwapIndices(new Set());
     try {
-      const { data } = await api.post("/deck/analyze-deck", { deck_file: selectedFile });
+      const { data } = await api.post("/deck/analyze-deck", {
+        deck_file: selectedFile,
+        keyword_filters: keywordFilters,
+      });
       const description = data?.suggestions?.description || "No summary provided.";
       const suggestedDeck: any[] = Array.isArray(data?.suggestions?.deck) ? data.suggestions.deck : [];
       const currentNames = new Set((detail?.deck || []).map((c) => c.name.toLowerCase()));
       const swaps: SwapPair[] = [];
-      const currentCards = (detail?.deck || []).slice();
+      // Exclude protected staples from swap-out candidates
+      const currentCards = (detail?.deck || [])
+        .filter((c) => !PROTECTED_FROM_SWAP.has(c.name.toLowerCase()))
+        .slice();
       let cursor = currentCards.length - 1;
       for (const card of suggestedDeck) {
         if (!card?.name) continue;
         if (currentNames.has(card.name.toLowerCase())) continue;
-        // Pair with the next current-deck card from the end as a "candidate to swap out".
         let outCard: CardEntry | null = null;
         while (cursor >= 0) {
           const c = currentCards[cursor];
@@ -132,6 +154,11 @@ export default function MyDecks() {
   const [deckModified, setDeckModified] = useState(false);
   const [showAddFromCollection, setShowAddFromCollection] = useState(false);
   const [addCollectionSearch, setAddCollectionSearch] = useState("");
+  const [showPreAnalyze, setShowPreAnalyze] = useState(false);
+  const [preAnalyzeTags, setPreAnalyzeTags] = useState<Set<string>>(new Set());
+  const [customTagInput, setCustomTagInput] = useState("");
+  const [deckRating, setDeckRating] = useState(0);
+  const [newTagInput, setNewTagInput] = useState("");
 
   const loadDecks = async () => {
     try {
@@ -176,6 +203,8 @@ export default function MyDecks() {
     setSelectedForRemoval(new Set());
     setDeckModified(false);
   }, [selectedFile]);
+
+  useEffect(() => { setDeckRating(detail?.rating || 0); }, [detail?.rating]);
 
   useEffect(() => {
     if (!selectAllRef.current || analyzeSuggestions.length === 0) return;
@@ -254,7 +283,7 @@ export default function MyDecks() {
     setSaving(true);
     setMessage(null);
     try {
-      await api.put(`/deck/saved/${selectedFile}`, { deck: detail.deck });
+      await api.put(`/deck/saved/${selectedFile}`, { deck: detail.deck, tags: detail.tags || [] });
       setDeckModified(false);
       setMessage({ type: "success", text: "Deck changes saved." });
     } catch (err: any) {
@@ -262,6 +291,30 @@ export default function MyDecks() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleStarRating = async (star: number) => {
+    if (!selectedFile) return;
+    const newRating = deckRating === star ? 0 : star;
+    setDeckRating(newRating);
+    try {
+      await api.put(`/deck/saved/${selectedFile}`, { deck: detail?.deck || [], rating: newRating });
+    } catch {}
+  };
+
+  const handleAddTag = () => {
+    const tag = newTagInput.trim();
+    if (!tag || !detail) return;
+    if ((detail.tags || []).includes(tag)) { setNewTagInput(""); return; }
+    setDetail((prev) => prev ? { ...prev, tags: [...(prev.tags || []), tag] } : prev);
+    setDeckModified(true);
+    setNewTagInput("");
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    if (!detail) return;
+    setDetail((prev) => prev ? { ...prev, tags: (prev.tags || []).filter((t) => t !== tag) } : prev);
+    setDeckModified(true);
   };
 
   const handleAddCardFromCollection = async (cardName: string) => {
@@ -305,7 +358,7 @@ export default function MyDecks() {
             <button className="btn-secondary" onClick={exportDecklist}>
               Export Decklist (.txt)
             </button>
-            <button className="btn-primary" onClick={() => { setShowAnalyze(true); handleAnalyze(); }} disabled={analyzeLoading}>
+            <button className="btn-primary" onClick={() => { setPreAnalyzeTags(new Set(detail?.tags || [])); setShowPreAnalyze(true); }} disabled={analyzeLoading || !selectedFile}>
               {analyzeLoading ? "Analyzing..." : "Analyze & Suggest Improvements"}
             </button>
             <button
@@ -366,6 +419,17 @@ export default function MyDecks() {
         <div>
           <div className="my-decks-meta">
             <h2>{detail.name}</h2>
+            <div className="deck-star-rating">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <span
+                  key={star}
+                  className={`deck-star${deckRating >= star ? " deck-star--filled" : ""}`}
+                  onClick={() => handleStarRating(star)}
+                  title={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                >★</span>
+              ))}
+              <span className="deck-star-label">{deckRating > 0 ? `${deckRating}/5` : "Unrated"}</span>
+            </div>
             <BracketBadge info={detail.bracket} showDetails />
             <small>
               Saved: {detail.saved_at || "Unknown"} | Cards: {detail.card_count}
@@ -375,6 +439,26 @@ export default function MyDecks() {
                 return total > 0 ? <> | <strong className="my-decks-deck-price">Deck Price: ${total.toFixed(2)}</strong></> : null;
               })()}
             </small>
+            <div className="deck-tag-chips">
+              {(detail.tags || []).map((tag) => (
+                <span key={tag} className="deck-tag-chip">
+                  {tag}
+                  {editMode && (
+                    <button className="deck-tag-chip-remove" onClick={() => handleRemoveTag(tag)}>×</button>
+                  )}
+                </span>
+              ))}
+              {editMode && (
+                <input
+                  type="text"
+                  placeholder="Add tag…"
+                  value={newTagInput}
+                  onChange={(e) => setNewTagInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }}
+                  className="deck-tag-add-input"
+                />
+              )}
+            </div>
             <h1 style={{ margin: "0.5em 0", color: '#7c3aed' }}>Commander</h1>
               </div>
           <div className="my-decks-commander-card">
@@ -531,6 +615,73 @@ export default function MyDecks() {
                 </div>
                 <div className="my-decks-modal-footer">
                   <button className="btn-secondary" onClick={() => setShowAddFromCollection(false)}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pre-analyze tag picker modal */}
+          {showPreAnalyze && (
+            <div className="my-decks-modal-overlay" onClick={() => setShowPreAnalyze(false)}>
+              <div className="my-decks-modal preanalyze-modal" onClick={(e) => e.stopPropagation()}>
+                <h2>Analysis Focus <span className="preanalyze-modal-sub">(optional)</span></h2>
+                <p className="preanalyze-modal-hint">Select tags to focus the AI's suggestions. Leave all unselected to analyze the full deck without a theme filter.</p>
+                <div className="preanalyze-tag-grid">
+                  {ARCHETYPE_TAGS.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={`preanalyze-tag-chip${preAnalyzeTags.has(tag) ? " preanalyze-tag-chip--active" : ""}`}
+                      onClick={() => setPreAnalyzeTags((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(tag)) next.delete(tag); else next.add(tag);
+                        return next;
+                      })}
+                    >{tag}</button>
+                  ))}
+                </div>
+                <div className="preanalyze-custom-row">
+                  <input
+                    type="text"
+                    placeholder="Custom tag…"
+                    value={customTagInput}
+                    onChange={(e) => setCustomTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && customTagInput.trim()) {
+                        e.preventDefault();
+                        setPreAnalyzeTags((prev) => new Set([...prev, customTagInput.trim()]));
+                        setCustomTagInput("");
+                      }
+                    }}
+                    className="my-decks-select"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={!customTagInput.trim()}
+                    onClick={() => { setPreAnalyzeTags((prev) => new Set([...prev, customTagInput.trim()])); setCustomTagInput(""); }}
+                  >Add</button>
+                </div>
+                {preAnalyzeTags.size > 0 && (
+                  <div className="preanalyze-selected-tags">
+                    <span className="preanalyze-selected-label">Selected:</span>
+                    {Array.from(preAnalyzeTags).map((tag) => (
+                      <span key={tag} className="deck-tag-chip">
+                        {tag}
+                        <button className="deck-tag-chip-remove" onClick={() => setPreAnalyzeTags((prev) => { const n = new Set(prev); n.delete(tag); return n; })}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="my-decks-modal-footer">
+                  <button className="btn-secondary" onClick={() => setShowPreAnalyze(false)}>Cancel</button>
+                  <button className="btn-secondary" onClick={() => handleAnalyze([])}>Analyze without tags</button>
+                  <button className="btn-primary" onClick={() => handleAnalyze(Array.from(preAnalyzeTags))}>
+                    {preAnalyzeTags.size > 0
+                      ? `Analyze with ${preAnalyzeTags.size} tag${preAnalyzeTags.size > 1 ? "s" : ""}`
+                      : "Start Analysis"}
+                  </button>
                 </div>
               </div>
             </div>

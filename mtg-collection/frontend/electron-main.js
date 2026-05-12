@@ -339,8 +339,6 @@ function startBackend() {
   const backendEnv = Object.assign({}, process.env, {
     DATABASE_URL: `sqlite+aiosqlite:///${path.join(userDataDir, "mtg_collection.db").replace(/\\/g, "/")}`,
     SAVED_DECKS_DIR: path.join(userDataDir, "saved_decks"),
-    OLLAMA_MAX_GENERATION_SEC: "900",   // 15 min wall-clock cap for LLM generation
-    OLLAMA_TIMEOUT: "960",              // 16 min HTTP timeout (must be >= above)
     LLAMA_SERVER_URL: `http://127.0.0.1:${LLAMA_PORT}/v1`,
   });
   logStartup(`DATABASE_URL → ${backendEnv.DATABASE_URL}`);

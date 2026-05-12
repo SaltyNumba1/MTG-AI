@@ -1,6 +1,6 @@
 {
   "name": "mtg-collection-frontend",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "DeepBrew — Local GPU-accelerated MTG Commander deck builder",
   "author": "",
   "main": "electron-main.js",
@@ -12,7 +12,7 @@
     "desktop:dev": "concurrently \"cd ..\\backend && .venv\\Scripts\\python.exe -m uvicorn main:app --reload\" \"npm:dev\" \"wait-on http://localhost:5173 && electron .\"",
     "build:frontend": "tsc && vite build",
     "desktop:build": "cd ..\\backend && call .\\package_standalone.bat && cd ..\\frontend && npm run build:frontend && npx electron-builder --win --config",
-    "desktop:package": "npm run build && electron-packager . \"DeepBrew\" --platform=win32 --arch=x64 --icon=build/icon.ico --out C:\\Temp\\MTGPkg --overwrite --prune=true --ignore=release --ignore=llama-server --ignore=training --ignore=\\.spec$ && mkdir \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\backend\\dist\" 2>nul && copy \"..\\backend\\dist\\mtg-collection.exe\" \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\backend\\dist\\\" && xcopy /E /I /Y \"llama-server\" \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\llama-server\" && if exist \"release\\DeepBrew-win32-x64\" rmdir /S /Q \"release\\DeepBrew-win32-x64\" && robocopy \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\" \"release\\DeepBrew-win32-x64\" /E /IS /IT /NFL /NDL /NJH /NJS & exit /b 0",
+    "desktop:package": "npm run build && electron-packager . \"DeepBrew\" --platform=win32 --arch=x64 --icon=build/icon.ico --out C:\\Temp\\MTGPkg --overwrite --prune=true --ignore=release --ignore=llama-server --ignore=training --ignore=\\.spec$ && mkdir \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\backend\\dist\" 2>nul && copy \"..\\backend\\dist\\mtg-collection.exe\" \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\backend\\dist\\\" && xcopy /E /I /Y \"llama-server\" \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\llama-server\" && if exist \"%CD%\\release\\DeepBrew-win32-x64\" rmdir /S /Q \"%CD%\\release\\DeepBrew-win32-x64\" && robocopy \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\" \"%CD%\\release\\DeepBrew-win32-x64\" /E /IS /IT /NFL /NDL /NJH /NJS & exit /b 0",
     "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
