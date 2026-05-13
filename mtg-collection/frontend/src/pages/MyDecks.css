@@ -48,6 +48,99 @@
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 
+/* ── Deck Stats Panel ─────────────────────────────────────── */
+.my-decks-stats-row {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 8px;
+  flex-wrap: wrap;
+}
+
+.my-decks-stats-card {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(124, 58, 237, 0.18);
+  border-radius: 8px;
+  padding: 10px 14px;
+  min-width: 130px;
+  flex: 1;
+}
+
+.my-decks-stats-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #a78bfa;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 7px;
+}
+
+.my-decks-stats-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+.my-decks-stats-label {
+  width: 22px;
+  font-size: 0.7rem;
+  text-align: right;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.my-decks-stats-bar-bg {
+  flex: 1;
+  height: 7px;
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.my-decks-curve-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: #7c3aed;
+  min-width: 2px;
+}
+
+.my-decks-color-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: #10b981;
+  min-width: 2px;
+}
+
+.my-decks-stats-count {
+  width: 18px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: right;
+  color: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.my-decks-basics-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 0.78rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+.my-decks-basics-row:last-child { border-bottom: none; }
+
+/* ── Swap-select hint bar ─────────────────────────────────── */
+.swap-hint-bar {
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px dashed rgba(124, 58, 237, 0.3);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin: 6px 0;
+}
+
 .my-decks-toolbar {
   display: flex;
   gap: 10px;

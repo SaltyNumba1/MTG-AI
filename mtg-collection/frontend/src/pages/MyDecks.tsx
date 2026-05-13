@@ -18,6 +18,10 @@ const PROTECTED_FROM_SWAP = new Set([
 
 const CARD_TYPE_FILTERS = ["Creature", "Instant", "Sorcery", "Enchantment", "Artifact", "Planeswalker"];
 
+const COLOR_SYMBOLS: Record<string, string> = {
+  W: "☀️", U: "💧", B: "💀", R: "🔥", G: "🌲",
+};
+
 interface SavedDeckSummary {
   file: string;
   name: string;
@@ -34,6 +38,7 @@ interface CardEntry {
   name: string;
   type_line?: string;
   cmc?: number;
+  color_identity?: string[];
   image_uri?: string;
   tcgplayer_price?: string | null;
 }
@@ -65,6 +70,25 @@ interface CollectionCard {
   quantity: number;
 }
 
+// ── Deck stat helpers ────────────────────────────────────────
+function deckManaCurve(cards: CardEntry[]) {
+  const b: Record<string, number> = {"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7+":0};
+  for (const card of cards) {
+    if ((card.type_line || "").toLowerCase().includes("land")) continue;
+    const cmc = Number(card.cmc || 0);
+    if (cmc >= 7) b["7+"]++; else b[String(Math.max(0, Math.floor(cmc)))]++;
+  }
+  return b;
+}
+
+function deckColorDist(cards: CardEntry[]) {
+  const d: Record<string, number> = {W:0,U:0,B:0,R:0,G:0};
+  for (const card of cards)
+    for (const c of (card.color_identity || []))
+      if (d[c] !== undefined) d[c]++;
+  return d;
+}
+
 export default function MyDecks() {
   const [showAnalyze, setShowAnalyze] = useState(false);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
@@ -85,6 +109,11 @@ export default function MyDecks() {
     setAnalyzeResult(null);
     setAnalyzeSuggestions([]);
     setSelectedSwapIndices(new Set());
+    // Clear swap-select mode immediately so the toolbar button reflects the new state
+    if (swapOutNames.length > 0) {
+      setSwapSelectMode(false);
+      setSelectedForSwap(new Set());
+    }
     try {
       const { data } = await api.post("/deck/analyze-deck", {
         deck_file: selectedFile,
@@ -136,10 +165,6 @@ export default function MyDecks() {
       setAnalyzeResult(err.response?.data?.detail || "Analysis failed");
     } finally {
       setAnalyzeLoading(false);
-      if (swapOutNames.length > 0) {
-        setSwapSelectMode(false);
-        setSelectedForSwap(new Set());
-      }
     }
   };
   const applySelectedSwaps = async () => {
@@ -192,6 +217,17 @@ export default function MyDecks() {
   const [renamingDeck, setRenamingDeck] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const showPrices = settings.showPrices;
+  const deckCurve = detail ? deckManaCurve(detail.deck) : null;
+  const deckColors = detail ? deckColorDist(detail.deck) : null;
+  const deckCurveMax = deckCurve ? Math.max(...Object.values(deckCurve), 1) : 1;
+  const deckColorMax = deckColors ? Math.max(...Object.values(deckColors), 1) : 1;
+  const deckLandCount = detail ? detail.deck.filter(
+    c => (c.type_line || "").toLowerCase().includes("land")
+  ).length : 0;
+  const deckBasicCount = detail ? detail.deck.filter(c => {
+    const t = (c.type_line || "").toLowerCase();
+    return t.includes("basic") && t.includes("land");
+  }).length : 0;
 
   const loadDecks = async () => {
     try {
@@ -566,7 +602,47 @@ export default function MyDecks() {
               tcgplayerPrice={showPrices ? detail.commander.tcgplayer_price : null}
             />
         </div>
-        <div className="my-decks-card-toolbar">
+{/* ── Deck stats: mana curve · color distribution · lands ── */}
+          {deckCurve && deckColors && (
+            <div className="my-decks-stats-row">
+              <div className="my-decks-stats-card">
+                <h4 className="my-decks-stats-heading">Mana Curve</h4>
+                {Object.entries(deckCurve).map(([bucket, count]) => (
+                  <div key={bucket} className="my-decks-stats-item">
+                    <span className="my-decks-stats-label">{bucket}</span>
+                    <div className="my-decks-stats-bar-bg">
+                      <div className="my-decks-curve-bar"
+                        style={{ width: `${deckCurveMax > 0 ? Math.round((count / deckCurveMax) * 100) : 0}%` }} />
+                    </div>
+                    <span className="my-decks-stats-count">{count}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="my-decks-stats-card">
+                <h4 className="my-decks-stats-heading">Colors</h4>
+                {Object.entries(deckColors).filter(([, v]) => v > 0).length === 0
+                  ? <span className="my-decks-stats-label">Colorless</span>
+                  : Object.entries(deckColors).filter(([, v]) => v > 0).map(([color, count]) => (
+                    <div key={color} className="my-decks-stats-item">
+                      <span className="my-decks-stats-label">{COLOR_SYMBOLS[color] || color}</span>
+                      <div className="my-decks-stats-bar-bg">
+                        <div className="my-decks-color-bar"
+                          style={{ width: `${deckColorMax > 0 ? Math.round((count / deckColorMax) * 100) : 0}%` }} />
+                      </div>
+                      <span className="my-decks-stats-count">{count}</span>
+                    </div>
+                  ))
+                }
+              </div>
+              <div className="my-decks-stats-card">
+                <h4 className="my-decks-stats-heading">Lands ({deckLandCount})</h4>
+                <div className="my-decks-basics-row"><span>Basic</span><strong>{deckBasicCount}</strong></div>
+                <div className="my-decks-basics-row"><span>Nonbasic</span><strong>{deckLandCount - deckBasicCount}</strong></div>
+              </div>
+            </div>
+          )}
+
+          <div className="my-decks-card-toolbar">
             <label className="my-decks-card-sort-label">Sort cards in this deck:</label>
             <select
               aria-label="Sort cards in deck"
@@ -697,6 +773,11 @@ export default function MyDecks() {
           )}
 
           {/* Swap-select sticky bar */}
+          {swapSelectMode && selectedForSwap.size === 0 && (
+            <div className="swap-hint-bar">
+              ☑ Click cards above to select them for substitution, then click <strong>Find Substitutes</strong>.
+            </div>
+          )}
           {swapSelectMode && selectedForSwap.size > 0 && (
             <div className="swap-select-bar">
               <span>{selectedForSwap.size} card{selectedForSwap.size > 1 ? "s" : ""} selected for substitution</span>
