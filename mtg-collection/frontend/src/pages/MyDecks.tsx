@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
 import BracketBadge, { BracketInfo } from "../components/BracketBadge";
+import { useSettings } from "../hooks/useSettings";
 import "./MyDecks.css";
 
 const ARCHETYPE_TAGS = [
@@ -74,7 +75,8 @@ export default function MyDecks() {
   const analyzeModalRef = useRef<HTMLDivElement | null>(null);
   const analyzeDraggingRef = useRef({ active: false, offsetX: 0, offsetY: 0 });
   const [analyzeModalPos, setAnalyzeModalPos] = useState({ x: 60, y: 40 });
-  const [sortBy, setSortBy] = useState<"name" | "cmc" | "type" | "price">("type");
+  const settings = useSettings();
+  const [sortBy, setSortBy] = useState<"name" | "cmc" | "type" | "price">(settings.defaultSort);
   const handleAnalyze = async (keywordFilters: string[] = [], swapOutNames: string[] = []) => {
     if (!selectedFile) return;
     setShowPreAnalyze(false);
@@ -88,8 +90,8 @@ export default function MyDecks() {
         deck_file: selectedFile,
         keyword_filters: keywordFilters,
         swap_out_names: swapOutNames,
-        max_compact_candidates: parseInt(localStorage.getItem("deepbrew_max_compact_candidates") || "200"),
-        num_predict: parseInt(localStorage.getItem("deepbrew_num_predict") || "2048"),
+        max_compact_candidates: settings.maxCompactCandidates,
+        num_predict: settings.numPredict,
       });
       const description = data?.suggestions?.description || "No summary provided.";
       const suggestedDeck: any[] = Array.isArray(data?.suggestions?.deck) ? data.suggestions.deck : [];
@@ -187,6 +189,9 @@ export default function MyDecks() {
   const [selectedForSwap, setSelectedForSwap] = useState<Set<string>>(new Set());
   const [preAnalyzeTypes, setPreAnalyzeTypes] = useState<Set<string>>(new Set());
   const [sideboardAddMode, setSideboardAddMode] = useState(false);
+  const [renamingDeck, setRenamingDeck] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const showPrices = settings.showPrices;
 
   const loadDecks = async () => {
     try {
@@ -318,6 +323,21 @@ export default function MyDecks() {
       setMessage({ type: "error", text: err.response?.data?.detail || "Failed to save changes" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRename = async () => {
+    const trimmed = renameValue.trim();
+    if (!trimmed || !selectedFile) { setRenamingDeck(false); return; }
+    try {
+      await api.patch(`/deck/saved/${selectedFile}`, { name: trimmed });
+      setDetail((prev) => prev ? { ...prev, name: trimmed } : prev);
+      setDecks((prev) => prev.map((d) => d.file === selectedFile ? { ...d, name: trimmed } : d));
+      setMessage({ type: "success", text: `Deck renamed to "${trimmed}".` });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.response?.data?.detail || "Failed to rename deck" });
+    } finally {
+      setRenamingDeck(false);
     }
   };
 
@@ -466,7 +486,36 @@ export default function MyDecks() {
       ) : (
         <div>
           <div className="my-decks-meta">
-            <h2>{detail.name}</h2>
+            {renamingDeck ? (
+              <div className="deck-rename-row">
+                <input
+                  type="text"
+                  className="deck-rename-input"
+                  value={renameValue}
+                  autoFocus
+                  maxLength={80}
+                  title="New deck name"
+                  placeholder="Deck name"
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRename();
+                    if (e.key === "Escape") setRenamingDeck(false);
+                  }}
+                />
+                <button type="button" className="btn-primary" onClick={handleRename}>Save</button>
+                <button type="button" className="btn-secondary" onClick={() => setRenamingDeck(false)}>Cancel</button>
+              </div>
+            ) : (
+              <div className="deck-rename-row">
+                <h2>{detail.name}</h2>
+                <button
+                  type="button"
+                  className="deck-rename-btn"
+                  title="Rename deck"
+                  onClick={() => { setRenameValue(detail.name); setRenamingDeck(true); }}
+                >✎</button>
+              </div>
+            )}
             <div className="deck-star-rating">
               {[1, 2, 3, 4, 5].map((star) => (
                 <span
@@ -514,7 +563,7 @@ export default function MyDecks() {
               name={detail.commander.name}
               imageUri={detail.commander.image_uri}
               subtitle="Commander"
-              tcgplayerPrice={detail.commander.tcgplayer_price}
+              tcgplayerPrice={showPrices ? detail.commander.tcgplayer_price : null}
             />
         </div>
         <div className="my-decks-card-toolbar">
@@ -579,7 +628,7 @@ export default function MyDecks() {
                       name={card.name}
                       imageUri={card.image_uri}
                       subtitle={card.type_line || "Deck Card"}
-                      tcgplayerPrice={card.tcgplayer_price}
+                      tcgplayerPrice={showPrices ? card.tcgplayer_price : null}
                       quantity={quantity > 1 ? quantity : undefined}
                     />
                   </div>
@@ -601,7 +650,7 @@ export default function MyDecks() {
                       name={card.name}
                       imageUri={card.image_uri}
                       subtitle={card.type_line || "Deck Card"}
-                      tcgplayerPrice={card.tcgplayer_price}
+                      tcgplayerPrice={showPrices ? card.tcgplayer_price : null}
                       quantity={quantity > 1 ? quantity : undefined}
                     />
                   </div>
@@ -611,7 +660,7 @@ export default function MyDecks() {
                     name={card.name}
                     imageUri={card.image_uri}
                     subtitle={card.type_line || "Deck Card"}
-                    tcgplayerPrice={card.tcgplayer_price}
+                    tcgplayerPrice={showPrices ? card.tcgplayer_price : null}
                     quantity={quantity > 1 ? quantity : undefined}
                   />
                 )
@@ -828,7 +877,7 @@ export default function MyDecks() {
                       name={card.name}
                       imageUri={card.image_uri}
                       subtitle={card.type_line || "Sideboard"}
-                      tcgplayerPrice={card.tcgplayer_price}
+                      tcgplayerPrice={showPrices ? card.tcgplayer_price : null}
                     />
                     {editMode && (
                       <button

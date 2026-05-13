@@ -1,5 +1,53 @@
 .my-decks-deck-price { color: #86efac; }
 
+/* ── Rename deck ────────────────────────────────────────────── */
+.deck-rename-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.deck-rename-row h2 {
+  margin: 0;
+}
+
+.deck-rename-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: #64748b;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+
+.deck-rename-btn:hover {
+  color: #c4b5fd;
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
+.deck-rename-input {
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
+  min-width: 240px;
+  max-width: 420px;
+}
+
+.deck-rename-input:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+
 .my-decks-toolbar {
   display: flex;
   gap: 10px;

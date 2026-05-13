@@ -703,6 +703,32 @@ async def update_saved_deck(deck_file: str, body: dict = Body(...)):
     return {"message": "Deck updated", "file": deck_file, "card_count": data["card_count"]}
 
 
+class RenameDeckRequest(BaseModel):
+    name: str
+
+
+@router.patch("/saved/{deck_file}")
+async def rename_saved_deck(deck_file: str, body: RenameDeckRequest):
+    """Update the display name of a saved deck without renaming the file."""
+    if "/" in deck_file or "\\" in deck_file:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    deck_dir = _saved_decks_dir().resolve()
+    target = (deck_dir / deck_file).resolve()
+    if not str(target).startswith(str(deck_dir)):
+        raise HTTPException(status_code=400, detail="Invalid deck file")
+    if not target.exists() or target.suffix.lower() != ".json":
+        raise HTTPException(status_code=404, detail="Saved deck not found")
+
+    new_name = body.name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data["name"] = new_name[:80]
+    target.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return {"file": deck_file, "name": data["name"]}
+
+
 @router.get("/card-lookup")
 async def card_lookup(name: str, db: AsyncSession = Depends(get_db)):
     """Look up a card by name: DB first, then Scryfall fallback."""

@@ -3,6 +3,7 @@ import MTG_KEYWORDS from "../mtg_keywords";
 import api from "../api";
 import CardPreview from "../components/CardPreview";
 import BracketBadge, { BracketInfo } from "../components/BracketBadge";
+import { useSettings } from "../hooks/useSettings";
 import "./DeckBuilder.css";
 
 interface Commander {
@@ -141,13 +142,14 @@ function suggestBasics(dist: Record<string, number>, totalLands = 37) {
 }
 
 export default function DeckBuilder() {
+  const settings = useSettings();
   const [commanders, setCommanders] = useState<Commander[]>([]);
   const [selectedCommander, setSelectedCommander] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [basicLandCount, setBasicLandCount] = useState(15);
-  const [nonbasicLandCount, setNonbasicLandCount] = useState(12);
-  const [dualLandCount, setDualLandCount] = useState(0);
-  const [targetBracket, setTargetBracket] = useState(0);
+  const [basicLandCount, setBasicLandCount] = useState(settings.defaultBasicLand);
+  const [nonbasicLandCount, setNonbasicLandCount] = useState(settings.defaultNonbasicLand);
+  const [dualLandCount, setDualLandCount] = useState(settings.defaultDualLand);
+  const [targetBracket, setTargetBracket] = useState(settings.defaultBracket);
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<DeckResult | null>(null);
@@ -177,7 +179,7 @@ export default function DeckBuilder() {
   const [previewCard, setPreviewCard] = useState<CardEntry | null>(null);
 
   // Tapped land cap + type-specific min/max constraints
-  const [tappedLandMax, setTappedLandMax] = useState(0);
+  const [tappedLandMax, setTappedLandMax] = useState(settings.defaultTappedLandMax);
   const [artifactMin, setArtifactMin] = useState(0);
   const [artifactMax, setArtifactMax] = useState(0);
   const [sorceryMin, setSorceryMin] = useState(0);
@@ -426,8 +428,8 @@ export default function DeckBuilder() {
         excluded_card_names: isReroll ? (overrideExcluded ?? excludedCardNames) : [],
         tapped_land_max: tappedLandMax,
         target_bracket: targetBracket,
-        max_compact_candidates: parseInt(localStorage.getItem("deepbrew_max_compact_candidates") || "200"),
-        num_predict: parseInt(localStorage.getItem("deepbrew_num_predict") || "2048"),
+        max_compact_candidates: settings.maxCompactCandidates,
+        num_predict: settings.numPredict,
       });
       setResult(data);
       setDeckModified(false);
@@ -1048,7 +1050,7 @@ export default function DeckBuilder() {
             name={selectedCommanderObj.name}
             imageUri={selectedCommanderObj.image_uri}
             subtitle={`Commander ${(selectedCommanderObj.color_identity || []).map((x) => COLOR_SYMBOLS[x] || x).join("")}`}
-            tcgplayerPrice={selectedCommanderObj.tcgplayer_price}
+            tcgplayerPrice={settings.showPrices ? selectedCommanderObj.tcgplayer_price : null}
           />
         ) : (
           <div className="deckbuilder-commander-placeholder">
@@ -1085,7 +1087,7 @@ export default function DeckBuilder() {
                 name={result.commander.name}
                 imageUri={result.commander.image_uri}
                 subtitle="Commander"
-                tcgplayerPrice={result.commander.tcgplayer_price}
+                tcgplayerPrice={settings.showPrices ? result.commander.tcgplayer_price : null}
               />
             </div>
             <div>
@@ -1278,7 +1280,7 @@ export default function DeckBuilder() {
                           }
                           <div className="deckbuilder-result-tile-info">
                             <span className="deckbuilder-result-tile-name">{card.name}</span>
-                            <span className="deckbuilder-result-tile-meta">CMC {card.cmc}{card.tcgplayer_price ? ` · $${Number(card.tcgplayer_price).toFixed(2)}` : ""}</span>
+                            <span className="deckbuilder-result-tile-meta">CMC {card.cmc}{settings.showPrices && card.tcgplayer_price ? ` · $${Number(card.tcgplayer_price).toFixed(2)}` : ""}</span>
                           </div>
                         </div>
                         {count > 1 && <span className="deckbuilder-card-count-badge">({count})</span>}
@@ -1380,7 +1382,7 @@ export default function DeckBuilder() {
               <span className="deckbuilder-card-modal-name">{previewCard.name}</span>
               <span className="deckbuilder-card-modal-meta">
                 CMC {previewCard.cmc}
-                {previewCard.tcgplayer_price ? ` · TCG $${Number(previewCard.tcgplayer_price).toFixed(2)}` : ""}
+                {settings.showPrices && previewCard.tcgplayer_price ? ` · TCG $${Number(previewCard.tcgplayer_price).toFixed(2)}` : ""}
               </span>
             </div>
           </div>
