@@ -102,6 +102,26 @@ Defaults:
 
 ---
 
+## v1.3.1 — My Decks Stats Panel & Swap-Select UX
+
+### ⚡ What's New
+
+- **Mana Curve, Color Distribution & Lands panel** — appears above the sort selector whenever a deck is open in My Decks. The mana curve shows non-land cards bucketed 0–7+; the color bar chart shows color distribution by color identity; the lands card shows basic vs nonbasic counts. Same visual style as the Deck Builder result.
+- **Swap-select mode fixes** — the "🔄 Selecting…" button now reverts instantly when you click **Find Substitutes** rather than staying active for the full 30-second AI call.
+- **Hint bar** — when swap-select mode is active with no cards selected, a dashed hint prompts you to click cards before clicking Find Substitutes.
+
+---
+
+## v1.3.0 — Global Settings Hook & Rename Decks
+
+### ⚡ What's New
+
+- **Global `useSettings` hook** — all pages share a single source of truth for user preferences stored in `localStorage`. Previously each page read settings independently.
+- **Expanded Settings page** — new sections for Deck Building Defaults (land counts, bracket, strict mode, tapped land cap) and Display (price visibility, default sort order). The GPU Performance section remains. All changes take effect immediately.
+- **Rename saved decks** — click the pencil icon on any deck card in My Decks to rename it. The JSON file on disk is updated via `PATCH /deck/saved/{deck_file}` with path traversal protection.
+
+---
+
 ## v1.0.17.4 — Commander Bracket Ratings, Collection Color Counter & UX Polish
 
 ### ⚡ What's New

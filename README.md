@@ -10,11 +10,23 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - ➕ **Add single cards** – Add individual cards by name (with quantity) directly from the Collection page; metadata is fetched from Scryfall automatically.
 - 🤖 **AI deck builder** – Pick a commander, write a strategy prompt, and generate a 100-card Commander deck driven by a local LLM. Keyword filters help guide AI synergy.
 - 📌 **Must-Include Cards** – Force the AI to include specific cards (even ones you don't own) by listing them in the "Must Include Cards" textbox on the Build Deck page. Cards are fetched from Scryfall and counted against the appropriate land/non-land budget.
-- 💾 **Saved decks** – Save generated decks to "My Decks", view stats (mana curve, color distribution, suggested basics), export decklists as TXT (Moxfield-friendly with commander marker), and run AI suggestions on existing decks.
+- 💾 **Saved decks** — Save generated decks to "My Decks", view stats (mana curve, color distribution, lands breakdown), export decklists as TXT (Moxfield-friendly with commander marker), run AI suggestions, rename decks in-place, and swap out individual cards with AI-suggested substitutes.
 - 🔨 **Manual decks** – Build decks by selecting cards from your collection and saving them directly to My Decks.
 - 📄 **Import deck from text (.txt)** – Paste or load a Moxfield/Archidekt/manual decklist on the Collection page to save it as a deck. Any cards not already in your collection are automatically fetched from Scryfall and added.
 - 📡 **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
 - 🔒 **Local LLM (no cloud)** – Deck generation runs fully offline via a bundled `llama-server` (llama.cpp Vulkan). No data leaves your machine.
+
+## What's New (v1.3.1)
+
+- 📊 **My Decks stats panel** — a Mana Curve bar chart, Color Distribution bar chart, and Lands breakdown (basic vs nonbasic count) now appear above the sort selector whenever you open a saved deck in My Decks. Same visual style as the Deck Builder result view.
+- 🔄 **Swap-select UX fix** — the "🔄 Selecting…" toolbar button now immediately reverts to normal the moment you click **Find Substitutes**, rather than staying in selecting-mode for the full 30-second AI analysis call.
+- 💡 **Swap-select hint bar** — when swap-select mode is active but no cards have been checked yet, a dashed hint bar guides you to click cards first before clicking Find Substitutes.
+
+## What's New (v1.3.0)
+
+- ⚙️ **Global settings hook (`useSettings`)** — all pages now read from a single source of truth for GPU/deck/display preferences instead of scattered `localStorage.getItem` calls. Settings changes propagate instantly across the entire app.
+- 🎛️ **Expanded Settings page** — three sections: GPU Performance (oracle text threshold, max tokens), Deck Building Defaults (basic/nonbasic/dual land counts, target bracket, strict mode, max tapped lands), and Display (show prices, default sort). Previously only GPU settings were configurable.
+- ✏️ **Rename saved decks** — pencil icon on each deck card in My Decks lets you rename a deck in place. The file is renamed on disk via `PATCH /deck/saved/{deck_file}`.
 
 ## What's New (v1.0.18)
 
