@@ -4,6 +4,7 @@ import Collection from "./pages/Collection";
 import DeckBuilder from "./pages/DeckBuilder";
 import MyDecks from "./pages/MyDecks";
 import Help from "./pages/Help";
+import Settings from "./pages/Settings";
 import BuildStatusFloater from "./components/BuildStatusFloater";
 import ModelStatus from "./components/ModelStatus";
 import FirstLaunchModal from "./components/FirstLaunchModal";
@@ -87,6 +88,7 @@ export default function App() {
         <NavLink to="/deck">Build Deck</NavLink>
         <NavLink to="/my-decks">My Decks</NavLink>
         <NavLink to="/help">Help</NavLink>
+        <NavLink to="/settings">Settings</NavLink>
         <ModelStatus />
       </nav>
       <Routes>
@@ -95,6 +97,7 @@ export default function App() {
         <Route path="/deck" element={<DeckBuilder />} />
         <Route path="/my-decks" element={<MyDecks />} />
         <Route path="/help" element={<Help />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
       <BuildStatusFloater />
       <FirstLaunchModal />

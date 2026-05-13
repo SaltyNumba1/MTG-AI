@@ -19,7 +19,7 @@ from services.synergy_engine import resolve_synergies
 
 import logging
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mtg-commander")
-OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "768"))
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "2048"))
 LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://127.0.0.1:8081/v1")
 BASE_MODEL_CANDIDATES = int(os.getenv("MAX_MODEL_CANDIDATES", "500"))
 KEYWORD_MODEL_CANDIDATE_CAP = 750
@@ -951,6 +951,50 @@ def _rebalance_nonlands_for_quality(
     return picked[:nonland_target]
 
 
+def _normalize_result(result: dict) -> dict:
+    """Normalize model output to the {description, card_indices, card_names} schema.
+    Handles the alternate {description, deck: [{name, quantity}]} format the model
+    sometimes produces, including entries that mis-use 'description' as the name key.
+    """
+    if "card_indices" in result or "card_names" in result:
+        return result
+
+    deck_list = result.get("deck") or result.get("cards") or []
+    if not isinstance(deck_list, list):
+        return result
+
+    card_names = []
+    for entry in deck_list:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name") or entry.get("card_name") or entry.get("description") or ""
+        name = name.strip()
+        if name:
+            card_names.append(name)
+
+    description = result.get("description") or result.get("title") or ""
+    # If description looks like it was mis-populated with a card name, clear it
+    if description and len(description) > 120:
+        description = ""
+
+    return {
+        "description": description,
+        "card_indices": [],
+        "card_names": card_names,
+    }
+
+
+def _extract_names_from_partial_deck(text: str) -> list[str]:
+    """Pull card names from a truncated/broken JSON deck response.
+    Only activates when the response looks like the deck-array format.
+    """
+    if '"deck"' not in text and '"cards"' not in text:
+        return []
+    # Pull every value associated with a "name" or "card_name" key
+    names = re.findall(r'"(?:name|card_name)"\s*:\s*"([^"]+)"', text)
+    return names
+
+
 def extract_json(text: str) -> dict:
     """Extract JSON from model output that may contain extra prose."""
     text = (text or "").strip()
@@ -959,16 +1003,26 @@ def extract_json(text: str) -> dict:
 
     # Try direct parse first
     try:
-        return json.loads(text)
+        return _normalize_result(json.loads(text))
     except json.JSONDecodeError:
         pass
     # Find first {...} block
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group())
+            return _normalize_result(json.loads(match.group()))
         except json.JSONDecodeError:
             pass
+
+    # Partial / truncated deck-array format — grab all name values even if JSON never closed
+    partial_names = _extract_names_from_partial_deck(text)
+    if partial_names:
+        desc_m = re.search(r'"description"\s*:\s*"([^"]{1,120})"', text)
+        return {
+            "description": desc_m.group(1) if desc_m else "",
+            "card_indices": [],
+            "card_names": partial_names,
+        }
 
     indices, description = _extract_numbered_card_indices(text)
     if indices:
@@ -1164,6 +1218,8 @@ def build_deck_with_llm(
     stream_callback: Optional[Callable[[str], None]] = None,
     current_deck: Optional[list[dict]] = None,
     target_bracket: int = 0,
+    max_compact_candidates: int = MAX_COMPACT_CANDIDATES,
+    num_predict: int = OLLAMA_NUM_PREDICT,
 ) -> dict:
     """
     Ask the local Ollama model to pick 99 cards from candidates.
@@ -1230,7 +1286,7 @@ def build_deck_with_llm(
             )
 
     # Use compact summaries for large pools to stay within context limits
-    summarize = card_summary_full if len(model_candidates) <= MAX_COMPACT_CANDIDATES else card_summary
+    summarize = card_summary_full if len(model_candidates) <= max_compact_candidates else card_summary
 
     card_list_text = "\n".join(
         f"{i + 1}. {summarize(c)}" for i, c in enumerate(model_candidates)
@@ -1334,7 +1390,7 @@ def build_deck_with_llm(
 
     try:
         import queue as _queue
-        model_options = {"temperature": round(random.uniform(0.70, 0.88), 2), "num_predict": OLLAMA_NUM_PREDICT}
+        model_options = {"temperature": round(random.uniform(0.70, 0.88), 2), "num_predict": num_predict}
         _chunk_queue: _queue.Queue = _queue.Queue()
         _abort = threading.Event()
 
@@ -1536,6 +1592,8 @@ def generate_deck(
     progress_callback: Optional[Callable[[str], None]] = None,
     current_deck: Optional[list[dict]] = None,
     target_bracket: int = 0,
+    max_compact_candidates: int = MAX_COMPACT_CANDIDATES,
+    num_predict: int = OLLAMA_NUM_PREDICT,
 ) -> dict:
     """Main entry point for deck generation."""
     if progress_callback:
@@ -1618,4 +1676,6 @@ def generate_deck(
         progress_callback=progress_callback,
         current_deck=current_deck,
         target_bracket=target_bracket,
+        max_compact_candidates=max_compact_candidates,
+        num_predict=num_predict,
     )

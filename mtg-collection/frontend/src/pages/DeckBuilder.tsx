@@ -426,6 +426,8 @@ export default function DeckBuilder() {
         excluded_card_names: isReroll ? (overrideExcluded ?? excludedCardNames) : [],
         tapped_land_max: tappedLandMax,
         target_bracket: targetBracket,
+        max_compact_candidates: parseInt(localStorage.getItem("deepbrew_max_compact_candidates") || "200"),
+        num_predict: parseInt(localStorage.getItem("deepbrew_num_predict") || "2048"),
       });
       setResult(data);
       setDeckModified(false);

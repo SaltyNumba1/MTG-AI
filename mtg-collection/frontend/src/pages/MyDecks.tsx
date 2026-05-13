@@ -15,6 +15,8 @@ const PROTECTED_FROM_SWAP = new Set([
   "path of ancestry", "command tower",
 ]);
 
+const CARD_TYPE_FILTERS = ["Creature", "Instant", "Sorcery", "Enchantment", "Artifact", "Planeswalker"];
+
 interface SavedDeckSummary {
   file: string;
   name: string;
@@ -46,6 +48,7 @@ interface SavedDeckDetail {
   bracket?: BracketInfo;
   tags?: string[];
   rating?: number;
+  sideboard?: CardEntry[];
 }
 
 interface SwapPair {
@@ -72,7 +75,7 @@ export default function MyDecks() {
   const analyzeDraggingRef = useRef({ active: false, offsetX: 0, offsetY: 0 });
   const [analyzeModalPos, setAnalyzeModalPos] = useState({ x: 60, y: 40 });
   const [sortBy, setSortBy] = useState<"name" | "cmc" | "type" | "price">("type");
-  const handleAnalyze = async (keywordFilters: string[] = []) => {
+  const handleAnalyze = async (keywordFilters: string[] = [], swapOutNames: string[] = []) => {
     if (!selectedFile) return;
     setShowPreAnalyze(false);
     setShowAnalyze(true);
@@ -84,29 +87,46 @@ export default function MyDecks() {
       const { data } = await api.post("/deck/analyze-deck", {
         deck_file: selectedFile,
         keyword_filters: keywordFilters,
+        swap_out_names: swapOutNames,
+        max_compact_candidates: parseInt(localStorage.getItem("deepbrew_max_compact_candidates") || "200"),
+        num_predict: parseInt(localStorage.getItem("deepbrew_num_predict") || "2048"),
       });
       const description = data?.suggestions?.description || "No summary provided.";
       const suggestedDeck: any[] = Array.isArray(data?.suggestions?.deck) ? data.suggestions.deck : [];
       const currentNames = new Set((detail?.deck || []).map((c) => c.name.toLowerCase()));
       const swaps: SwapPair[] = [];
-      // Exclude protected staples from swap-out candidates
-      const currentCards = (detail?.deck || [])
-        .filter((c) => !PROTECTED_FROM_SWAP.has(c.name.toLowerCase()))
-        .slice();
-      let cursor = currentCards.length - 1;
-      for (const card of suggestedDeck) {
-        if (!card?.name) continue;
-        if (currentNames.has(card.name.toLowerCase())) continue;
-        let outCard: CardEntry | null = null;
-        while (cursor >= 0) {
-          const c = currentCards[cursor];
-          cursor -= 1;
-          const cardIsLand = (card.type_line || "").toLowerCase().includes("land");
-          const cIsLand = (c.type_line || "").toLowerCase().includes("land");
-          if (cardIsLand === cIsLand) { outCard = c; break; }
+      if (swapOutNames.length > 0) {
+        // Targeted swap: pair suggestions against the specifically selected cards
+        const swapOutSet = new Set(swapOutNames.map(n => n.toLowerCase()));
+        const targetCards = (detail?.deck || []).filter(c => swapOutSet.has(c.name.toLowerCase()));
+        let cursor = 0;
+        for (const card of suggestedDeck) {
+          if (!card?.name) continue;
+          if (currentNames.has(card.name.toLowerCase())) continue;
+          swaps.push({ out: targetCards[cursor] || null, in: card });
+          cursor++;
+          if (swaps.length >= 12) break;
         }
-        swaps.push({ out: outCard, in: card });
-        if (swaps.length >= 12) break;
+      } else {
+        // General improvement: pair by type, excluding protected staples
+        const currentCards = (detail?.deck || [])
+          .filter((c) => !PROTECTED_FROM_SWAP.has(c.name.toLowerCase()))
+          .slice();
+        let cursor = currentCards.length - 1;
+        for (const card of suggestedDeck) {
+          if (!card?.name) continue;
+          if (currentNames.has(card.name.toLowerCase())) continue;
+          let outCard: CardEntry | null = null;
+          while (cursor >= 0) {
+            const c = currentCards[cursor];
+            cursor -= 1;
+            const cardIsLand = (card.type_line || "").toLowerCase().includes("land");
+            const cIsLand = (c.type_line || "").toLowerCase().includes("land");
+            if (cardIsLand === cIsLand) { outCard = c; break; }
+          }
+          swaps.push({ out: outCard, in: card });
+          if (swaps.length >= 12) break;
+        }
       }
       setAnalyzeSuggestions(swaps);
       setAnalyzeResult(description);
@@ -114,6 +134,10 @@ export default function MyDecks() {
       setAnalyzeResult(err.response?.data?.detail || "Analysis failed");
     } finally {
       setAnalyzeLoading(false);
+      if (swapOutNames.length > 0) {
+        setSwapSelectMode(false);
+        setSelectedForSwap(new Set());
+      }
     }
   };
   const applySelectedSwaps = async () => {
@@ -130,7 +154,7 @@ export default function MyDecks() {
         }
         newDeck.push(swap.in);
       }
-      await api.put(`/deck/saved/${selectedFile}`, { deck: newDeck });
+      await api.put(`/deck/saved/${selectedFile}`, { deck: newDeck, sideboard: detail.sideboard || [] });
       setDetail((prev) => prev ? { ...prev, deck: newDeck } : prev);
       setDeckModified(false);
       setMessage({ type: "success", text: `Applied ${selectedSwapIndices.size} swap(s) and saved.` });
@@ -159,6 +183,10 @@ export default function MyDecks() {
   const [customTagInput, setCustomTagInput] = useState("");
   const [deckRating, setDeckRating] = useState(0);
   const [newTagInput, setNewTagInput] = useState("");
+  const [swapSelectMode, setSwapSelectMode] = useState(false);
+  const [selectedForSwap, setSelectedForSwap] = useState<Set<string>>(new Set());
+  const [preAnalyzeTypes, setPreAnalyzeTypes] = useState<Set<string>>(new Set());
+  const [sideboardAddMode, setSideboardAddMode] = useState(false);
 
   const loadDecks = async () => {
     try {
@@ -283,7 +311,7 @@ export default function MyDecks() {
     setSaving(true);
     setMessage(null);
     try {
-      await api.put(`/deck/saved/${selectedFile}`, { deck: detail.deck, tags: detail.tags || [] });
+      await api.put(`/deck/saved/${selectedFile}`, { deck: detail.deck, tags: detail.tags || [], sideboard: detail.sideboard || [] });
       setDeckModified(false);
       setMessage({ type: "success", text: "Deck changes saved." });
     } catch (err: any) {
@@ -321,9 +349,14 @@ export default function MyDecks() {
     if (!detail) return;
     try {
       const { data: card } = await api.get<CardEntry>(`/deck/card-lookup?name=${encodeURIComponent(cardName)}`);
-      setDetail((prev) => prev ? { ...prev, deck: [...prev.deck, card] } : prev);
+      if (sideboardAddMode) {
+        setDetail((prev) => prev ? { ...prev, sideboard: [...(prev.sideboard || []), card] } : prev);
+      } else {
+        setDetail((prev) => prev ? { ...prev, deck: [...prev.deck, card] } : prev);
+      }
       setDeckModified(true);
       setShowAddFromCollection(false);
+      setSideboardAddMode(false);
       setAddCollectionSearch("");
     } catch (err: any) {
       setMessage({ type: "error", text: err.response?.data?.detail || `Card '${cardName}' not found` });
@@ -358,7 +391,7 @@ export default function MyDecks() {
             <button className="btn-secondary" onClick={exportDecklist}>
               Export Decklist (.txt)
             </button>
-            <button className="btn-primary" onClick={() => { setPreAnalyzeTags(new Set(detail?.tags || [])); setShowPreAnalyze(true); }} disabled={analyzeLoading || !selectedFile}>
+            <button className="btn-primary" onClick={() => { setPreAnalyzeTags(new Set(detail?.tags || [])); setPreAnalyzeTypes(new Set()); setShowPreAnalyze(true); }} disabled={analyzeLoading || !selectedFile}>
               {analyzeLoading ? "Analyzing..." : "Analyze & Suggest Improvements"}
             </button>
             <button
@@ -394,7 +427,7 @@ export default function MyDecks() {
             <button className="btn-secondary" onClick={loadDecks}>Refresh</button>
             <button
               className={editMode ? "btn-primary" : "btn-secondary"}
-              onClick={() => { setEditMode((m) => !m); setSelectedForRemoval(new Set()); }}
+              onClick={() => { setEditMode((m) => !m); setSelectedForRemoval(new Set()); setSwapSelectMode(false); setSelectedForSwap(new Set()); }}
               disabled={!detail}
             >
               {editMode ? "✎ Editing..." : "✎ Edit Deck"}
@@ -404,6 +437,21 @@ export default function MyDecks() {
                 {saving ? "Saving..." : "💾 Save Changes"}
               </button>
             )}
+            <button
+              className={swapSelectMode ? "btn-primary" : "btn-secondary"}
+              onClick={() => {
+                if (swapSelectMode) {
+                  setSwapSelectMode(false);
+                  setSelectedForSwap(new Set());
+                } else {
+                  setEditMode(false);
+                  setSwapSelectMode(true);
+                }
+              }}
+              disabled={!detail}
+            >
+              {swapSelectMode ? "🔄 Selecting..." : "🔄 Select to Swap"}
+            </button>
             {detail && (
               <button className="btn-secondary" onClick={() => setShowAddFromCollection(true)}>
                 + Add Cards
@@ -535,6 +583,28 @@ export default function MyDecks() {
                       quantity={quantity > 1 ? quantity : undefined}
                     />
                   </div>
+                ) : swapSelectMode ? (
+                  <div key={`${card.name}-${idx}`} className={`my-decks-edit-tile-wrap${selectedForSwap.has(card.name) ? " swap-selected" : ""}`}>
+                    <input
+                      type="checkbox"
+                      className="my-decks-tile-checkbox"
+                      checked={selectedForSwap.has(card.name)}
+                      onChange={(e) => {
+                        const next = new Set(selectedForSwap);
+                        if (e.target.checked) next.add(card.name);
+                        else next.delete(card.name);
+                        setSelectedForSwap(next);
+                      }}
+                      title={`Select "${card.name}" for substitution`}
+                    />
+                    <CardPreview
+                      name={card.name}
+                      imageUri={card.image_uri}
+                      subtitle={card.type_line || "Deck Card"}
+                      tcgplayerPrice={card.tcgplayer_price}
+                      quantity={quantity > 1 ? quantity : undefined}
+                    />
+                  </div>
                 ) : (
                   <CardPreview
                     key={`${card.name}-${idx}`}
@@ -577,11 +647,36 @@ export default function MyDecks() {
             </div>
           )}
 
+          {/* Swap-select sticky bar */}
+          {swapSelectMode && selectedForSwap.size > 0 && (
+            <div className="swap-select-bar">
+              <span>{selectedForSwap.size} card{selectedForSwap.size > 1 ? "s" : ""} selected for substitution</span>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  setPreAnalyzeTags(new Set(detail?.tags || []));
+                  setPreAnalyzeTypes(new Set());
+                  setShowPreAnalyze(true);
+                }}
+              >
+                Find Substitutes
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => { setSwapSelectMode(false); setSelectedForSwap(new Set()); }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           {/* Add from Collection modal */}
           {showAddFromCollection && (
-            <div className="my-decks-modal-overlay" onClick={() => setShowAddFromCollection(false)}>
+            <div className="my-decks-modal-overlay" onClick={() => { setShowAddFromCollection(false); setSideboardAddMode(false); }}>
               <div className="my-decks-modal" onClick={(e) => e.stopPropagation()}>
-                <h2>Add Card from Collection</h2>
+                <h2>{sideboardAddMode ? "Add Card to Sideboard" : "Add Card from Collection"}</h2>
                 <div className="my-decks-modal-body">
                   <input
                     type="text"
@@ -614,7 +709,7 @@ export default function MyDecks() {
                   </div>
                 </div>
                 <div className="my-decks-modal-footer">
-                  <button className="btn-secondary" onClick={() => setShowAddFromCollection(false)}>Close</button>
+                  <button className="btn-secondary" onClick={() => { setShowAddFromCollection(false); setSideboardAddMode(false); }}>Close</button>
                 </div>
               </div>
             </div>
@@ -639,6 +734,23 @@ export default function MyDecks() {
                       })}
                     >{tag}</button>
                   ))}
+                </div>
+                <div className="preanalyze-type-section">
+                  <p className="preanalyze-modal-hint" style={{ marginTop: 14, marginBottom: 6 }}>Prioritize card types:</p>
+                  <div className="preanalyze-tag-grid">
+                    {CARD_TYPE_FILTERS.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className={`preanalyze-tag-chip${preAnalyzeTypes.has(type) ? " preanalyze-tag-chip--active" : ""}`}
+                        onClick={() => setPreAnalyzeTypes((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(type)) next.delete(type); else next.add(type);
+                          return next;
+                        })}
+                      >{type}</button>
+                    ))}
+                  </div>
                 </div>
                 <div className="preanalyze-custom-row">
                   <input
@@ -676,16 +788,66 @@ export default function MyDecks() {
                 )}
                 <div className="my-decks-modal-footer">
                   <button className="btn-secondary" onClick={() => setShowPreAnalyze(false)}>Cancel</button>
-                  <button className="btn-secondary" onClick={() => handleAnalyze([])}>Analyze without tags</button>
-                  <button className="btn-primary" onClick={() => handleAnalyze(Array.from(preAnalyzeTags))}>
-                    {preAnalyzeTags.size > 0
-                      ? `Analyze with ${preAnalyzeTags.size} tag${preAnalyzeTags.size > 1 ? "s" : ""}`
+                  <button className="btn-secondary" onClick={() => {
+                    const swapNames = swapSelectMode ? Array.from(selectedForSwap) : [];
+                    handleAnalyze([], swapNames);
+                  }}>Analyze without tags</button>
+                  <button className="btn-primary" onClick={() => {
+                    const allFilters = [...Array.from(preAnalyzeTags), ...Array.from(preAnalyzeTypes)];
+                    const swapNames = swapSelectMode ? Array.from(selectedForSwap) : [];
+                    handleAnalyze(allFilters, swapNames);
+                  }}>
+                    {(preAnalyzeTags.size + preAnalyzeTypes.size) > 0
+                      ? `Analyze with ${preAnalyzeTags.size + preAnalyzeTypes.size} filter${(preAnalyzeTags.size + preAnalyzeTypes.size) > 1 ? "s" : ""}`
                       : "Start Analysis"}
                   </button>
                 </div>
               </div>
             </div>
           )}
+
+          {/* Sideboard */}
+          <div className="sideboard-section">
+            <div className="sideboard-header">
+              <h3>Sideboard <span className="sideboard-count">({(detail.sideboard || []).length})</span></h3>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => { setSideboardAddMode(true); setShowAddFromCollection(true); }}
+              >
+                + Add to Sideboard
+              </button>
+            </div>
+            {(detail.sideboard || []).length === 0 ? (
+              <p className="sideboard-empty">No sideboard cards yet. Add substitutes or tech cards here.</p>
+            ) : (
+              <div className="card-grid sideboard-grid">
+                {(detail.sideboard || []).map((card, idx) => (
+                  <div key={`sb-${card.name}-${idx}`} className="sideboard-card-wrap">
+                    <CardPreview
+                      name={card.name}
+                      imageUri={card.image_uri}
+                      subtitle={card.type_line || "Sideboard"}
+                      tcgplayerPrice={card.tcgplayer_price}
+                    />
+                    {editMode && (
+                      <button
+                        type="button"
+                        className="sideboard-remove-btn"
+                        onClick={() => {
+                          setDetail((prev) => prev ? {
+                            ...prev,
+                            sideboard: (prev.sideboard || []).filter((_, i) => i !== idx),
+                          } : prev);
+                          setDeckModified(true);
+                        }}
+                      >× Remove</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Analyze Modal */}
           {showAnalyze && (

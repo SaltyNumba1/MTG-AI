@@ -419,3 +419,91 @@
   border-radius: 6px;
 }
 .preanalyze-selected-label { font-size: .8rem; color: #94a3b8; flex-shrink: 0; }
+
+/* ── Swap-select mode ───────────────────────────────────────── */
+.swap-select-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #c4b5fd;
+}
+
+.swap-selected {
+  outline: 2px solid #7c3aed;
+  border-radius: 10px;
+}
+
+/* ── Sideboard section ──────────────────────────────────────── */
+.sideboard-section {
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.sideboard-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.sideboard-header h3 {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.sideboard-count {
+  color: #64748b;
+  font-weight: normal;
+}
+
+.sideboard-empty {
+  color: #64748b;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+}
+
+.sideboard-grid {
+  opacity: 0.85;
+}
+
+.sideboard-card-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sideboard-remove-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.sideboard-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* ── Pre-analyze type section ───────────────────────────────── */
+.preanalyze-type-section {
+  margin-bottom: 4px;
+}
+

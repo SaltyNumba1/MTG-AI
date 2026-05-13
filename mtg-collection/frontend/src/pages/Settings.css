@@ -1,0 +1,73 @@
+.settings-section {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 680px;
+  margin-bottom: 24px;
+}
+
+.settings-section-title {
+  color: #c4b5fd;
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.settings-hint {
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.settings-field {
+  margin-bottom: 28px;
+}
+
+.settings-label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.settings-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.settings-value {
+  font-size: 0.85rem;
+  color: #7c3aed;
+  font-weight: 700;
+  background: rgba(124, 58, 237, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.settings-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.settings-desc strong {
+  color: #94a3b8;
+}
+
+.settings-slider {
+  width: 100%;
+  accent-color: #7c3aed;
+  cursor: pointer;
+  height: 6px;
+}
+
+.settings-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #475569;
+  margin-top: 4px;
+}

@@ -38,6 +38,8 @@ class DeckRequest(BaseModel):
     excluded_card_names: list[str] = []
     tapped_land_max: int = 0  # 0 = no cap
     target_bracket: int = 0  # 0 = no preference
+    max_compact_candidates: int = 200
+    num_predict: int = 2048
 
 
 class ImportDeckRequest(BaseModel):
@@ -48,6 +50,9 @@ class ImportDeckRequest(BaseModel):
 class AnalyzeDeckRequest(BaseModel):
     deck_file: str
     keyword_filters: list[str] = []
+    swap_out_names: list[str] = []
+    max_compact_candidates: int = 200
+    num_predict: int = 2048
 
 @router.post("/import-deck")
 
@@ -235,16 +240,27 @@ async def analyze_deck(req: AnalyzeDeckRequest, db: AsyncSession = Depends(get_d
     def progress_callback(msg):
         pass  # No streaming for now
     tag_hint = f" Focus on: {', '.join(req.keyword_filters)}." if req.keyword_filters else ""
+    if req.swap_out_names:
+        analyze_prompt = (
+            f"Find better alternatives from my collection to specifically replace these cards: "
+            f"{', '.join(req.swap_out_names)}. "
+            f"Keep the rest of the deck in mind for synergy. "
+            f"Deck: {deck_data['name']}.{tag_hint}"
+        )
+    else:
+        analyze_prompt = f"Analyze and suggest improvements for this deck using my collection. Only suggest cards I own. Deck: {deck_data['name']}.{tag_hint}"
     suggestions = await asyncio.get_event_loop().run_in_executor(
         None,
         lambda: generate_deck(
-            prompt=f"Analyze and suggest improvements for this deck using my collection. Only suggest cards I own. Deck: {deck_data['name']}.{tag_hint}",
+            prompt=analyze_prompt,
             commander_name=deck_data['commander']['name'],
             collection=collection,
             keyword_filters=req.keyword_filters,
             progress_callback=progress_callback,
             current_deck=deck_data['deck'],
             excluded_card_names=ANALYZE_PROTECTED_STAPLES,
+            max_compact_candidates=req.max_compact_candidates,
+            num_predict=req.num_predict,
         ),
     )
     return {"suggestions": suggestions}
@@ -279,6 +295,7 @@ class DeckSaveRequest(BaseModel):
     bracket: dict = {}
     tags: list[str] = []
     rating: int = 0
+    sideboard: list[dict] = []
 
 
 BUILD_STATUS_LOCK = Lock()
@@ -464,6 +481,8 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
                 excluded_card_names=list(req.excluded_card_names or []),
                 tapped_land_max=getattr(req, "tapped_land_max", 0),
                 target_bracket=getattr(req, "target_bracket", 0),
+                max_compact_candidates=req.max_compact_candidates,
+                num_predict=req.num_predict,
                 progress_callback=_append_thought,
             ),
         )
@@ -562,6 +581,7 @@ async def save_deck(payload: DeckSaveRequest):
         "bracket": payload.bracket,
         "tags": payload.tags,
         "rating": payload.rating,
+        "sideboard": payload.sideboard,
     }
 
     json_path.write_text(json.dumps(payload_data, indent=2), encoding="utf-8")
@@ -669,6 +689,8 @@ async def update_saved_deck(deck_file: str, body: dict = Body(...)):
         data["tags"] = [str(t) for t in (body["tags"] or []) if t]
     if "rating" in body:
         data["rating"] = max(0, min(5, int(body["rating"])))
+    if "sideboard" in body:
+        data["sideboard"] = [c for c in (body["sideboard"] or []) if isinstance(c, dict)]
 
     # Also regenerate the .txt sidecar
     txt_target = target.with_suffix(".txt")
