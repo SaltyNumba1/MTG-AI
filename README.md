@@ -28,6 +28,29 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - 🎛️ **Expanded Settings page** — three sections: GPU Performance (oracle text threshold, max tokens), Deck Building Defaults (basic/nonbasic/dual land counts, target bracket, strict mode, max tapped lands), and Display (show prices, default sort). Previously only GPU settings were configurable.
 - ✏️ **Rename saved decks** — pencil icon on each deck card in My Decks lets you rename a deck in place. The file is renamed on disk via `PATCH /deck/saved/{deck_file}`.
 
+## What's New (v1.2.0)
+
+- ⚙️ **GPU Settings page** — new Settings page with two controls: oracle-text threshold (how many candidates before compact mode kicks in) and max tokens for LLM generation. Both values are persisted to `localStorage` and applied to every deck build.
+- 🔄 **Select to Swap** — in the My Decks analyze view, a new **Select to Swap** mode lets you pick specific cards you want replaced. The AI returns substitution suggestions for exactly those cards.
+- 📋 **Sideboard** — deck view in My Decks now displays and edits a sideboard section.
+- 🏷️ **Type filter chips** — card type filters in the deck builder redesigned as toggle chips for faster selection.
+- 🗜️ **Compact candidate mode** — cards beyond the oracle-text threshold are sent to the LLM using an abbreviated format (name + type only), cutting prompt token usage on large collections.
+
+## What's New (v1.1.1)
+
+- 🐛 **Analyze suggestions no longer time out** — removed the hard 900-second wall-clock timeout from the LLM pipeline. The `OLLAMA_MAX_GENERATION_SEC` / `OLLAMA_TIMEOUT` / `ALLOW_LLM_TIMEOUT_FALLBACK` constants and their corresponding Electron env injections are gone. The heartbeat progress reporter (every 8 s) is kept so elapsed time still shows in the UI. On failure the backend now raises a clear exception rather than returning an empty result silently.
+
+## What's New (v1.1.0)
+
+- 🍺 **App renamed to DeepBrew** — the executable and window title changed from "MTG Commander Generator" to **DeepBrew**.
+- 🔢 **Dynamic splash version** — the splash screen now reads the version number directly from `package.json` so it always matches the release.
+
+## What's New (v1.0.19)
+
+- 🎨 **Land counter inputs restyled** — basic/nonbasic/dual land inputs on the Deck Builder page have an updated visual style.
+- 🌑 **Constraint inputs darkened** — deck constraint panel inputs use a darker background for better contrast.
+- 🖥️ **Splash screen fullscreen fix** — splash window now renders full-screen correctly on all display configurations.
+
 ## What's New (v1.0.18)
 
 - 🏆 **WotC Bracket power-level targeting** — the deck builder now actively prioritizes high-power cards from your collection based on the target bracket you select:

@@ -122,6 +122,45 @@ Defaults:
 
 ---
 
+## v1.2.0 — GPU Settings, Select to Swap, Sideboard & Type Chips
+
+### ⚡ What's New
+
+- **GPU Settings page** — a new Settings page exposes two performance controls: oracle-text threshold (how many candidates before compact mode engages) and max tokens per LLM call. Persisted to `localStorage`; applied to every deck build.
+- **Select to Swap** — in My Decks analyze view, toggle **Select to Swap** mode to click individual cards you want replaced. The AI then returns targeted substitution suggestions for those specific cards.
+- **Sideboard** — My Decks deck view and edit mode now includes a sideboard section.
+- **Type filter chips** — deck builder card-type filters redesigned from a dropdown to toggle chips.
+- **Compact candidate mode** — cards beyond the oracle-text threshold are sent to the LLM in an abbreviated `name + type` format, reducing prompt token usage on large collections.
+
+---
+
+## v1.1.1 — Analyze Timeout Removed
+
+### ⚡ What's New
+
+- **No more analyze timeouts** — the hard 900-second wall-clock timeout on LLM calls has been removed entirely. `OLLAMA_MAX_GENERATION_SEC`, `OLLAMA_TIMEOUT`, and `ALLOW_LLM_TIMEOUT_FALLBACK` constants are gone. The heartbeat reporter (every 8 s) is kept so elapsed time still displays. On failure the backend raises a clear exception instead of silently returning nothing.
+
+---
+
+## v1.1.0 — Renamed to DeepBrew
+
+### ⚡ What's New
+
+- **App renamed to DeepBrew** — executable and window title changed from "MTG Commander Generator" to **DeepBrew**.
+- **Dynamic splash version** — splash screen reads the version from `package.json` so it always reflects the current release.
+
+---
+
+## v1.0.19 — UI Polish
+
+### ⚡ What's New
+
+- **Land counter inputs restyled** — basic/nonbasic/dual land inputs on the Deck Builder page updated visually.
+- **Constraint inputs darkened** — deck constraint panel inputs use a darker background for better contrast.
+- **Splash fullscreen fix** — splash window now fills the screen correctly on all display configurations.
+
+---
+
 ## v1.0.17.4 — Commander Bracket Ratings, Collection Color Counter & UX Polish
 
 ### ⚡ What's New
