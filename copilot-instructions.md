@@ -16,3 +16,17 @@ DeepBrew is a local, privacy-first MTG deck-building suite. It uses local LLMs (
 - **Inference:** Uses a local OpenAI-compatible API on port 8081.
 - **Performance:** For B4/B5, always prioritize low CMC (Converted Mana Cost).
 - **Logic:** Functional slots (Lands/Ramp/Interaction) take priority over "flavor" cards in Pro mode.
+
+# DeepBrew Project Update (v1.3.1)
+
+## Commercial Tier Enforcement
+- **Starter ($15):** DEEPBREW_TIER='starter'. Max Bracket: 3. No Lean Pool.
+- **Pro ($49):** DEEPBREW_TIER='pro'. Unlocks Brackets 4-5 and Lean Pool Filter.
+
+## Lean Pool Formula (Pro Only)
+For target_bracket >= 4, use the 500-card filter:
+Weight = (is_vip * 100) + (is_synergy * 50) - (CMC * 10)
+
+## Thought Stream Formatting
+Always emit progress via:
+[DEEPBREW_LOG]: <Phase> | <Message>
