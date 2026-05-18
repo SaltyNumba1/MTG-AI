@@ -1,3 +1,36 @@
+[Update: May 18, 2026]
+
+## Current State — v1.4.1
+
+### Version
+- **v1.4.1** — bug fixes and polish on top of v1.4.0 commercial launch.
+
+### Changes in v1.4.1
+- **Backup path in success message**: `POST /collection/backup` now returns `{ backups: [...], backup_path: "..." }`. Frontend displays the full path in the "Backup saved to: ..." success toast so users know exactly where their backup is.
+- **Backup dropdown auto-select**: After creating a backup, the dropdown immediately selects the newly created backup (was previously stuck on whatever was previously selected).
+- **🎨 Art button moved**: In `CardPreview.tsx`, the 🎨 Art button moved from the bottom `card-hint-row` (near the × Remove button) to a top-right hover overlay on the card image — matching the 🖼 background button at top-left. Both fade in on card hover.
+- **PyInstaller crash fix**: App was crashing on launch with `ModuleNotFoundError: No module named 'openai'`. Fixed by always using `.venv\Scripts\python.exe` for PyInstaller builds, and using `collect_all('openai')`, `collect_all('httpx')`, `collect_all('httpcore')` in `mtg-collection.spec` to fully bundle the openai v2.x package tree.
+
+---
+
+[Update: May 17, 2026]
+
+## Current State — v1.4.0
+
+### Version
+- **v1.4.0** — full commercial launch. License-key activation + auto model download for both Starter and Pro tiers.
+
+### Changes in v1.4.0
+- **FirstLaunchModal rewrite**: Replaced static HF download table with a 3-step Electron license flow (`enter-key` → `downloading` → `done`). Starter users enter their license key, which is validated via `window.deepbrew.activateLicense()`, then `mistral-commander-q4.gguf` downloads automatically with a live progress bar. Dev/browser fallback (static HF table) preserved for `!window.deepbrew` path.
+- **My Decks inline card removal**: Each mainboard card tile in edit mode now has an inline `× Remove` button. Cards are removed immediately from the deck state and `deckModified` is flagged.
+- **`desktop:package:all` script**: New convenience script in `package.json` that runs `desktop:package:starter` then `desktop:package:pro` in sequence.
+- **electron-main.js ipcMain handlers**: All license/model handlers fully implemented — `get-machine-id`, `get-license-status`, `activate-license`, `download-model` (streaming with progress events + SHA-256 validation), `set-active-model`.
+- **preload.js contextBridge**: Exposes `getMachineId`, `getLicenseStatus`, `activateLicense`, `downloadModel`, `onDownloadProgress`, `setActiveModel`, `tier`.
+- **LicenseModal.tsx**: Pro tier license activation + model selection (Q3/Q4) + download flow. Fully complete.
+- **MODEL_TIER_HASHES**: Real SHA-256 fingerprints baked into `electron-main.js` for all three model files.
+
+---
+
 [Update: May 17, 2026]
 
 ## Current State — v1.3.2

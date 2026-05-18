@@ -1090,7 +1090,7 @@ async def create_backup():
                 "modified_at": datetime.utcfromtimestamp(s.st_mtime).isoformat(),
             }
         )
-    return backups
+    return {"backups": backups, "backup_path": str(backup_path)}
 
 
 @router.post("/restore")

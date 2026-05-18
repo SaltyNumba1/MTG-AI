@@ -1,14 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
 
+openai_datas, openai_binaries, openai_hiddenimports = collect_all('openai')
+httpx_datas, httpx_binaries, httpx_hiddenimports = collect_all('httpx')
+httpcore_datas, httpcore_binaries, httpcore_hiddenimports = collect_all('httpcore')
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=[] + openai_binaries + httpx_binaries + httpcore_binaries,
     datas=[
         ('services/synergy_map.json', 'services'),
         ('.env', '.'),
-    ],
+    ] + openai_datas + httpx_datas + httpcore_datas,
     hiddenimports=[
         'aiosqlite',
         'sqlalchemy',
@@ -18,7 +22,7 @@ a = Analysis(
         'sqlalchemy.ext.asyncio',
         'sqlalchemy.orm',
         'sqlalchemy.pool',
-    ],
+    ] + openai_hiddenimports + httpx_hiddenimports + httpcore_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

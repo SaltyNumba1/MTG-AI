@@ -224,6 +224,13 @@ export default function CardPreview({
           >
             🖼
           </button>
+          <button
+            className={`card-printing-btn card-printing-btn--overlay${pickerOpen ? " card-printing-btn--open" : ""}`}
+            onClick={handleOpenPicker}
+            title="Switch card printing / art"
+          >
+            {printingsLoading ? "…" : "🎨"}
+          </button>
         </div>
       ) : (
         <div className="card-no-image">No image</div>
@@ -237,13 +244,6 @@ export default function CardPreview({
         </div>
         <div className="card-hint-row">
           <small className="card-hint">Hover to preview</small>
-          <button
-            className={`card-printing-btn${pickerOpen ? " card-printing-btn--open" : ""}`}
-            onClick={handleOpenPicker}
-            title="Switch card printing / art"
-          >
-            {printingsLoading ? "…" : "🎨 Art"}
-          </button>
         </div>
         {modal}
         {children}

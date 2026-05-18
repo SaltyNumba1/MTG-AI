@@ -523,9 +523,10 @@ export default function Collection() {
   const createBackup = async () => {
     setBackupBusy(true);
     try {
-      await api.post("/collection/backup");
-      await loadBackups();
-      setMessage({ type: "success", text: "Backup created" });
+      const { data } = await api.post<{ backups: BackupEntry[]; backup_path: string }>("/collection/backup");
+      setBackups(data.backups);
+      if (data.backups.length > 0) setSelectedBackup(data.backups[0].filename);
+      setMessage({ type: "success", text: `Backup saved to: ${data.backup_path}` });
     } catch (err: any) {
       setMessage({ type: "error", text: err.response?.data?.detail || "Backup failed" });
     } finally {
