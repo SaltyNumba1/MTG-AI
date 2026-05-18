@@ -1,6 +1,8 @@
-# 🃏 MTG Collection & Deck Builder
+# 🃏 DeepBrew — MTG Collection & Deck Builder
 
-Store your Magic: The Gathering card collection and build Commander decks from it using a **fully local AI model** — no cloud, no subscription, no Ollama.
+**v1.4.1** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
+
+Build Commander decks from your own collection using a **fully local AI model** — no cloud, no subscription, no Ollama. Your cards and your data stay on your machine.
 
 ---
 
@@ -8,50 +10,40 @@ Store your Magic: The Gathering card collection and build Commander decks from i
 
 - 🪟 Windows 10/11 x64
 - 🖥️ A **Vulkan-capable GPU** (AMD, NVIDIA, or Intel) recommended for GPU-accelerated deck generation
-  - CPU fallback is automatic — no GPU required, but generation takes ~5 minutes with the 7B model
-- 📦 A model `.gguf` file placed in `%APPDATA%\mtg-collection-frontend\models\` (see below)
+  - CPU fallback is automatic — no GPU required, but generation takes ~5 minutes
 
 > **No Ollama required.** The app bundles `llama-server` (llama.cpp Vulkan) and starts it automatically on launch.
 
 ---
 
-## 🤖 1. Choose & Install a Model
+## 🚀 Getting Started
 
-Three model files are available. Pick one based on your hardware:
+1. **Download** the correct edition from [deepbrewmtg.com](https://deepbrewmtg.com):
+   - **Starter** — Mistral-7B engine, Brackets 1–3, $15
+   - **Pro** — Nemo-12B engine, Brackets 1–5 (cEDH), $49
+2. **Extract** the zip and run `DeepBrew-Starter.exe` or `DeepBrew-Pro.exe`.
+3. On **first launch**, enter your license key. The correct AI model (~4–7.5 GB) downloads automatically with a live progress bar — no manual file placement needed.
+4. Once the main window opens, the nav bar shows 🟢 **AI Ready (GPU)** when the model is loaded.
 
-| Model | File | Download Size | Min GPU VRAM | Best For |
-|---|---|---|---|---|
-| **Mistral 7B** *(default)* | `mistral-commander-q4.gguf` | ~4.1 GB | 6 GB (or CPU-only) | Most users, laptops, 8 GB VRAM cards |
-| **Nemo 12B Q3** | `mtg-commander-nemo-q3_k_m.gguf` | ~6 GB | 8 GB VRAM | Mid-range GPUs (RX 5700, RTX 3070+) |
-| **Nemo 12B Q4** | `mtg-commander-nemo-q4_k_m.gguf` | ~7.5 GB | 10 GB VRAM | High-end GPUs (RX 6800+, RTX 3080+) |
-
-**Download links:**
-- Mistral 7B: [huggingface.co/SaltyNumba1/MTG-Commander-Mistral-7B-Trained](https://huggingface.co/SaltyNumba1/MTG-Commander-Mistral-7B-Trained)
-- Nemo 12B (Q3 & Q4): [huggingface.co/SaltyNumba1/Mistral-nemo-12B-MTG-Commander](https://huggingface.co/SaltyNumba1/Mistral-nemo-12B-MTG-Commander)
-
-### 📥 Install Steps
-
-1. **Download** your chosen `.gguf` file from the links above.
-2. **Place it** (without renaming) in:
-   ```
-   C:\Users\<you>\AppData\Roaming\mtg-collection-frontend\models\
-   ```
-3. **Select it** — open `model-select.env` in the same folder (auto-created on first launch) with any text editor and uncomment the matching line:
-   ```
-   # Uncomment ONE line:
-   MODEL_FILE=mistral-commander-q4.gguf
-   # MODEL_FILE=mtg-commander-nemo-q3_k_m.gguf
-   # MODEL_FILE=mtg-commander-nemo-q4_k_m.gguf
-   ```
-   Save the file and (re)launch the app.
-
-> 💡 **GPU note:** The bundled `llama-server` uses Vulkan and works on AMD, NVIDIA, and Intel GPUs automatically. NVIDIA users: Vulkan is functional but a CUDA-optimized release is planned for better NVIDIA performance. Without a GPU the app falls back to CPU inference (~5 min for 7B model on most laptops).
+> 💡 **GPU note:** The bundled `llama-server` uses Vulkan and works on AMD, NVIDIA, and Intel GPUs automatically. Without a GPU the app falls back to CPU inference.
 
 ---
 
-## 🚀 2. Run the App
+## 🤖 Model Reference (for developers)
 
-1. Open `MTG Commander Generator.exe`.
+| Tier | Model | File | Size | Min VRAM |
+|---|---|---|---|---|
+| Starter | Mistral 7B Q4 | `mistral-commander-q4.gguf` | ~4.1 GB | 6 GB (or CPU) |
+| Pro | Nemo 12B Q3 | `mtg-commander-nemo-q3_k_m.gguf` | ~6 GB | 8 GB |
+| Pro | Nemo 12B Q4 | `mtg-commander-nemo-q4_k_m.gguf` | ~7.5 GB | 10 GB |
+
+Models are downloaded automatically to `%APPDATA%\DeepBrew-[Starter|Pro]\models\` on first launch.
+
+---
+
+## 🏃 Run the App
+
+1. Open `DeepBrew-Starter.exe` or `DeepBrew-Pro.exe`.
 2. A **splash screen** appears while the AI model and backend start up — this takes 15–90 s depending on your model size and GPU.
 3. Once the main window opens, the nav bar shows 🟢 **AI Ready (GPU)** when the model is loaded.
 4. Import your collection and build decks.
@@ -99,6 +91,32 @@ Defaults:
 - 🎨 **Color filter** includes a **Colorless** option for non-colored cards.
 - ✅ Use card checkboxes plus **Save Selected as Deck** to create a manual deck from your collection.
 - 💾 Backup/restore uses a safer SQLite backup flow for more complete backups.
+
+---
+
+## v1.4.1 — Bug Fixes & Polish
+
+### 🐛 Bug Fixes
+
+- **Backup path in success message** — `POST /collection/backup` now returns the full path. Frontend shows "Backup saved to: C:\Users\...\AppData\Roaming\DeepBrew\backups\..." so users know exactly where the file is.
+- **Backup dropdown auto-select** — after creating a backup the dropdown immediately selects the new entry instead of staying on the previously selected one.
+- **PyInstaller crash on launch** — `ModuleNotFoundError: No module named 'openai'` on first run after install. Fixed by using `collect_all('openai')`, `collect_all('httpx')`, `collect_all('httpcore')` in the PyInstaller spec to fully bundle openai v2.x's dynamic import tree.
+
+### ✨ Improvements
+
+- **🎨 Art button moved** — in Collection, the art/printing switcher button moved from the bottom row (near × Remove) to a top-right hover overlay on the card image, matching the 🖼 background button at top-left.
+
+---
+
+## v1.4.0 — Commercial Launch: License Keys & Auto Model Download
+
+### ⚡ What's New
+
+- **License-key activation** — on first launch, users enter their LemonSqueezy license key. The app validates it with the DeepBrew API, stores the activation locally, and unlocks the correct tier.
+- **Automatic model download** — after activation, the correct `.gguf` model downloads automatically with a live progress bar and SHA-256 integrity check. No manual file placement required.
+- **Two tiers** — Starter (Mistral-7B, Brackets 1–3) and Pro (Nemo-12B, Brackets 1–5 including cEDH).
+- **Pro upgrade path** — existing Starter users can purchase an upgrade license for $40; the Pro model downloads in-place.
+- **Inline card removal in My Decks** — each card tile in edit mode now has an inline × Remove button. Cards are removed immediately without any extra confirmation step.
 
 ---
 
