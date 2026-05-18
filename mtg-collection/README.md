@@ -1,3 +1,4 @@
+<img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/676307dc-9ec3-4626-9561-6cecaa6ed368" />
 # 🃏 DeepBrew — MTG Collection & Deck Builder
 
 **v1.4.1** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
