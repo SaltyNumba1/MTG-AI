@@ -16,6 +16,15 @@ A desktop app for managing your Magic: The Gathering collection and building Com
 - 📡 **Live build status floater** – A persistent floating panel (any page) shows AI deck-build phase, current message, and the last few model "thoughts" while a build is in flight.
 - 🔒 **Local LLM (no cloud)** – Deck generation runs fully offline via a bundled `llama-server` (llama.cpp Vulkan). No data leaves your machine.
 
+## What's New (v1.3.2)
+
+- 🐛 **Deck import fix** — importing a `.txt` decklist no longer fails when cards are missing from your collection. Scryfall fetch errors are now handled per-card and the database commit is correctly issued at the end of the import.
+- 🐛 **Create Backup fix** — the backup button was silently doing nothing; the missing file-copy call has been added and backups now work correctly.
+- 🐛 **Power/Toughness constraint fix** — `match_field: power` / `toughness` now compares actual card stats (integer) instead of searching oracle text. Supports `4+`, `>=4`, `>3`, `<=2`, `<4`, and exact values. The auto-detected "Power ≥4 creatures" suggestion is also corrected.
+- 🐛 **Max constraint enforcement fix** — when no replacement cards exist in the pool, cards that exceed a `max_count` ceiling are now actually removed from the deck instead of silently left in.
+- ✨ **Add to Deck** — new button in the Collection bulk toolbar lets you append selected cards to any saved deck's mainboard or sideboard without leaving the page.
+- ✨ **Power / Toughness in constraint builder** — the Field dropdown in the DeckBuilder constraint panel now includes Power and Toughness with syntax hints (`4+`, `>3`, `>=5`, etc.).
+
 ## What's New (v1.3.1)
 
 - 📊 **My Decks stats panel** — a Mana Curve bar chart, Color Distribution bar chart, and Lands breakdown (basic vs nonbasic count) now appear above the sort selector whenever you open a saved deck in My Decks. Same visual style as the Deck Builder result view.

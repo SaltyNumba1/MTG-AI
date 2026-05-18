@@ -1078,6 +1078,7 @@ async def create_backup():
     backup_name = f"mtg_collection-{stamp}.db"
     backup_path = backup_dir / backup_name
 
+    shutil.copy2(db_path, backup_path)
 
     backups = []
     for p in sorted(backup_dir.glob("*.db"), key=lambda x: x.stat().st_mtime, reverse=True):

@@ -231,6 +231,11 @@
   margin-top: 8px;
 }
 
+.collection-modal-success {
+  color: #86efac;
+  margin-top: 8px;
+}
+
 .collection-card-row {
   display: flex;
   justify-content: space-between;
