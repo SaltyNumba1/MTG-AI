@@ -8,6 +8,7 @@ import Settings from "./pages/Settings";
 import BuildStatusFloater from "./components/BuildStatusFloater";
 import ModelStatus from "./components/ModelStatus";
 import FirstLaunchModal from "./components/FirstLaunchModal";
+import LicenseModal from "./components/LicenseModal";
 
 const MANA_SCATTER = [
   { symbol: "☀️", top: "5%",  left: "2%",  size: "7rem",   opacity: 0.07,  rotate: -15 },
@@ -101,6 +102,7 @@ export default function App() {
       </Routes>
       <BuildStatusFloater />
       <FirstLaunchModal />
+      <LicenseModal />
     </>
   );
 }

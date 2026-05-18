@@ -68,6 +68,171 @@
   color: #64748b;
 }
 
+/* ── Bracket tile row ───────────────────────────────────────────────────── */
+.deckbuilder-bracket-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.bracket-tile {
+  position: relative;
+  flex: 1;
+  min-width: 64px;
+  padding: 8px 6px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #e0e0e0;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  user-select: none;
+}
+
+.bracket-tile:hover:not(.bracket-tile--locked):not(.bracket-tile--active) {
+  border-color: rgba(155, 89, 182, 0.5);
+  background: rgba(155, 89, 182, 0.1);
+}
+
+.bracket-tile--active {
+  border-color: #9b59b6;
+  background: rgba(155, 89, 182, 0.22);
+  box-shadow: 0 0 0 1px #9b59b6;
+}
+
+.bracket-tile--locked {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.bracket-tile--locked:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bracket-tile-label {
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.bracket-tile-sub {
+  font-size: 10px;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.bracket-tile-pro-badge {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #9b59b6);
+  border-radius: 3px;
+  padding: 1px 4px;
+  line-height: 1.4;
+}
+
+/* Upgrade modal */
+.bracket-upgrade-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bracket-upgrade-modal {
+  position: relative;
+  background: #1e1e3a;
+  border: 1px solid rgba(155, 89, 182, 0.4);
+  border-radius: 12px;
+  padding: 28px 28px 24px;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  color: #e0e0e0;
+}
+
+.bracket-upgrade-title {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+  color: #c0a0ff;
+}
+
+.bracket-upgrade-body {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #94a3b8;
+}
+
+.bracket-upgrade-body strong {
+  color: #e0e0e0;
+}
+
+.bracket-upgrade-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bracket-upgrade-btn {
+  display: block;
+  text-align: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.bracket-upgrade-btn:hover {
+  opacity: 0.85;
+}
+
+.bracket-upgrade-btn--primary {
+  background: linear-gradient(135deg, #7c3aed, #9b59b6);
+  color: #fff;
+}
+
+.bracket-upgrade-btn--secondary {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+}
+
+.bracket-upgrade-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bracket-upgrade-close:hover {
+  color: #e0e0e0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .deckbuilder-must-include {
   width: 100%;
   font-family: monospace;

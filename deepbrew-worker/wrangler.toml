@@ -1,0 +1,41 @@
+name = "deepbrew-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# Route all /api traffic through this worker.
+# After deploying, add a DNS CNAME in Cloudflare: api → workers.dev route.
+routes = [
+  { pattern = "api.deepbrewmtg.com/*", zone_name = "deepbrewmtg.com" }
+]
+
+# ---------------------------------------------------------------------------
+# KV Namespace  —  create with: wrangler kv namespace create LICENSES
+# Then paste the returned id below.
+# ---------------------------------------------------------------------------
+[[kv_namespaces]]
+binding = "LICENSES"
+id = "bdbdddc595fc492d8a0639ec04735d56"
+
+# ---------------------------------------------------------------------------
+# R2 Bucket  —  create with: wrangler r2 bucket create models
+# Upload model:  wrangler r2 object put deepbrew-models/mtg-commander-nemo-q3_k_m.gguf --file path/to/file.gguf
+# ---------------------------------------------------------------------------
+[[r2_buckets]]
+binding = "MODELS_BUCKET"
+bucket_name = "models"
+
+# ---------------------------------------------------------------------------
+# Plain (non-secret) vars — safe to commit
+# Set LS_PRO_VARIANT_IDS to the comma-separated LemonSqueezy variant IDs
+# that correspond to your Pro product (find them in LS dashboard → Products).
+# ---------------------------------------------------------------------------
+[vars]
+LS_PRO_VARIANT_IDS = "1653286"
+
+# ---------------------------------------------------------------------------
+# Secrets (DO NOT commit values)
+# Set with:  wrangler secret put LS_API_KEY
+# Paste your LemonSqueezy API key when prompted.
+# ---------------------------------------------------------------------------
+# LS_API_KEY         →  wrangler secret put LS_API_KEY
+# LS_WEBHOOK_SECRET  →  wrangler secret put LS_WEBHOOK_SECRET

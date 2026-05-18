@@ -4,6 +4,11 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   base: "./",
+  define: {
+    // Injected at build time by desktop:package:starter / desktop:package:pro.
+    // Baked into the JS bundle — cannot be changed by editing files on disk.
+    __DEEPBREW_TIER__: JSON.stringify(process.env.DEEPBREW_TIER ?? "starter"),
+  },
   server: {
     host: "0.0.0.0",
     proxy: {

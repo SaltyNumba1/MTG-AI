@@ -707,6 +707,18 @@ export default function MyDecks() {
                       tcgplayerPrice={showPrices ? card.tcgplayer_price : null}
                       quantity={quantity > 1 ? quantity : undefined}
                     />
+                    <button
+                      type="button"
+                      className="sideboard-remove-btn"
+                      onClick={() => {
+                        setDetail((prev) => prev
+                          ? { ...prev, deck: prev.deck.filter((c) => c.name !== card.name) }
+                          : prev
+                        );
+                        setSelectedForRemoval((prev) => { const next = new Set(prev); next.delete(card.name); return next; });
+                        setDeckModified(true);
+                      }}
+                    >× Remove</button>
                   </div>
                 ) : swapSelectMode ? (
                   <div key={`${card.name}-${idx}`} className={`my-decks-edit-tile-wrap${selectedForSwap.has(card.name) ? " swap-selected" : ""}`}>

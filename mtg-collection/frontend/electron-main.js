@@ -1,12 +1,30 @@
 const path = require("path");
 const fs = require("fs");
-const { app, BrowserWindow, dialog } = require("electron");
+const https = require("https");
+const http = require("http");
+const crypto = require("crypto");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const { spawn, spawnSync } = require("child_process");
 
 const isDev = process.env.NODE_ENV === "development";
 const frontendDir = path.join(__dirname);
 const backendDir = path.join(__dirname, "..", "backend");
 const packagedBackendDir = path.join(process.resourcesPath || __dirname, "backend");
+
+// ---------------------------------------------------------------------------
+// Tier resolution — read the baked 'app-tier' file written into resources/ by
+// the packaging script.  Falls back to process.env.DEEPBREW_TIER (dev mode)
+// then to "starter" so unknown builds default to the restricted tier.
+// app.setName() is called here, before any app.getPath("userData") call, so
+// Starter and Pro each get their own isolated %APPDATA% folder.
+// ---------------------------------------------------------------------------
+const _tierFile = path.join(process.resourcesPath || __dirname, "app-tier");
+const DEEPBREW_TIER = (() => {
+  if (fs.existsSync(_tierFile)) return fs.readFileSync(_tierFile, "utf8").trim();
+  return process.env.DEEPBREW_TIER || "starter";
+})();
+app.setName(DEEPBREW_TIER === "pro" ? "DeepBrew-Pro" : "DeepBrew-Starter");
+
 let backendProcess = null;
 let llamaProcess = null;
 let llamaServerStarted = false;
@@ -18,6 +36,17 @@ const LLAMA_PORT = 8081;
 const LLAMA_CTX = 20480;
 // Adaptive GPU layer steps: try most layers first, step down on VRAM OOM, reach 0 for CPU fallback.
 const LLAMA_GPU_LAYER_STEPS = [99, 60, 40, 20, 0];
+
+// ---------------------------------------------------------------------------
+// Model tier enforcement — SHA-256 fingerprints of known distributed .gguf files.
+// Unknown hashes are treated as 'pro' so third-party models always fail in
+// Starter builds. Add new hashes here whenever a new official model is released.
+// ---------------------------------------------------------------------------
+const MODEL_TIER_HASHES = {
+  "E4C32260F0190762661DFCCF067306977034752AC68040AEF06A66D2BB2B3111": "starter", // mistral-commander-q4.gguf
+  "38F00377DC24FCEEC4EEE04F2829B11386AE7ED717C9A13B36F85AD636DA5F47": "pro",     // mtg-commander-nemo-q3_k_m.gguf
+  "A203F8BC21261282BF0E78BC1166C290CE5147B8FC2D26FA9A12FB36365EE4FC": "pro",     // mtg-commander-nemo-q4_k_m.gguf
+};
 let llamaStartPromise = null; // resolves when adaptive startup finishes
 const ICON_PATH = path.join(__dirname, "build", "icon.ico");
 const LOGO_PATH = path.join(__dirname, "build", "icon.png");
@@ -77,6 +106,22 @@ function getModelPath() {
   return path.join(modelsDir, modelFile);
 }
 
+/**
+ * Compute the full SHA-256 of a file using a read stream (no full-buffer allocation).
+ * On a modern NVMe SSD this takes ~2-4 s for the 7B model and ~4-8 s for 12B —
+ * acceptable during the splash screen while the backend is also starting.
+ */
+async function computeModelHash(modelPath) {
+  const crypto = require("crypto");
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(modelPath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end",  () => resolve(hash.digest("hex").toUpperCase()));
+    stream.on("error", reject);
+  });
+}
+
 function ensureModelCopied() {
   const dest = getModelPath();
   if (fs.existsSync(dest)) return true;
@@ -134,6 +179,31 @@ async function startLlamaServer() {
   if (!ensureModelCopied()) {
     logStartup("Model not available, skipping llama-server");
     return;
+  }
+
+  // ── Model tier gate ───────────────────────────────────────────────────────
+  // Verify the loaded .gguf is authorised for this build's tier before spawning.
+  // Unknown hashes (third-party models) are treated as requiring 'pro'.
+  try {
+    updateSplash("Verifying model\u2026", 11);
+    const modelHash = await computeModelHash(modelPath);
+    const modelTier = MODEL_TIER_HASHES[modelHash] || "pro";
+    const appTier   = DEEPBREW_TIER;
+    logStartup(`Model hash: ${modelHash}  model_tier=${modelTier}  app_tier=${appTier}`);
+    if (modelTier === "pro" && appTier !== "pro") {
+      dialog.showErrorBox(
+        "DeepBrew — Model Not Permitted",
+        "The model file in your models folder requires DeepBrew Pro and cannot be\n" +
+        "used with DeepBrew Starter.\n\n" +
+        "Please use the Mistral 7B model (mistral-commander-q4.gguf), or upgrade to\n" +
+        "DeepBrew Pro at deepbrew.io/upgrade."
+      );
+      app.quit();
+      return;
+    }
+  } catch (hashErr) {
+    // If hashing fails (permissions, corruption) log it but do not block startup.
+    logStartup(`WARNING: Could not verify model hash: ${hashErr.message}`);
   }
 
   // Build a clean child environment: delete Chromium's Vulkan overrides so
@@ -340,6 +410,9 @@ function startBackend() {
     DATABASE_URL: `sqlite+aiosqlite:///${path.join(userDataDir, "mtg_collection.db").replace(/\\/g, "/")}`,
     SAVED_DECKS_DIR: path.join(userDataDir, "saved_decks"),
     LLAMA_SERVER_URL: `http://127.0.0.1:${LLAMA_PORT}/v1`,
+    // Pass the tier baked at build time into the backend so the Python process
+    // can enforce feature gates independently of the frontend.
+    DEEPBREW_TIER: DEEPBREW_TIER,
   });
   logStartup(`DATABASE_URL → ${backendEnv.DATABASE_URL}`);
   logStartup(`SAVED_DECKS_DIR → ${backendEnv.SAVED_DECKS_DIR}`);
@@ -381,6 +454,167 @@ function startBackend() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// IPC handlers — called from the renderer via window.deepbrew.*
+// ---------------------------------------------------------------------------
+
+const API_BASE = "https://api.deepbrewmtg.com";
+
+/** Returns or creates a stable UUID identifying this machine. */
+function getMachineId() {
+  const idPath = path.join(app.getPath("userData"), "machine-id");
+  if (fs.existsSync(idPath)) return fs.readFileSync(idPath, "utf8").trim();
+  const id = crypto.randomUUID();
+  fs.mkdirSync(path.dirname(idPath), { recursive: true });
+  fs.writeFileSync(idPath, id, "utf8");
+  return id;
+}
+
+/** Reads stored license record from userData, or null. */
+function readLicenseRecord() {
+  const p = path.join(app.getPath("userData"), "license.json");
+  if (!fs.existsSync(p)) return null;
+  try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; }
+}
+
+/** Persists a license record to userData. */
+function writeLicenseRecord(record) {
+  const p = path.join(app.getPath("userData"), "license.json");
+  fs.writeFileSync(p, JSON.stringify(record), "utf8");
+}
+
+/** POST JSON to the DeepBrew API, return parsed response body. */
+async function apiPost(endpoint, body) {
+  return new Promise((resolve, reject) => {
+    const payload = Buffer.from(JSON.stringify(body));
+    const url = new URL(API_BASE + endpoint);
+    const req = https.request({
+      hostname: url.hostname,
+      path: url.pathname,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": payload.length,
+      },
+    }, (res) => {
+      let data = "";
+      res.on("data", (c) => data += c);
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { reject(new Error("Invalid API response")); }
+      });
+    });
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+ipcMain.handle("deepbrew:get-machine-id", () => getMachineId());
+
+ipcMain.handle("deepbrew:get-license-status", () => {
+  const rec = readLicenseRecord();
+  if (!rec) return null;
+  return { tier: rec.tier, activated_at: rec.activated_at, license_key: rec.license_key };
+});
+
+ipcMain.handle("deepbrew:activate-license", async (_event, licenseKey) => {
+  if (typeof licenseKey !== "string" || !licenseKey.trim()) throw new Error("Invalid license key");
+  const machine_id = getMachineId();
+  const res = await apiPost("/activate", { license_key: licenseKey.trim(), machine_id });
+  if (!res.body.ok) throw new Error(res.body.error || "Activation failed");
+  writeLicenseRecord({
+    license_key: licenseKey.trim(),
+    tier: res.body.tier,
+    machine_id,
+    activated_at: new Date().toISOString(),
+  });
+  return { ok: true, tier: res.body.tier };
+});
+
+ipcMain.handle("deepbrew:download-model", async (event, model) => {
+  if (typeof model !== "string") throw new Error("Invalid model name");
+  const allowed = ["mistral-commander-q4.gguf", "mtg-commander-nemo-q3_k_m.gguf", "mtg-commander-nemo-q4_k_m.gguf"];
+  if (!allowed.includes(model)) throw new Error("Unknown model");
+
+  const rec = readLicenseRecord();
+  if (!rec) throw new Error("No active license. Activate first.");
+
+  const modelsDir = path.join(app.getPath("userData"), "models");
+  fs.mkdirSync(modelsDir, { recursive: true });
+  const destPath = path.join(modelsDir, model);
+  const tmpPath  = destPath + ".tmp";
+
+  return new Promise((resolve, reject) => {
+    const payload = Buffer.from(JSON.stringify({
+      license_key: rec.license_key,
+      machine_id:  rec.machine_id,
+      model,
+    }));
+    const url = new URL(API_BASE + "/download");
+    const req = https.request({
+      hostname: url.hostname,
+      path: url.pathname,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": payload.length,
+      },
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        let err = "";
+        res.on("data", (c) => err += c);
+        res.on("end", () => {
+          try { const b = JSON.parse(err); reject(new Error(b.error || "Download failed")); }
+          catch { reject(new Error(`Download failed (${res.statusCode})`)); }
+        });
+        return;
+      }
+      const total = parseInt(res.headers["content-length"] || "0", 10);
+      let received = 0;
+      const ws = fs.createWriteStream(tmpPath);
+      res.on("data", (chunk) => {
+        received += chunk.length;
+        ws.write(chunk);
+        const percent = total ? Math.round((received / total) * 100) : 0;
+        event.sender.send("deepbrew:download-progress", { received, total, percent });
+      });
+      res.on("end", () => {
+        ws.end(() => {
+          fs.renameSync(tmpPath, destPath);
+          resolve({ ok: true, path: destPath });
+        });
+      });
+      res.on("error", (e) => { ws.destroy(); reject(e); });
+    });
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+});
+
+ipcMain.handle("deepbrew:set-active-model", async (_event, filename) => {
+  const allowed = ["mistral-commander-q4.gguf", "mtg-commander-nemo-q3_k_m.gguf", "mtg-commander-nemo-q4_k_m.gguf"];
+  if (!allowed.includes(filename)) throw new Error("Unknown model filename");
+  const configPath = path.join(app.getPath("userData"), "models", "model-select.env");
+  const lines = fs.existsSync(configPath)
+    ? fs.readFileSync(configPath, "utf8").split(/\r?\n/)
+    : [];
+  // Comment out all MODEL_FILE lines, then append the new active one
+  const updated = lines
+    .map(l => l.trim().match(/^MODEL_FILE\s*=/) ? "# " + l.replace(/^#\s*/, "") : l)
+    .concat([`MODEL_FILE=${filename}`])
+    .join("\r\n");
+  fs.writeFileSync(configPath, updated + "\r\n", "utf8");
+  // Kill llama-server so it restarts on next load attempt (ModelStatus will trigger restart)
+  if (llamaProcess) {
+    llamaProcess.kill();
+    llamaProcess = null;
+    llamaServerStarted = false;
+  }
+  return { ok: true };
+});
+
 function createWindow() {
   const state = loadWindowState();
   const win = new BrowserWindow({
@@ -392,6 +626,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
+      additionalArguments: [`--deepbrew-tier=${DEEPBREW_TIER}`],
     },
   });
   mainWindow = win;
