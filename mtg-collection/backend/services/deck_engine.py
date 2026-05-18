@@ -276,6 +276,40 @@ def _card_matches_constraint(card: dict, constraint: dict) -> bool:
                     pass
         return False
 
+    if field in ("power", "toughness"):
+        # match_value supports: "4+" (>=4), ">4" (>4), ">=4", "<=4", "<4", or exact int
+        raw_stat = card.get(field)
+        try:
+            stat = int(raw_stat) if raw_stat is not None else None
+        except (ValueError, TypeError):
+            return False  # */X/etc — not numeric, can't match
+        if stat is None:
+            return False
+        for term in terms:
+            t = term.strip()
+            try:
+                if t.endswith("+"):
+                    if stat >= int(t[:-1]):
+                        return True
+                elif t.startswith(">="):
+                    if stat >= int(t[2:]):
+                        return True
+                elif t.startswith(">"):
+                    if stat > int(t[1:]):
+                        return True
+                elif t.startswith("<="):
+                    if stat <= int(t[2:]):
+                        return True
+                elif t.startswith("<"):
+                    if stat < int(t[1:]):
+                        return True
+                else:
+                    if stat == int(t):
+                        return True
+            except (ValueError, IndexError):
+                pass
+        return False
+
     if field == "type_line":
         haystack = (card.get("type_line") or "").lower()
     elif field == "oracle_text":
@@ -545,7 +579,7 @@ def _analyze_commander_profile(commander: dict) -> list[dict]:
 
     # --- Power ≥4 matters ---
     if re.search(r"power (4 or greater|of 4 or more|4 or more)|creatures with power 4", oracle):
-        add("Power ≥4 creatures", "oracle_text", "power 4", 8,
+        add("Power ≥4 creatures", "power", "4+", 8,
             "Commander rewards creatures with power 4 or greater", "high")
 
     # --- Flying matters ---
@@ -654,7 +688,10 @@ def _enforce_constraints(
         for evict_i in sorted(evict_idxs):
             if replacements_pool:
                 deck[evict_i] = replacements_pool.pop(0)
-            # else: remove card — deck will be shorter (safety net later pads basics)
+            else:
+                deck[evict_i] = None  # mark for removal — no valid replacement found
+
+        deck = [c for c in deck if c is not None]
 
     return deck
 
@@ -1575,6 +1612,47 @@ def build_deck_with_llm(
     }
 
 
+# ---------------------------------------------------------------------------
+# Lean pool — Pro-only pre-filter for Bracket 4/5 builds
+# ---------------------------------------------------------------------------
+
+def _build_lean_pool(
+    candidates: list[dict],
+    target_bracket: int,
+    keywords: list[str],
+) -> list[dict]:
+    """
+    For Bracket 4+ builds, reduce the candidate pool to high-efficiency cards only.
+
+    Scoring formula (per prompt spec):
+        Score = (is_vip * 100) + (is_synergy * 50) - (CMC * 10)
+
+    Hard filter: non-land cards with CMC > 4 that match no keyword are excluded
+    entirely before scoring — they are never correct at high power levels.
+
+    Returns the top 500 highest-scoring candidates (lands always retained).
+    """
+    from services.bracket_engine import is_bracket_vip
+
+    scored: list[tuple[float, dict]] = []
+    for card in candidates:
+        cmc = _card_cmc(card)
+        card_is_land = is_land(card)
+
+        # Hard CMC filter: non-land, CMC > 4, no synergy match → skip
+        if not card_is_land and cmc > 4:
+            if not (keywords and _card_matches_keywords(card, keywords)):
+                continue
+
+        vip_score   = 100 if is_bracket_vip(card, target_bracket) else 0
+        syn_score   = 50  if (keywords and _card_matches_keywords(card, keywords)) else 0
+        score       = vip_score + syn_score - (cmc * 10)
+        scored.append((score, card))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [card for _, card in scored[:500]]
+
+
 def generate_deck(
     prompt: str,
     commander_name: str,
@@ -1596,6 +1674,16 @@ def generate_deck(
     num_predict: int = OLLAMA_NUM_PREDICT,
 ) -> dict:
     """Main entry point for deck generation."""
+    # ── Tier gate ───────────────────────────────────────────────────────────
+    # DEEPBREW_TIER is injected by electron-main.js at spawn time.
+    # Starter builds (B1-3) cannot access Bracket 4 or 5 features.
+    _tier = os.getenv("DEEPBREW_TIER", "starter")
+    if target_bracket >= 4 and _tier != "pro":
+        raise ValueError(
+            "Brackets 4–5 require DeepBrew Pro. "
+            "Upgrade at deepbrew.io/upgrade."
+        )
+
     if progress_callback:
         progress_callback("Validating selected commander")
 
@@ -1635,30 +1723,77 @@ def generate_deck(
                     + ", ".join(c["name"] for c in must_dicts)
                 )
 
-    # Bracket VIP injection: for high brackets, auto-include owned power cards as must-includes
+    # ── Synergy analysis (resolved here so VIP injection is context-aware) ──
+    # Must happen before VIP injection so expanded_keywords can classify which
+    # Game Changers are "High-Priority" (GC + synergy match) vs plain VIP.
+    normalized_kw = _clean_keyword_filters(keyword_filters)
+    expanded_keywords, _strategy_directive = resolve_synergies(
+        keyword_filters=normalized_kw,
+        commander_name=commander.get("name", ""),
+        color_identity=identity,
+    )
+    scoring_keywords = expanded_keywords if expanded_keywords else normalized_kw
+
+    if progress_callback and scoring_keywords:
+        from services.synergy_engine import _match_archetypes
+        try:
+            from services.synergy_engine import _load_map
+            _archetypes = _load_map().get("archetypes", {})
+            matched = _match_archetypes(normalized_kw, _archetypes)
+            archetype_label = ", ".join(matched) if matched else "general"
+        except Exception:
+            archetype_label = "general"
+        progress_callback(
+            f"[DEEPBREW_LOG]: Synergy Analysis | Identified {archetype_label} patterns. "
+            "Prioritizing matching staples."
+        )
+
+    # ── Bracket VIP injection ────────────────────────────────────────────────
+    # Two tiers:
+    #   High-Priority: Game Changer AND matches expanded synergy keywords
+    #                  → guaranteed must-include (force-injected)
+    #   Standard VIP:  is_bracket_vip but no synergy match
+    #                  → scored/prioritized in _build_lean_pool but not force-injected
     if target_bracket >= 4:
-        from services.bracket_engine import is_bracket_vip
+        from services.bracket_engine import is_bracket_vip, is_game_changer
         already_must: set[str] = {c["name"].lower() for c in must_dicts}
         commander_lower = commander["name"].lower()
-        vip_cards: list[dict] = []
+        high_priority: list[dict] = []
         for card in candidates:
             key = card["name"].lower()
-            if is_bracket_vip(card, target_bracket) and key not in already_must and key != commander_lower:
-                vip_cards.append(card)
+            if key in already_must or key == commander_lower:
+                continue
+            if not is_bracket_vip(card, target_bracket):
+                continue
+            # High-Priority: GC that also matches expanded synergy keywords
+            if is_game_changer(card) and scoring_keywords and _card_matches_keywords(card, scoring_keywords):
+                high_priority.append(card)
                 already_must.add(key)
-        if vip_cards:
-            must_dicts.extend(vip_cards)
+        if high_priority:
+            must_dicts.extend(high_priority)
             if progress_callback:
                 progress_callback(
-                    f"Auto-injected {len(vip_cards)} VIP power card(s) for Bracket {target_bracket}: "
-                    + ", ".join(c["name"] for c in vip_cards)
+                    f"[DEEPBREW_LOG]: VIP Injection | Auto-injected {len(high_priority)} "
+                    f"high-priority staple(s) for Bracket {target_bracket}: "
+                    + ", ".join(c["name"] for c in high_priority)
                 )
+        # Standard VIPs (not force-injected) are surfaced to _build_lean_pool via
+        # their is_vip score bonus — they receive +100 in the scoring formula.
 
     if len(candidates) < 20:
         raise ValueError(
             f"Not enough legal cards in your collection for a {commander['name']} deck. "
             f"Found only {len(candidates)} candidates."
         )
+
+    # ── Lean pool for high-bracket builds (Pro only) ────────────────────────
+    if target_bracket >= 4:
+        candidates = _build_lean_pool(candidates, target_bracket, scoring_keywords)
+        if progress_callback:
+            progress_callback(
+                f"[DEEPBREW_LOG]: Lean Pool | Reduced to {len(candidates)} high-efficiency "
+                f"candidates for Bracket {target_bracket} build."
+            )
 
     return build_deck_with_llm(
         prompt,

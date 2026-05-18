@@ -126,8 +126,11 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
 
     # If commander is missing, add it to the collection using Scryfall
     if not commander and commander_name:
-        row = CanonicalImportRow(source="import-deck", name=commander_name, quantity=1, original_row={"name": commander_name, "quantity": 1})
-        status, reason = await upsert_card(db, row)
+        try:
+            row = CanonicalImportRow(source="import-deck", name=commander_name, quantity=1, original_row={"name": commander_name, "quantity": 1})
+            status, reason = await upsert_card(db, row)
+        except Exception as _exc:
+            status, reason = "failed", str(_exc)
         if status == "imported" or status == "updated":
             # Refresh card lookup
             result = await db.execute(select(Card))
@@ -136,8 +139,6 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
             commander = card_lookup.get(commander_name.lower())
             if not commander and " // " in commander_name:
                 commander = card_lookup.get(commander_name.split(" // ")[0].strip().lower())
-        else:
-            raise HTTPException(status_code=400, detail=f"Commander '{commander_name}' could not be added: {reason or 'Unknown error'}")
 
     deck_cards = []
     missing = []
@@ -152,8 +153,11 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
             c = card_lookup.get(entry["name"].split(" // ")[0].strip().lower())
         if not c:
             # Try to add missing card to collection
-            row = CanonicalImportRow(source="import-deck", name=entry["name"], quantity=entry["quantity"], original_row=entry)
-            status, reason = await upsert_card(db, row)
+            try:
+                row = CanonicalImportRow(source="import-deck", name=entry["name"], quantity=entry["quantity"], original_row=entry)
+                status, reason = await upsert_card(db, row)
+            except Exception as _exc:
+                status, reason = "failed", str(_exc)
             if status == "imported" or status == "updated":
                 # Refresh card lookup for this card
                 result = await db.execute(select(Card))
@@ -189,6 +193,8 @@ async def import_deck(req: ImportDeckRequest, db: AsyncSession = Depends(get_db)
         deck=deck_cards,
         description=f"Imported decklist. Missing: {', '.join(missing) if missing else 'None'}",
     )
+    from routes.collection import commit_with_retry
+    await commit_with_retry(db)
     resp = await save_deck(payload)
     return {"saved": resp, "missing": missing}
 

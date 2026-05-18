@@ -71,6 +71,13 @@ interface ManualDeckSavePayload {
   description: string;
 }
 
+interface SavedDeckSummary {
+  file: string;
+  name: string;
+  commander: string;
+  card_count: number;
+}
+
 const COLOR_SYMBOLS: Record<string, string> = {
   W: "☀️", U: "💧", B: "💀", R: "🔥", G: "🌲",
 };
@@ -121,6 +128,60 @@ export default function Collection() {
   const [manualDeckName, setManualDeckName] = useState("");
   const [manualCommanderId, setManualCommanderId] = useState("");
   const [manualSaving, setManualSaving] = useState(false);
+
+  // Add to Deck state
+  const [showAddToDeck, setShowAddToDeck] = useState(false);
+  const [addToDeckDecks, setAddToDeckDecks] = useState<SavedDeckSummary[]>([]);
+  const [addToDeckFile, setAddToDeckFile] = useState("");
+  const [addToDeckDest, setAddToDeckDest] = useState<"mainboard" | "sideboard">("mainboard");
+  const [addToDeckBusy, setAddToDeckBusy] = useState(false);
+  const [addToDeckMessage, setAddToDeckMessage] = useState<string | null>(null);
+
+  const openAddToDeck = async () => {
+    if (selectedCards.length === 0) {
+      setMessage({ type: "error", text: "Select cards first" });
+      return;
+    }
+    try {
+      const { data } = await api.get<SavedDeckSummary[]>("/deck/saved");
+      setAddToDeckDecks(data);
+      setAddToDeckFile(data[0]?.file || "");
+      setAddToDeckDest("mainboard");
+      setAddToDeckMessage(null);
+      setShowAddToDeck(true);
+    } catch {
+      setMessage({ type: "error", text: "Could not load saved decks" });
+    }
+  };
+
+  const handleAddToDeck = async () => {
+    if (!addToDeckFile) return;
+    setAddToDeckBusy(true);
+    setAddToDeckMessage(null);
+    try {
+      const { data: deck } = await api.get(`/deck/saved/${addToDeckFile}`);
+      const newCards = selectedCards.map((c) => ({
+        name: c.name,
+        image_uri: c.image_uri,
+        type_line: c.type_line,
+        tcgplayer_price: c.tcgplayer_price,
+      }));
+      const body: Record<string, unknown> = { deck: deck.deck, sideboard: deck.sideboard || [] };
+      if (addToDeckDest === "sideboard") {
+        body.sideboard = [...(deck.sideboard || []), ...newCards];
+      } else {
+        body.deck = [...deck.deck, ...newCards];
+      }
+      await api.put(`/deck/saved/${addToDeckFile}`, body);
+      const destLabel = addToDeckDest === "sideboard" ? "sideboard" : "mainboard";
+      setAddToDeckMessage(`Added ${newCards.length} card(s) to ${destLabel}.`);
+    } catch (err: any) {
+      setAddToDeckMessage(err.response?.data?.detail || "Failed to add cards to deck");
+    } finally {
+      setAddToDeckBusy(false);
+    }
+  };
+
   const [showAddCard, setShowAddCard] = useState(false);
   const [addCardName, setAddCardName] = useState("");
   const [addCardQty, setAddCardQty] = useState<number>(1);
@@ -897,6 +958,64 @@ const payload: ManualDeckSavePayload = {
 
       {/* Removed Add Precon Modal as requested */}
 
+      {/* Add to Deck Modal */}
+      {showAddToDeck && (
+        <div className="collection-modal-overlay">
+          <div className="collection-modal" ref={modalRef} style={{ position: 'fixed', left: modalPos.x, top: modalPos.y }}>
+            <h2 className="collection-modal-title" onMouseDown={startDrag} style={{ cursor: 'move' }}>
+              Add {selectedCards.length} Card{selectedCards.length !== 1 ? "s" : ""} to Deck
+            </h2>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ display: 'block', fontWeight: 500, color: 'white', marginBottom: 4 }}>Deck</label>
+              {addToDeckDecks.length === 0 ? (
+                <p style={{ color: '#9ca3af' }}>No saved decks found. Build or import a deck first.</p>
+              ) : (
+                <select
+                  className="collection-search collection-search-margin"
+                  title="Select deck to add cards to"
+                  value={addToDeckFile}
+                  onChange={(e) => setAddToDeckFile(e.target.value)}
+                  disabled={addToDeckBusy}
+                  style={{ width: '100%' }}
+                >
+                  {addToDeckDecks.map((d) => (
+                    <option key={d.file} value={d.file}>{d.name}{d.commander ? ` (${d.commander})` : ""}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontWeight: 500, color: 'white', marginBottom: 4 }}>Destination</label>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <label style={{ color: 'white', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="radio" name="addToDeckDest" value="mainboard" checked={addToDeckDest === "mainboard"} onChange={() => setAddToDeckDest("mainboard")} disabled={addToDeckBusy} />
+                  Mainboard
+                </label>
+                <label style={{ color: 'white', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="radio" name="addToDeckDest" value="sideboard" checked={addToDeckDest === "sideboard"} onChange={() => setAddToDeckDest("sideboard")} disabled={addToDeckBusy} />
+                  Sideboard
+                </label>
+              </div>
+            </div>
+            {addToDeckMessage && (
+              <div className={addToDeckMessage.startsWith("Added") ? "collection-modal-success" : "collection-modal-error"} style={{ marginBottom: 10 }}>
+                {addToDeckMessage}
+              </div>
+            )}
+            <div className="collection-modal-footer">
+              <button className="btn-secondary" type="button" onClick={() => { setShowAddToDeck(false); setAddToDeckMessage(null); }} disabled={addToDeckBusy}>
+                {addToDeckMessage?.startsWith("Added") ? "Close" : "Cancel"}
+              </button>
+              {!addToDeckMessage?.startsWith("Added") && (
+                <button className="btn-primary" type="button" onClick={handleAddToDeck} disabled={addToDeckBusy || !addToDeckFile || addToDeckDecks.length === 0}>
+                  {addToDeckBusy ? "Adding..." : "Add to Deck"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import Cards from Text Modal with Save as Deck option and Commander field */}
       {showImportText && (
         <div className="collection-modal-overlay">
@@ -1165,6 +1284,9 @@ const payload: ManualDeckSavePayload = {
         </button>
         <button className="btn-primary" type="button" disabled={selectedCount === 0} onClick={openManualSaveModal}>
           Save Selected as Deck
+        </button>
+        <button className="btn-secondary" type="button" disabled={selectedCount === 0} onClick={openAddToDeck}>
+          Add to Deck
         </button>
         <span className="collection-selected-count">Selected: {selectedCount}</span>
         

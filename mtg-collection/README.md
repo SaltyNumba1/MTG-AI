@@ -102,6 +102,22 @@ Defaults:
 
 ---
 
+## v1.3.2 — Bug Fixes & Constraint Improvements
+
+### 🐛 Bug Fixes
+
+- **Deck import (.txt) fix** — importing a `.txt` decklist no longer throws "Import failed" when cards are missing from your collection. Scryfall fetch errors are now caught per-card and a database commit is issued at the end so all successfully fetched cards are persisted.
+- **Create Backup fix** — the backup button was silently doing nothing (missing `shutil.copy2` call). Backups are now correctly written to the `backups/` folder next to the database.
+- **Power/Toughness constraint fix** — `match_field: power` and `match_field: toughness` now compare actual integer card stats instead of searching oracle text. Supports `4+`, `>=4`, `>3`, `<=2`, `<4`, and exact integers. The auto-detected "Power ≥4 creatures" suggestion is also corrected.
+- **Max constraint enforcement fix** — when no valid replacement cards exist in the pool, cards exceeding a `max_count` ceiling are now removed from the deck (previously left in silently).
+
+### ✨ New Features
+
+- **Add to Deck** — a new **Add to Deck** button in the Collection bulk toolbar opens a modal to append selected cards to any saved deck's Mainboard or Sideboard.
+- **Power / Toughness constraint field** — the Field dropdown in the DeckBuilder constraint panel now includes Power and Toughness, with placeholder hints for the supported syntax (`4+`, `>3`, `>=5`, etc.).
+
+---
+
 ## v1.3.1 — My Decks Stats Panel & Swap-Select UX
 
 ### ⚡ What's New

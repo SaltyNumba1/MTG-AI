@@ -1,6 +1,6 @@
 {
   "name": "mtg-collection-frontend",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "DeepBrew — Local GPU-accelerated MTG Commander deck builder",
   "author": "",
   "main": "electron-main.js",
@@ -12,7 +12,9 @@
     "desktop:dev": "concurrently \"cd ..\\backend && .venv\\Scripts\\python.exe -m uvicorn main:app --reload\" \"npm:dev\" \"wait-on http://localhost:5173 && electron .\"",
     "build:frontend": "tsc && vite build",
     "desktop:build": "cd ..\\backend && call .\\package_standalone.bat && cd ..\\frontend && npm run build:frontend && npx electron-builder --win --config",
-    "desktop:package": "npm run build && electron-packager . \"DeepBrew\" --platform=win32 --arch=x64 --icon=build/icon.ico --out C:\\Temp\\MTGPkg --overwrite --prune=true --ignore=release --ignore=llama-server --ignore=training --ignore=\\.spec$ && mkdir \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\backend\\dist\" 2>nul && copy \"..\\backend\\dist\\mtg-collection.exe\" \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\backend\\dist\\\" && xcopy /E /I /Y \"llama-server\" \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\\resources\\llama-server\" && if exist \"%CD%\\release\\DeepBrew-win32-x64\" rmdir /S /Q \"%CD%\\release\\DeepBrew-win32-x64\" && robocopy \"C:\\Temp\\MTGPkg\\DeepBrew-win32-x64\" \"%CD%\\release\\DeepBrew-win32-x64\" /E /IS /IT /NFL /NDL /NJH /NJS & exit /b 0",
+    "desktop:package": "npm run desktop:package:starter",
+    "desktop:package:starter": "cross-env DEEPBREW_TIER=starter npm run build && electron-packager . \"DeepBrew-Starter\" --platform=win32 --arch=x64 --icon=build/icon.ico --out C:\\Temp\\MTGPkg --overwrite --prune=true --ignore=release --ignore=llama-server --ignore=training --ignore=\\.spec$ && echo starter>\"C:\\Temp\\MTGPkg\\DeepBrew-Starter-win32-x64\\resources\\app-tier\" && mkdir \"C:\\Temp\\MTGPkg\\DeepBrew-Starter-win32-x64\\resources\\backend\\dist\" 2>nul && copy \"..\\backend\\dist\\mtg-collection.exe\" \"C:\\Temp\\MTGPkg\\DeepBrew-Starter-win32-x64\\resources\\backend\\dist\\\" && xcopy /E /I /Y \"llama-server\" \"C:\\Temp\\MTGPkg\\DeepBrew-Starter-win32-x64\\resources\\llama-server\" && if exist \"C:\\Users\\dirtb\\Desktop\\MTG AI\\MTG AI\\mtg-collection\\frontend\\release\\DeepBrew-Starter-win32-x64\" rmdir /S /Q \"C:\\Users\\dirtb\\Desktop\\MTG AI\\MTG AI\\mtg-collection\\frontend\\release\\DeepBrew-Starter-win32-x64\" && robocopy \"C:\\Temp\\MTGPkg\\DeepBrew-Starter-win32-x64\" \"C:\\Users\\dirtb\\Desktop\\MTG AI\\MTG AI\\mtg-collection\\frontend\\release\\DeepBrew-Starter-win32-x64\" /E /IS /IT /NFL /NDL /NJH /NJS & exit /b 0",
+    "desktop:package:pro": "cross-env DEEPBREW_TIER=pro npm run build && electron-packager . \"DeepBrew-Pro\" --platform=win32 --arch=x64 --icon=build/icon.ico --out C:\\Temp\\MTGPkg --overwrite --prune=true --ignore=release --ignore=llama-server --ignore=training --ignore=\\.spec$ && echo pro>\"C:\\Temp\\MTGPkg\\DeepBrew-Pro-win32-x64\\resources\\app-tier\" && mkdir \"C:\\Temp\\MTGPkg\\DeepBrew-Pro-win32-x64\\resources\\backend\\dist\" 2>nul && copy \"..\\backend\\dist\\mtg-collection.exe\" \"C:\\Temp\\MTGPkg\\DeepBrew-Pro-win32-x64\\resources\\backend\\dist\\\" && xcopy /E /I /Y \"llama-server\" \"C:\\Temp\\MTGPkg\\DeepBrew-Pro-win32-x64\\resources\\llama-server\" && if exist \"C:\\Users\\dirtb\\Desktop\\MTG AI\\MTG AI\\mtg-collection\\frontend\\release\\DeepBrew-Pro-win32-x64\" rmdir /S /Q \"C:\\Users\\dirtb\\Desktop\\MTG AI\\MTG AI\\mtg-collection\\frontend\\release\\DeepBrew-Pro-win32-x64\" && robocopy \"C:\\Temp\\MTGPkg\\DeepBrew-Pro-win32-x64\" \"C:\\Users\\dirtb\\Desktop\\MTG AI\\MTG AI\\mtg-collection\\frontend\\release\\DeepBrew-Pro-win32-x64\" /E /IS /IT /NFL /NDL /NJH /NJS & exit /b 0",
     "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
@@ -26,6 +28,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^8.2.1",
+    "cross-env": "^7.0.3",
     "electron": "^41.3.0",
     "electron-builder": "^26.8.1",
     "electron-packager": "^17.1.2",

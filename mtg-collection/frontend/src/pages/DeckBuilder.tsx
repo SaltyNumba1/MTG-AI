@@ -6,6 +6,18 @@ import BracketBadge, { BracketInfo } from "../components/BracketBadge";
 import { useSettings } from "../hooks/useSettings";
 import "./DeckBuilder.css";
 
+// ── Tier gating (baked in at build time via vite.config.ts define) ─────────
+const IS_PRO = (typeof __DEEPBREW_TIER__ !== "undefined" ? __DEEPBREW_TIER__ : "starter") === "pro";
+
+const BRACKET_OPTIONS: { value: number; label: string; sub: string; requiresPro: boolean }[] = [
+  { value: 0, label: "Any", sub: "No preference",  requiresPro: false },
+  { value: 1, label: "B1",  sub: "Exhibition",      requiresPro: false },
+  { value: 2, label: "B2",  sub: "Core",            requiresPro: false },
+  { value: 3, label: "B3",  sub: "Upgraded",        requiresPro: false },
+  { value: 4, label: "B4",  sub: "Optimized",       requiresPro: true  },
+  { value: 5, label: "B5",  sub: "Competitive",     requiresPro: true  },
+];
+
 interface Commander {
   id: string;
   name: string;
@@ -150,6 +162,7 @@ export default function DeckBuilder() {
   const [nonbasicLandCount, setNonbasicLandCount] = useState(settings.defaultNonbasicLand);
   const [dualLandCount, setDualLandCount] = useState(settings.defaultDualLand);
   const [targetBracket, setTargetBracket] = useState(settings.defaultBracket);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<DeckResult | null>(null);
@@ -785,11 +798,17 @@ export default function DeckBuilder() {
                   <option value="type_line">Type Line</option>
                   <option value="oracle_text">Oracle Text</option>
                   <option value="keywords">Keywords</option>
+                  <option value="power">Power</option>
+                  <option value="toughness">Toughness</option>
                   <option value="any">Any Field</option>
                 </select>
                 <input
                   type="text"
-                  placeholder='e.g. "Pirate" or "Instant|Sorcery"'
+                  placeholder={
+                    customConstraint.match_field === "power" || customConstraint.match_field === "toughness"
+                      ? 'e.g. "4+" or ">3" or ">=5" or "2"'
+                      : 'e.g. "Pirate" or "Instant|Sorcery"'
+                  }
                   value={customConstraint.match_value}
                   onChange={(e) => setCustomConstraint((p) => ({ ...p, match_value: e.target.value }))}
                   className="deckbuilder-constraint-value-input"
@@ -846,21 +865,68 @@ export default function DeckBuilder() {
 
         <div>
           <label className="deckbuilder-label">Target Bracket (optional)</label>
-          <select
-            aria-label="Target Bracket"
-            value={targetBracket}
-            onChange={(e) => setTargetBracket(Number(e.target.value))}
-          >
-            <option value={0}>No preference</option>
-            <option value={1}>1 — Exhibition (ultra-casual, no staples)</option>
-            <option value={2}>2 — Core (precon power level)</option>
-            <option value={3}>3 — Upgraded (1–3 Game Changers, combos OK)</option>
-            <option value={4}>4 — Optimized (high power, any staple)</option>
-            <option value={5}>5 — Competitive (cEDH, fastest win)</option>
-          </select>
+          <div className="deckbuilder-bracket-row">
+            {BRACKET_OPTIONS.map(opt => {
+              const locked = opt.requiresPro && !IS_PRO;
+              return (
+                <button
+                  key={opt.value}
+                  className={[
+                    "bracket-tile",
+                    targetBracket === opt.value ? "bracket-tile--active" : "",
+                    locked ? "bracket-tile--locked" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => {
+                    if (locked) { setShowUpgradePrompt(true); }
+                    else { setTargetBracket(opt.value); }
+                  }}
+                  title={locked ? "Requires DeepBrew Pro" : opt.sub}
+                  aria-disabled={locked}
+                >
+                  <span className="bracket-tile-label">{opt.label}</span>
+                  <span className="bracket-tile-sub">{opt.sub}</span>
+                  {locked && <span className="bracket-tile-pro-badge">PRO</span>}
+                </button>
+              );
+            })}
+          </div>
           <small className="deckbuilder-hint">
-            Adds power-level guidance to the AI prompt. This is a soft hint — not a hard filter.
+            Adds power-level guidance to the AI prompt.
+            {!IS_PRO && " Brackets 4–5 require DeepBrew Pro."}
           </small>
+
+          {showUpgradePrompt && (
+            <div className="bracket-upgrade-backdrop" onClick={() => setShowUpgradePrompt(false)}>
+              <div className="bracket-upgrade-modal" onClick={e => e.stopPropagation()}>
+                <h3 className="bracket-upgrade-title">Unlock Brackets 4 &amp; 5</h3>
+                <p className="bracket-upgrade-body">
+                  High-power and cEDH builds are exclusive to <strong>DeepBrew Pro</strong>.
+                  Pro includes the Nemo 12B model, lean-pool filtering, and Thought Stream logs.
+                </p>
+                <div className="bracket-upgrade-actions">
+                  <a
+                    className="bracket-upgrade-btn bracket-upgrade-btn--primary"
+                    href="https://deepbrew.io/upgrade"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Upgrade from Starter — $40
+                  </a>
+                  <a
+                    className="bracket-upgrade-btn bracket-upgrade-btn--secondary"
+                    href="https://deepbrew.io/pro"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Buy Pro fresh — $49
+                  </a>
+                </div>
+                <button className="bracket-upgrade-close" onClick={() => setShowUpgradePrompt(false)}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="deckbuilder-type-counters">
