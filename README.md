@@ -1,4 +1,5 @@
-# <img width="420" height="380" alt="icon" src="https://github.com/user-attachments/assets/8959f63d-ae61-49de-a34e-d9e707a7f51d" />
+<img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/8c7a3f97-26a5-4ec1-a106-a4131c211f3f" />
+
 
  MTG-AI
 
