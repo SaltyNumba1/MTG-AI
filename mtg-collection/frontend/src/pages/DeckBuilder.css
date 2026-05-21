@@ -703,9 +703,21 @@
   flex-shrink: 0;
 }
 
+.deckbuilder-constraint-count.over-pool {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
 .deckbuilder-constraint-count:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.deckbuilder-pool-count {
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 .deckbuilder-constraint-field-badge {

@@ -24,6 +24,10 @@ id = "bdbdddc595fc492d8a0639ec04735d56"
 binding = "MODELS_BUCKET"
 bucket_name = "models"
 
+[[r2_buckets]]
+binding = "RELEASES_BUCKET"
+bucket_name = "releases"
+
 # ---------------------------------------------------------------------------
 # Plain (non-secret) vars — safe to commit
 # Set LS_PRO_VARIANT_IDS to the comma-separated LemonSqueezy variant IDs

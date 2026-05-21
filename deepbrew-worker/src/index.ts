@@ -7,6 +7,7 @@
  *   POST /download        — Verify license + machine, stream model file from R2.
  *   POST /deactivate      — Release a machine binding (support use).
  *   GET  /license-status  — Check activation state (?key=...).
+ *   GET  /download/app    — Stream app release zip from R2 (?tier=starter|pro).
  */
 
 export interface Env {
@@ -14,6 +15,8 @@ export interface Env {
   LICENSES: KVNamespace;
   /** R2 bucket — holds .gguf model files */
   MODELS_BUCKET: R2Bucket;
+  /** R2 bucket — holds app release zips */
+  RELEASES_BUCKET: R2Bucket;
   /** LemonSqueezy secret API key (set as encrypted secret via wrangler) */
   LS_API_KEY: string;
   /** Comma-separated LemonSqueezy variant IDs that map to the Pro tier */
@@ -69,6 +72,7 @@ export default {
 
     if (pathname === "/activate"       && request.method === "POST") return handleActivate(request, env);
     if (pathname === "/download"       && request.method === "POST") return handleDownload(request, env);
+    if (pathname === "/download/app"   && request.method === "GET")  return handleDownloadApp(request, env);
     if (pathname === "/deactivate"     && request.method === "POST") return handleDeactivate(request, env);
     if (pathname === "/license-status" && request.method === "GET")  return handleStatus(request, env);
     if (pathname === "/webhook"        && request.method === "POST") return handleWebhook(request, env);
@@ -76,6 +80,37 @@ export default {
     return json({ error: "Not found" }, 404);
   },
 };
+
+// ---------------------------------------------------------------------------
+// GET /download/app?tier=starter|pro
+// ---------------------------------------------------------------------------
+
+/** Versioned filenames in the "releases" R2 bucket. Update each release. */
+const APP_RELEASE: Record<"starter" | "pro", string> = {
+  starter: "DeepBrew-Starter-v1.4.1-win32-x64.zip",
+  pro:     "DeepBrew-Pro-v1.4.1-win32-x64.zip",
+};
+
+async function handleDownloadApp(request: Request, env: Env): Promise<Response> {
+  const { searchParams } = new URL(request.url);
+  const tierParam = searchParams.get("tier");
+  if (tierParam !== "starter" && tierParam !== "pro") {
+    return json({ error: "tier must be 'starter' or 'pro'" }, 400);
+  }
+
+  const filename = APP_RELEASE[tierParam];
+  const object   = await env.RELEASES_BUCKET.get(filename);
+  if (!object) return json({ error: "Release not found. Contact support@deepbrewmtg.com." }, 404);
+
+  return new Response(object.body, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Length": object.size.toString(),
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      ...CORS,
+    },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // POST /activate

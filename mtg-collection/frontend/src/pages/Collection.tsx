@@ -621,10 +621,18 @@ export default function Collection() {
         const wantsColorless = colorFilter.includes("C");
         const wantedColors = colorFilter.filter((x) => x !== "C");
         const ci = c.color_identity || [];
-        const colors = c.colors || [];
-        const matchesColorless = wantsColorless && colors.length === 0;
-        const matchesAny = wantedColors.some((col) => ci.includes(col));
-        if (!matchesColorless && !matchesAny) return false;
+        // Strict identity: card's full color identity must be a subset of the selected colors.
+        // Colorless cards (empty ci) are legal in any commander identity, so always include them
+        // when color filters are active. If ONLY "C" is selected, show colorless cards only.
+        const isColorless = ci.length === 0;
+        if (wantedColors.length === 0 && wantsColorless) {
+          // Only "C" selected — show colorless cards only
+          if (!isColorless) return false;
+        } else if (wantedColors.length > 0) {
+          // Color(s) selected — card identity must be fully within selected colors
+          // Colorless cards are always included (legal in any identity)
+          if (!isColorless && !ci.every((col) => wantedColors.includes(col))) return false;
+        }
       }
       if (typeFilter !== "all") {
         // Use only the primary face for DFC cards

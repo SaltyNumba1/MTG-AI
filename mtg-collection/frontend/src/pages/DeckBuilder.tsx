@@ -183,6 +183,8 @@ export default function DeckBuilder() {
   const [customConstraint, setCustomConstraint] = useState<{ match_field: string; match_value: string; min_count: number }>({
     match_field: "type_line", match_value: "", min_count: 1,
   });
+  // Pool counts: keyed by "match_field:match_value" — how many cards in this commander's pool match each constraint
+  const [constraintPoolCounts, setConstraintPoolCounts] = useState<Record<string, number>>({});
 
   // Card selection + exclusion for re-roll
   const [selectedCardNames, setSelectedCardNames] = useState<Set<string>>(new Set());
@@ -237,6 +239,7 @@ export default function DeckBuilder() {
   useEffect(() => {
     if (!selectedCommander) {
       setConstraints([]);
+      setConstraintPoolCounts({});
       return;
     }
     api.get<ConstraintSuggestion[]>("/deck/commander-profile", { params: { commander_name: selectedCommander } })
@@ -249,6 +252,30 @@ export default function DeckBuilder() {
       })
       .catch(() => setConstraints([]));
   }, [selectedCommander]);
+
+  // Fetch pool counts for all constraints whenever commander or constraint list changes
+  useEffect(() => {
+    if (!selectedCommander || constraints.length === 0) {
+      setConstraintPoolCounts({});
+      return;
+    }
+    const timer = setTimeout(() => {
+      api.post<{ label: string; available_count: number }[]>("/deck/constraint-preview", {
+        commander_name: selectedCommander,
+        constraints: constraints.map(({ label, match_field, match_value, min_count, max_count }) => ({
+          label, match_field, match_value, min_count: min_count || 1, max_count: max_count ?? 0,
+        })),
+      }).then(({ data }) => {
+        const map: Record<string, number> = {};
+        constraints.forEach((c, idx) => {
+          const key = `${c.match_field}:${c.match_value.toLowerCase()}`;
+          map[key] = data[idx]?.available_count ?? 0;
+        });
+        setConstraintPoolCounts(map);
+      }).catch(() => {});
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [selectedCommander, constraints]);
 
   // When the user navigates away after a build has finished, clear the chat
   // so re-entering the page starts fresh.
@@ -443,6 +470,7 @@ export default function DeckBuilder() {
         target_bracket: targetBracket,
         max_compact_candidates: settings.maxCompactCandidates,
         num_predict: settings.numPredict,
+        max_model_candidates: settings.maxModelCandidates,
       });
       setResult(data);
       setDeckModified(false);
@@ -717,7 +745,12 @@ export default function DeckBuilder() {
               {constraints.length === 0 && (
                 <small className="deckbuilder-hint">No constraints auto-detected — add one manually below.</small>
               )}
-              {constraints.map((c, idx) => (
+              {constraints.map((c, idx) => {
+                const poolKey = `${c.match_field}:${c.match_value.toLowerCase()}`;
+                const poolCount = constraintPoolCounts[poolKey];
+                const sliderMax = poolCount !== undefined ? Math.max(poolCount, c.min_count) : 60;
+                const overPool = poolCount !== undefined && c.min_count > poolCount;
+                return (
                 <div key={idx} className={`deckbuilder-constraint-row${c.min_count > 0 ? " enabled" : ""}`}>
                   <input
                     type="checkbox"
@@ -732,6 +765,15 @@ export default function DeckBuilder() {
                   <span className={`deckbuilder-constraint-label${c.min_count > 0 ? "" : " disabled"}`}>
                     {c.label}
                   </span>
+                  {poolCount !== undefined && (
+                    <span
+                      className="deckbuilder-pool-count"
+                      title={`${poolCount} cards in your collection match this constraint for this commander`}
+                      style={{ color: overPool ? "#f59e0b" : "#64748b" }}
+                    >
+                      {poolCount} in pool
+                    </span>
+                  )}
                   {c.confidence === "high" && c.min_count > 0 && (
                     <span className="deckbuilder-confidence-badge" title={`Auto-enabled: ${c.detected_from}`}>
                       ⚡ auto
@@ -745,7 +787,7 @@ export default function DeckBuilder() {
                   <input
                     type="number"
                     min={1}
-                    max={60}
+                    max={sliderMax}
                     value={c.min_count > 0 ? c.min_count : c.suggested_min}
                     disabled={c.min_count === 0}
                     onChange={(e) => {
@@ -754,8 +796,8 @@ export default function DeckBuilder() {
                         i === idx ? { ...item, min_count: val, suggested_min: val } : item
                       ));
                     }}
-                    className="deckbuilder-constraint-count"
-                    title="Minimum card count for this constraint"
+                    className={`deckbuilder-constraint-count${overPool ? " over-pool" : ""}`}
+                    title={overPool ? `Only ${poolCount} matching cards in pool — minimum will be capped at ${poolCount}` : "Minimum card count for this constraint"}
                   />
                   <span className="deckbuilder-constraint-minmax-label">max</span>
                   <input
@@ -786,7 +828,8 @@ export default function DeckBuilder() {
                     type="button"
                   >×</button>
                 </div>
-              ))}
+                );
+              })}
               {/* Add custom constraint */}
               <div className="deckbuilder-constraint-add-row">
                 <select

@@ -94,6 +94,18 @@
       "synergy_partners": ["token", "sacrifice", "draw"],
       "strategy_directive": "COUNTERS/PROLIFERATE BUILD — Construct the deck around +1/+1 counter synergies. You MUST include: (1) At least 6 ways to place +1/+1 counters reliably (ETB counters, evolve, proliferate triggers), (2) At least 4 proliferate effects to double up counters, (3) Counter payoffs (cards that benefit from creatures having counters or that scale with counter counts), (4) A finisher that uses counters (infect alternative win, large creature swings). Prioritize creatures that enter with counters or grow each turn."
     },
+    "amass_orcs": {
+      "aliases": ["amass", "amass orcs", "orc army", "orc tribal", "army token", "go wide orcs"],
+      "description": "Grow the Army token via Amass Orcs triggers and flood the board with Orcs for a power-scaling win.",
+      "requires": ["amass orcs source", "+1/+1 counter doubler", "army pump effect", "orc tribal lord", "wide attack payoff"],
+      "key_patterns": [
+        "amass orcs", "army you control", "+1/+1 counter", "orc",
+        "army gets", "army token", "whenever.*orc.*enters", "whenever.*orc.*attacks",
+        "creatures you control get +1/+1", "proliferate", "counter on a creature you control"
+      ],
+      "synergy_partners": ["counters", "tokens", "tribal"],
+      "strategy_directive": "AMASS ORCS / ORC ARMY BUILD — Construct the deck to grow a single massive Army token via Amass Orcs triggers while flooding the board with Orc creatures for tribal synergy. You MUST include: (1) Every Amass Orcs card available in the candidate list — these are your primary engine and are non-negotiable, (2) At least 6 +1/+1 counter doublers or proliferate effects to accelerate the Army's growth, (3) At least 5 Orc tribal payoffs (cards that reward or scale with Orcs you control), (4) Wide-attack enablers (haste granters, attack payoffs, evasion effects) to make the Army hit harder, (5) Anthem effects ('creatures you control get +1/+1') for the wider board. Prioritize cards that interact with counters, Army tokens, and Orc creature type. Never skip an Amass Orcs card in favor of a generic card."
+    },
     "tribal": {
       "aliases": ["tribal", "creature type", "typal", "lord", "tribe"],
       "description": "Fill the deck with creatures of one type and use tribal lords and synergies.",

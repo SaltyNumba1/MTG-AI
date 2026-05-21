@@ -1,7 +1,7 @@
 <img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/676307dc-9ec3-4626-9561-6cecaa6ed368" />
 # 🃏 DeepBrew — MTG Collection & Deck Builder
 
-**v1.4.1** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
+**v1.4.2** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
 
 Build Commander decks from your own collection using a **fully local AI model** — no cloud, no subscription, no Ollama. Your cards and your data stay on your machine.
 
@@ -92,6 +92,20 @@ Defaults:
 - 🎨 **Color filter** includes a **Colorless** option for non-colored cards.
 - ✅ Use card checkboxes plus **Save Selected as Deck** to create a manual deck from your collection.
 - 💾 Backup/restore uses a safer SQLite backup flow for more complete backups.
+
+---
+
+## v1.4.2 — AI Quality & Reliability
+
+### 🧠 Engine Improvements
+
+- **Functional-role tagging** — the deck engine now tags each card with up to 3 roles (`[draw]`, `[ramp]`, `[removal]`, `[wipe]`, `[bounce]`, `[token]`, `[counter]`, `[tutor]`, `[recursion]`, `[copy]`, `[proliferate]`, `[anthem]`, `[protection]`) derived from oracle text. These tags are included in the AI prompt so the model understands what each card *does*, not just what it's named.
+- **Two-tier card summaries** — filler slots receive a compact `Name | Type | CMC | keywords | [tags]` summary; synergy candidates receive the full first oracle sentence for richer context.
+- **`{x}` mana cost filtering** — `mana_cost` is now included in the text search blob, so typing `{x}` in any keyword or constraint field correctly filters for X-cost spells.
+- **Anti-hallucination system prompt** — the AI is now instructed to output a plain-text numbered card list only (no JSON, no markdown). Card names must be copied verbatim from the Available Cards list.
+- **Retry on low match count** — if the AI's first response matches fewer than 10 cards from the candidate list, the engine automatically retries at temperature=0.1 with the top-200 candidates. Only the better result is kept.
+- **Robust JSON parser** — `extract_json` no longer raises on malformed output. It handles the `{"description":"Card Name","quantity":1}` hallucination format, and returns a `_parse_failed` sentinel as a last resort so deck generation always completes.
+- **Garbled deck description fix** — model preamble (numbers, symbols, JSON fragments) that appeared before the card list was being stored as the deck description. The parser now discards any preamble that contains no real English words.
 
 ---
 

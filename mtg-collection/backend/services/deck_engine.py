@@ -216,21 +216,89 @@ def rule_based_filter(
     return candidates
 
 
+# ---------------------------------------------------------------------------
+# Card summarization helpers
+# ---------------------------------------------------------------------------
+
+# Functional-tag patterns — ordered by gameplay importance.
+# Each tag fires at most once; we collect up to 3 per card.
+_TAG_PATTERNS: list[tuple[str, str]] = [
+    ("draw",        r"draw[s]?\s+(a\s+)?card"),
+    ("ramp",        r"add\s+\{[^}]+\}|search\s+your\s+library\s+for\b.*\bland\b|mana\s+of\s+any"),
+    ("removal",     r"destroy\s+target|exile\s+target\s+(creature|permanent)|deal[s]?\s+\d+\s+damage\s+to\s+(any\s+)?target"),
+    ("wipe",        r"destroy\s+all|exile\s+all|deal[s]?\s+damage\s+to\s+(all|each)\s+creature|return\s+all\s+(non)?land"),
+    ("bounce",      r"return\s+target\s+(nonland\s+)?permanent|return\s+target\s+\S+.*\bto\b.*hand"),
+    ("token",       r"create[s]?\b.*\btoken|token\s+you\s+control"),
+    ("counter",     r"\+1/\+1\s+counter|put\s+\+\d+/\+\d+"),
+    ("tutor",       r"search\s+your\s+library\s+for\s+(a\s+)?card"),
+    ("recursion",   r"return[s]?\s+(target\s+)?(creature|card|permanent)\b.*\bfrom\s+(your\s+)?graveyard"),
+    ("copy",        r"\bcop(y|ies)\b.{0,30}\b(spell|creature|permanent|it)\b"),
+    ("proliferate", r"proliferate"),
+    ("anthem",      r"creatures?\s+you\s+control\b.*\bget\s+\+"),
+    ("protection",  r"\bhexproof\b|\bindestructible\b|\bprotection\s+from\b"),
+]
+
+
+def _extract_functional_tags(oracle_text: str) -> list[str]:
+    """Return up to 3 functional tags describing what the card does."""
+    text = oracle_text.lower()
+    tags: list[str] = []
+    for tag, pattern in _TAG_PATTERNS:
+        if re.search(pattern, text):
+            tags.append(f"[{tag}]")
+        if len(tags) >= 3:
+            break
+    return tags
+
+
+def _first_oracle_sentence(oracle_text: str, max_chars: int = 120) -> str:
+    """
+    Return the first meaningful ability line from oracle text.
+    Scryfall separates abilities with newlines — we take the first non-empty line.
+    Reminder text in parentheses is stripped; mana symbols are collapsed to their
+    cost string (e.g. {2}{W} → 2W) so the sentence stays readable.
+    """
+    # Strip reminder text
+    text = re.sub(r'\([^)]+\)', '', oracle_text).strip()
+    # Replace mana symbols with their inner text for readability: {T} → T, {2}{W} → 2W
+    text = re.sub(r'\{([^}]+)\}', r'\1', text).strip()
+    # Split on newlines (Scryfall uses \n between abilities)
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    candidate = lines[0] if lines else text
+    # If the first line is suspiciously short (just a cost) and there's more, try next
+    if len(candidate) < 12 and len(lines) > 1:
+        candidate = lines[1]
+    if len(candidate) > max_chars:
+        candidate = candidate[:max_chars].rsplit(' ', 1)[0]
+    return candidate
+
+
 def card_summary(card: dict) -> str:
-    """Compact card summary to minimize prompt tokens while preserving selection-relevant info."""
+    """Compact summary for filler cards: name, type, CMC, mechanic keywords, functional tags."""
     keywords = card.get("keywords") or []
-    keyword_str = ",".join(keywords[:4]) if keywords else ""
     parts = [card["name"], card.get("type_line") or "", f"CMC:{card.get('cmc', 0)}"]
-    if keyword_str:
-        parts.append(keyword_str)
+    if keywords:
+        parts.append(",".join(keywords[:4]))
+    oracle = card.get("oracle_text") or ""
+    if oracle:
+        tags = _extract_functional_tags(oracle)
+        if tags:
+            parts.append(" ".join(tags))
     return " | ".join(parts)
 
 
 def card_summary_full(card: dict) -> str:
-    """Extended summary including oracle text, used only when candidate pool is small."""
-    base = card_summary(card)
-    oracle = (card.get("oracle_text") or "")[:80].replace(chr(10), " ")
-    return f"{base} | {oracle}" if oracle else base
+    """Rich summary for synergy/must-include cards: includes the primary oracle sentence."""
+    keywords = card.get("keywords") or []
+    parts = [card["name"], card.get("type_line") or "", f"CMC:{card.get('cmc', 0)}"]
+    if keywords:
+        parts.append(",".join(keywords[:4]))
+    oracle = card.get("oracle_text") or ""
+    if oracle:
+        first = _first_oracle_sentence(oracle)
+        if first:
+            parts.append(first)
+    return " | ".join(parts)
 
 
 MAX_COMPACT_CANDIDATES = 200
@@ -741,6 +809,9 @@ def _extract_numbered_card_indices(text: str) -> tuple[list[int], str]:
 
     indices = _dedupe_indices([int(match.group(1)) for match in matches])
     description = text[: matches[0].start(1)].strip(" ,;:\n\t")
+    # Only keep description if it looks like natural language (has real words, not just numbers/symbols)
+    if description and (len(description) > 120 or not re.search(r'[a-zA-Z]{4,}', description)):
+        description = ""
     return indices, description
 
 
@@ -773,6 +844,7 @@ def _card_matches_keywords(card: dict, keyword_filters: list[str]) -> bool:
         card.get("type_line") or "",
         card.get("oracle_text") or "",
         " ".join(card.get("keywords") or []),
+        card.get("mana_cost") or "",
     ]
     haystack = " ".join(fields).lower()
     return any(keyword in haystack for keyword in keyword_filters)
@@ -801,6 +873,7 @@ def _card_text_blob(card: dict) -> str:
             (card.get("type_line") or ""),
             (card.get("oracle_text") or ""),
             " ".join(card.get("keywords") or []),
+            (card.get("mana_cost") or ""),
         ]
     ).lower()
 
@@ -848,6 +921,7 @@ def _rebalance_nonlands_for_quality(
     constraints: Optional[list[dict]] = None,
     excluded_card_names: Optional[list[str]] = None,
     target_bracket: int = 0,
+    must_include_names: Optional[set] = None,
 ) -> list[dict]:
     if nonland_target <= 0:
         return []
@@ -874,6 +948,7 @@ def _rebalance_nonlands_for_quality(
     is_akawalli = "akawalli" in (commander_name or "").lower()
     active_constraints = [c for c in (constraints or []) if (c.get("min_count") or 0) > 0]
     excluded_set = {n.lower() for n in (excluded_card_names or []) if n}
+    protected_names = {n.lower() for n in (must_include_names or [])} if must_include_names else set()
 
     # Bracket-aware power card classification — uses oracle-text helpers so functional
     # equivalents are caught the same way the keyword filter pipeline does (oracle search).
@@ -894,6 +969,10 @@ def _rebalance_nonlands_for_quality(
         # Excluded cards get a heavy penalty — only selected as absolute last resort
         if card.get("name", "").lower() in excluded_set:
             value -= 200.0
+
+        # Must-include cards get a very high bonus so they are never dropped during rebalancing
+        if protected_names and card.get("name", "").lower() in protected_names:
+            value += 1000.0
 
         if card_id in selected_ids:
             value += 25.0
@@ -938,8 +1017,32 @@ def _rebalance_nonlands_for_quality(
     for bucket in buckets.values():
         bucket.sort(key=lambda c: (score(c), -_card_cmc(c)), reverse=True)
 
+    # Pre-reserve cards for "rare" constraints before CMC bucketing.
+    # When a constraint's available pool is scarce (< 3× its minimum), the bucketing
+    # algorithm can crowd those cards out. Pre-reserving guarantees they survive
+    # even when pool coverage is thin (e.g. "Amass Orcs" with only 5 matches).
     picked: list[dict] = []
     picked_ids: set[str] = set()
+
+    if nonland_target > 8 and active_constraints:
+        for constraint in active_constraints:
+            floor = constraint.get("min_count") or 0
+            if floor <= 0:
+                continue
+            pool_matches = [
+                c for c in deduped_nonlands
+                if _card_matches_constraint(c, constraint)
+                and (c.get("id") or c.get("name")) not in picked_ids
+            ]
+            # Only pre-reserve when pool is scarce relative to the requested floor
+            if 0 < len(pool_matches) < 3 * floor:
+                pool_matches.sort(key=lambda c: score(c), reverse=True)
+                for card in pool_matches[:floor]:
+                    card_id = card.get("id") or card.get("name")
+                    if not card_id or card_id in picked_ids:
+                        continue
+                    picked_ids.add(card_id)
+                    picked.append(card)
 
     if nonland_target <= 8:
         remaining = sorted(deduped_nonlands, key=lambda c: (score(c), -_card_cmc(c)), reverse=True)
@@ -959,6 +1062,13 @@ def _rebalance_nonlands_for_quality(
             low_target = int(nonland_target * 0.30)
             mid_target = int(nonland_target * 0.43)
         high_target = max(0, nonland_target - low_target - mid_target)
+        # Reduce bucket targets by the number of cards already pre-reserved
+        already_picked = len(picked)
+        if already_picked > 0:
+            scale = max(0.0, 1.0 - already_picked / nonland_target)
+            low_target = max(0, round(low_target * scale))
+            mid_target = max(0, round(mid_target * scale))
+            high_target = max(0, nonland_target - already_picked - low_target - mid_target)
         targets = {"low": low_target, "mid": mid_target, "high": high_target}
 
         for bucket_name in ["low", "mid", "high"]:
@@ -1061,6 +1171,22 @@ def extract_json(text: str) -> dict:
             "card_names": partial_names,
         }
 
+    # Hallucination format: {"description": "Card Name", "quantity": N} per entry.
+    # The model sometimes outputs this when it confuses its output schema.
+    desc_key_names = re.findall(r'"[Dd]escription"\s*:\s*"([^"]{2,80})"', text)
+    # Discard values that look like deck titles rather than card names
+    desc_key_names = [
+        n for n in desc_key_names
+        if not re.search(r'\b(deck|build|commander|strategy)\b', n, re.IGNORECASE)
+        and len(n) < 60
+    ]
+    if len(desc_key_names) >= 5:
+        logger.warning(
+            "Model output used hallucinated description-key format "
+            f"({len(desc_key_names)} entries). Names will be matched against collection."
+        )
+        return {"description": "", "card_indices": [], "card_names": desc_key_names}
+
     indices, description = _extract_numbered_card_indices(text)
     if indices:
         card_names = _extract_numbered_card_names(text)
@@ -1070,17 +1196,34 @@ def extract_json(text: str) -> dict:
             "card_names": card_names,
         }
 
-    raise ValueError(f"Could not extract deck selection from model response:\n{text[:500]}")
+    # Deck-list format: "1 Card Name" per line (NeMo model native output)
+    deck_list_names = re.findall(r'^\d+x?\s+(.+)$', text, re.MULTILINE)
+    deck_list_names = [n.strip() for n in deck_list_names if len(n.strip()) > 2]
+    if len(deck_list_names) >= 10:
+        return {
+            "description": "",
+            "card_indices": [],
+            "card_names": deck_list_names,
+        }
+
+    # All parsers failed — return empty; _build_deck_selection safety net will fill the deck.
+    logger.warning(f"extract_json: all parsers failed. Response preview: {text[:200]!r}")
+    return {"description": "", "card_indices": [], "card_names": [], "_parse_failed": True}
 
 
 def _build_deck_selection(
     model_candidates: list[dict],
     all_candidates: list[dict],
     result: dict,
-) -> list[dict]:
-    """Build a robust 99-card list from model output, recovering from malformed responses."""
+) -> tuple[list[dict], int]:
+    """Build a robust 99-card list from model output, recovering from malformed responses.
+
+    Returns (selected_cards, ai_matched_count) where ai_matched_count is the number of
+    cards that were directly picked by the model (via index or name match).
+    """
     selected: list[dict] = []
     selected_ids: set[str] = set()
+    ai_matched: int = 0
 
     def add_card(card: dict):
         card_id = card.get("id") or card.get("name")
@@ -1094,16 +1237,19 @@ def _build_deck_selection(
     for index in indices:
         if 0 < index <= len(model_candidates):
             add_card(model_candidates[index - 1])
+    ai_matched += len(selected)
 
     # Recovery path: map parsed card names back to owned candidates.
     if len(selected) < 99:
         by_name = {_normalize_card_name(c.get("name", "")): c for c in all_candidates}
+        before = len(selected)
         for name in result.get("card_names", []):
             card = by_name.get(_normalize_card_name(name))
             if card:
                 add_card(card)
             if len(selected) >= 99:
                 break
+        ai_matched += len(selected) - before
 
     # Safety net: prefer non-lands to avoid land-only decks if model output is poor.
     if len(selected) < 99:
@@ -1129,7 +1275,7 @@ def _build_deck_selection(
             selected.append(basic_lands[idx % len(basic_lands)])
             idx += 1
 
-    return selected[:99]
+    return selected[:99], ai_matched
 
 
 def _apply_land_targets(
@@ -1257,6 +1403,7 @@ def build_deck_with_llm(
     target_bracket: int = 0,
     max_compact_candidates: int = MAX_COMPACT_CANDIDATES,
     num_predict: int = OLLAMA_NUM_PREDICT,
+    max_model_candidates: int = BASE_MODEL_CANDIDATES,
 ) -> dict:
     """
     Ask the local Ollama model to pick 99 cards from candidates.
@@ -1307,7 +1454,9 @@ def build_deck_with_llm(
         random.shuffle(all_candidates)
 
     model_candidates = all_candidates
-    model_candidate_cap = min(KEYWORD_MODEL_CANDIDATE_CAP, max(1, BASE_MODEL_CANDIDATES))
+    # Use max_model_candidates (from user GPU slider) capped by KEYWORD_MODEL_CANDIDATE_CAP
+    effective_base = max(1, min(max_model_candidates, KEYWORD_MODEL_CANDIDATE_CAP))
+    model_candidate_cap = min(KEYWORD_MODEL_CANDIDATE_CAP, effective_base)
     if keyword_match_count > 0:
         model_candidate_cap = min(KEYWORD_MODEL_CANDIDATE_CAP, max(model_candidate_cap, keyword_match_count))
 
@@ -1322,11 +1471,23 @@ def build_deck_with_llm(
                 f"Candidate pool reduced from {len(all_candidates)} to {len(model_candidates)} for model performance"
             )
 
-    # Use compact summaries for large pools to stay within context limits
-    summarize = card_summary_full if len(model_candidates) <= max_compact_candidates else card_summary
+    # Use compact summaries for large pools — but always keep full oracle text for
+    # synergy-matched cards and must-include cards so the model has rich context
+    # where it matters most, regardless of pool size.
+    if len(model_candidates) <= max_compact_candidates:
+        def _summarize(c: dict) -> str:
+            return card_summary_full(c)
+    else:
+        _must_names = {c["name"].lower() for c in (must_include_cards or [])}
+        def _summarize(c: dict) -> str:
+            if c.get("name", "").lower() in _must_names:
+                return card_summary_full(c)
+            if scoring_keywords and _card_matches_keywords(c, scoring_keywords):
+                return card_summary_full(c)
+            return card_summary(c)
 
     card_list_text = "\n".join(
-        f"{i + 1}. {summarize(c)}" for i, c in enumerate(model_candidates)
+        f"{i + 1}. {_summarize(c)}" for i, c in enumerate(model_candidates)
     )
 
     # Compute the number of cards we actually need the AI to choose.
@@ -1337,12 +1498,18 @@ def build_deck_with_llm(
     ai_pick_target = max(1, min(99, 99 - total_land_budget - len(must_include_cards or [])))
 
     system_prompt = (
-        "You are an expert Magic: The Gathering deck builder specializing in Commander format. "
-        f"Select exactly {ai_pick_target} non-land cards from the numbered list to form a synergistic Commander deck. "
-        "Lands and must-include cards will be added automatically by the engine — do NOT pick lands. "
-        "Respond ONLY with valid JSON — no explanation, no markdown, no code fences. "
-        'Format: {"description": "short deck description", "card_indices": [1, 5, 12, ...]}'
-        f" card_indices must contain exactly {ai_pick_target} numbers from the list."
+        "You are an expert Magic: The Gathering Commander deck builder with deep knowledge of card synergies, "
+        "color identities, and competitive strategy. "
+        f"From the Available Cards list, select exactly {ai_pick_target} non-land cards for this Commander deck. "
+        "Lands and must-include cards are added automatically — do NOT include them. "
+        "Output ONLY a plain-text deck list. Do NOT output JSON, markdown, or any other format. "
+        "Do NOT invent or guess card names — use ONLY names copied verbatim from the Available Cards list. "
+        f"Write exactly {ai_pick_target} lines, one card per line, in this exact format:\n"
+        "1 <Card Name>\n"
+        "Example:\n"
+        "1 Sol Ring\n"
+        "1 Rhystic Study\n"
+        "Nothing else. No explanations, no extra text, no punctuation outside the format above."
     )
 
     # Build synergy context for the prompt
@@ -1402,7 +1569,8 @@ def build_deck_with_llm(
         f"(Color identity: {', '.join(commander.get('color_identity', []))})\n"
         f"Request: {prompt}{synergy_text}{deck_shape_text}{must_include_text}{requirements_text}\n"
         f"{current_deck_text}\n"
-        f"Available cards:\n{card_list_text}"
+        f"Available cards:\n{card_list_text}\n\n"
+        f"Now list exactly {ai_pick_target} non-land cards from the Available Cards list above:"
     )
 
     if progress_callback:
@@ -1427,7 +1595,7 @@ def build_deck_with_llm(
 
     try:
         import queue as _queue
-        model_options = {"temperature": round(random.uniform(0.70, 0.88), 2), "num_predict": num_predict}
+        model_options = {"temperature": round(random.uniform(0.45, 0.65), 2), "num_predict": num_predict}
         _chunk_queue: _queue.Queue = _queue.Queue()
         _abort = threading.Event()
 
@@ -1465,7 +1633,12 @@ def build_deck_with_llm(
                 if stream_callback:
                     stream_callback(value)
                 raw += value
-                # Early stop: once output is parseable into a valid selection payload.
+                # Early stop: deck-list format (N Card Name per line)
+                _deck_lines = re.findall(r'^\d+x?\s+.+$', raw, re.MULTILINE)
+                if len(_deck_lines) >= ai_pick_target:
+                    _abort.set()
+                    break
+                # Early stop: JSON card_indices format (legacy fallback)
                 if '"card_indices"' in raw:
                     try:
                         parsed = extract_json(raw)
@@ -1482,7 +1655,7 @@ def build_deck_with_llm(
         if not raw.strip():
             raise ValueError("Model returned no content")
 
-        # If the model ended without a parseable result, fail fast with a clear error.
+        # Validate parsability — extract_json no longer raises on bad format
         extract_json(raw)
     except ValueError as e:
         logger.error(f"LLM call produced unparsable output: {e}")
@@ -1502,18 +1675,69 @@ def build_deck_with_llm(
     if progress_callback:
         progress_callback("Parsing AI response and validating card picks")
 
-    try:
-        result = extract_json(raw)
-    except Exception as e:
-        logger.error(f"Failed to parse LLM output: {e}\nRaw output: {raw[:500]}")
-        if progress_callback:
-            progress_callback(f"Failed to parse LLM output: {e}")
-        raise
+    result = extract_json(raw)
+    selected, ai_matched = _build_deck_selection(model_candidates, all_candidates, result)
 
-    selected = _build_deck_selection(model_candidates, all_candidates, result)
+    # -----------------------------------------------------------------------
+    # Retry on hallucination: if fewer than 10 cards matched from the model's
+    # output the model likely invented card names. Re-run with temperature=0.1
+    # and a capped 200-card list so the context is more manageable.
+    # -----------------------------------------------------------------------
+    _RETRY_MATCH_THRESHOLD = 10
+    if ai_matched < _RETRY_MATCH_THRESHOLD:
+        _reason = "parse failure" if result.get("_parse_failed") else f"only {ai_matched} names matched"
+        logger.warning(f"Model hallucination detected ({_reason}). Retrying with temperature=0.1.")
+        if progress_callback:
+            progress_callback(
+                f"AI response had low card match ({ai_matched} cards) — retrying with lower temperature"
+            )
+        try:
+            _retry_candidates = model_candidates[:200]
+            _retry_card_list = "\n".join(
+                f"{i + 1}. {card_summary_full(c)}" for i, c in enumerate(_retry_candidates)
+            )
+            _retry_target = min(ai_pick_target, len(_retry_candidates))
+            _retry_user_msg = (
+                f"Commander: {commander['name']} "
+                f"(Color identity: {', '.join(commander.get('color_identity', []))})\n"
+                f"Request: {prompt}\n"
+                f"Available cards:\n{_retry_card_list}\n\n"
+                f"List exactly {_retry_target} non-land cards from the Available Cards list above. "
+                "One card per line. Format: 1 <Card Name>"
+            )
+            _retry_resp = client.chat.completions.create(
+                model="mtg-commander",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": _retry_user_msg},
+                ],
+                temperature=0.1,
+                max_tokens=num_predict,
+                stream=False,
+            )
+            _retry_raw = (_retry_resp.choices[0].message.content or "").strip()
+            if _retry_raw:
+                _retry_result = extract_json(_retry_raw)
+                _retry_selected, _retry_matched = _build_deck_selection(
+                    _retry_candidates, all_candidates, _retry_result
+                )
+                if _retry_matched > ai_matched:
+                    selected = _retry_selected
+                    ai_matched = _retry_matched
+                    if progress_callback:
+                        progress_callback(f"Retry succeeded — {ai_matched} cards matched from AI")
+                else:
+                    if progress_callback:
+                        progress_callback(
+                            f"Retry did not improve results ({_retry_matched} matched). "
+                            "Using collection-based fallback."
+                        )
+        except Exception as _retry_err:
+            logger.warning(f"Retry attempt failed: {_retry_err}. Keeping safety-net selection.")
 
     land_target = min(99, max(0, int(basic_land_count or 0)) + max(0, int(nonbasic_land_count or 0)) + max(0, int(dual_land_count or 0)))
     nonland_target = 99 - land_target
+    must_include_names_set = {m["name"].lower() for m in (must_include_cards or [])}
     rebalanced_nonlands = _rebalance_nonlands_for_quality(
         selected,
         all_candidates,
@@ -1524,6 +1748,7 @@ def build_deck_with_llm(
         constraints=constraints,
         excluded_card_names=excluded_card_names,
         target_bracket=target_bracket,
+        must_include_names=must_include_names_set,
     )
     selected_lands = [c for c in selected if is_land(c)]
     selected = rebalanced_nonlands + selected_lands
@@ -1672,6 +1897,7 @@ def generate_deck(
     target_bracket: int = 0,
     max_compact_candidates: int = MAX_COMPACT_CANDIDATES,
     num_predict: int = OLLAMA_NUM_PREDICT,
+    max_model_candidates: int = BASE_MODEL_CANDIDATES,
 ) -> dict:
     """Main entry point for deck generation."""
     # ── Tier gate ───────────────────────────────────────────────────────────
@@ -1813,4 +2039,5 @@ def generate_deck(
         target_bracket=target_bracket,
         max_compact_candidates=max_compact_candidates,
         num_predict=num_predict,
+        max_model_candidates=max_model_candidates,
     )

@@ -1,7 +1,7 @@
 <img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/676307dc-9ec3-4626-9561-6cecaa6ed368" />
 # 🃏 DeepBrew — MTG Collection & Deck Builder
 
-**v1.4.1** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
+**v1.4.2** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
 
 Build Commander decks from your own collection using a **fully local AI model** — no cloud, no subscription, no Ollama. Your cards and your data stay on your machine.
 
@@ -95,17 +95,31 @@ Defaults:
 
 ---
 
+## v1.4.2 — AI Quality & Reliability
+
+### 🧠 Engine Improvements
+
+- **Functional-role tagging** — the deck engine now tags each card with up to 3 roles (`[draw]`, `[ramp]`, `[removal]`, `[wipe]`, `[bounce]`, `[token]`, `[counter]`, `[tutor]`, `[recursion]`, `[copy]`, `[proliferate]`, `[anthem]`, `[protection]`) derived from oracle text. These tags are included in the AI prompt so the model understands what each card *does*, not just what it's named.
+- **Two-tier card summaries** — filler slots receive a compact `Name | Type | CMC | keywords | [tags]` summary; synergy candidates receive the full first oracle sentence for richer context.
+- **`{x}` mana cost filtering** — `mana_cost` is now included in the text search blob, so typing `{x}` in any keyword or constraint field correctly filters for X-cost spells.
+- **Anti-hallucination system prompt** — the AI is now instructed to output a plain-text numbered card list only (no JSON, no markdown). Card names must be copied verbatim from the Available Cards list.
+- **Retry on low match count** — if the AI's first response matches fewer than 10 cards from the candidate list, the engine automatically retries at temperature=0.1 with the top-200 candidates. Only the better result is kept.
+- **Robust JSON parser** — `extract_json` no longer raises on malformed output. It handles the `{"description":"Card Name","quantity":1}` hallucination format, and returns a `_parse_failed` sentinel as a last resort so deck generation always completes.
+- **Garbled deck description fix** — model preamble (numbers, symbols, JSON fragments) that appeared before the card list was being stored as the deck description. The parser now discards any preamble that contains no real English words.
+
+---
+
 ## v1.4.1 — Bug Fixes & Polish
 
 ### 🐛 Bug Fixes
 
-- **Backup path in success message** — `POST /collection/backup` now returns the full path. Frontend shows "Backup saved to: C:\Users\...\AppData\Roaming\DeepBrew\backups\..." so users know exactly [...]
+- **Backup path in success message** — `POST /collection/backup` now returns the full path. Frontend shows "Backup saved to: C:\Users\...\AppData\Roaming\DeepBrew\backups\..." so users know exactly where the file is.
 - **Backup dropdown auto-select** — after creating a backup the dropdown immediately selects the new entry instead of staying on the previously selected one.
-- **PyInstaller crash on launch** — `ModuleNotFoundError: No module named 'openai'` on first run after install. Fixed by using `collect_all('openai')`, `collect_all('httpx')`, `collect_all('httpcore[...]`
+- **PyInstaller crash on launch** — `ModuleNotFoundError: No module named 'openai'` on first run after install. Fixed by using `collect_all('openai')`, `collect_all('httpx')`, `collect_all('httpcore')` in the PyInstaller spec to fully bundle openai v2.x's dynamic import tree.
 
 ### ✨ Improvements
 
-- **🎨 Art button moved** — in Collection, the art/printing switcher button moved from the bottom row (near × Remove) to a top-right hover overlay on the card image, matching the 🖼 background [...]
+- **🎨 Art button moved** — in Collection, the art/printing switcher button moved from the bottom row (near × Remove) to a top-right hover overlay on the card image, matching the 🖼 background button at top-left.
 
 ---
 
@@ -125,15 +139,15 @@ Defaults:
 
 ### 🐛 Bug Fixes
 
-- **Deck import (.txt) fix** — importing a `.txt` decklist no longer throws "Import failed" when cards are missing from your collection. Scryfall fetch errors are now caught per-card and a database [...]
+- **Deck import (.txt) fix** — importing a `.txt` decklist no longer throws "Import failed" when cards are missing from your collection. Scryfall fetch errors are now caught per-card and a database commit is issued at the end so all successfully fetched cards are persisted.
 - **Create Backup fix** — the backup button was silently doing nothing (missing `shutil.copy2` call). Backups are now correctly written to the `backups/` folder next to the database.
-- **Power/Toughness constraint fix** — `match_field: power` and `match_field: toughness` now compare actual integer card stats instead of searching oracle text. Supports `4+`, `>=4`, `>3`, `<=2`, `<[...]`
+- **Power/Toughness constraint fix** — `match_field: power` and `match_field: toughness` now compare actual integer card stats instead of searching oracle text. Supports `4+`, `>=4`, `>3`, `<=2`, `<4`, and exact integers. The auto-detected "Power ≥4 creatures" suggestion is also corrected.
 - **Max constraint enforcement fix** — when no valid replacement cards exist in the pool, cards exceeding a `max_count` ceiling are now removed from the deck (previously left in silently).
 
 ### ✨ New Features
 
 - **Add to Deck** — a new **Add to Deck** button in the Collection bulk toolbar opens a modal to append selected cards to any saved deck's Mainboard or Sideboard.
-- **Power / Toughness constraint field** — the Field dropdown in the DeckBuilder constraint panel now includes Power and Toughness, with placeholder hints for the supported syntax (`4+`, `>3`, `>=5`[...]
+- **Power / Toughness constraint field** — the Field dropdown in the DeckBuilder constraint panel now includes Power and Toughness, with placeholder hints for the supported syntax (`4+`, `>3`, `>=5`, etc.).
 
 ---
 
@@ -141,7 +155,7 @@ Defaults:
 
 ### ⚡ What's New
 
-- **Mana Curve, Color Distribution & Lands panel** — appears above the sort selector whenever a deck is open in My Decks. The mana curve shows non-land cards bucketed 0–7+; the color bar chart sho[...]
+- **Mana Curve, Color Distribution & Lands panel** — appears above the sort selector whenever a deck is open in My Decks. The mana curve shows non-land cards bucketed 0–7+; the color bar chart shows color distribution by color identity; the lands card shows basic vs nonbasic counts. Same visual style as the Deck Builder result.
 - **Swap-select mode fixes** — the "🔄 Selecting…" button now reverts instantly when you click **Find Substitutes** rather than staying active for the full 30-second AI call.
 - **Hint bar** — when swap-select mode is active with no cards selected, a dashed hint prompts you to click cards before clicking Find Substitutes.
 
@@ -152,7 +166,7 @@ Defaults:
 ### ⚡ What's New
 
 - **Global `useSettings` hook** — all pages share a single source of truth for user preferences stored in `localStorage`. Previously each page read settings independently.
-- **Expanded Settings page** — new sections for Deck Building Defaults (land counts, bracket, strict mode, tapped land cap) and Display (price visibility, default sort order). The GPU Performance se[...]
+- **Expanded Settings page** — new sections for Deck Building Defaults (land counts, bracket, strict mode, tapped land cap) and Display (price visibility, default sort order). The GPU Performance section remains. All changes take effect immediately.
 - **Rename saved decks** — click the pencil icon on any deck card in My Decks to rename it. The JSON file on disk is updated via `PATCH /deck/saved/{deck_file}` with path traversal protection.
 
 ---
@@ -161,8 +175,8 @@ Defaults:
 
 ### ⚡ What's New
 
-- **GPU Settings page** — a new Settings page exposes two performance controls: oracle-text threshold (how many candidates before compact mode engages) and max tokens per LLM call. Persisted to `loc[...]
-- **Select to Swap** — in My Decks analyze view, toggle **Select to Swap** mode to click individual cards you want replaced. The AI then returns targeted substitution suggestions for those specific [...]
+- **GPU Settings page** — a new Settings page exposes two performance controls: oracle-text threshold (how many candidates before compact mode engages) and max tokens per LLM call. Persisted to `localStorage`; applied to every deck build.
+- **Select to Swap** — in My Decks analyze view, toggle **Select to Swap** mode to click individual cards you want replaced. The AI then returns targeted substitution suggestions for those specific cards.
 - **Sideboard** — My Decks deck view and edit mode now includes a sideboard section.
 - **Type filter chips** — deck builder card-type filters redesigned from a dropdown to toggle chips.
 - **Compact candidate mode** — cards beyond the oracle-text threshold are sent to the LLM in an abbreviated `name + type` format, reducing prompt token usage on large collections.
@@ -173,7 +187,7 @@ Defaults:
 
 ### ⚡ What's New
 
-- **No more analyze timeouts** — the hard 900-second wall-clock timeout on LLM calls has been removed entirely. `OLLAMA_MAX_GENERATION_SEC`, `OLLAMA_TIMEOUT`, and `ALLOW_LLM_TIMEOUT_FALLBACK` consta[...]
+- **No more analyze timeouts** — the hard 900-second wall-clock timeout on LLM calls has been removed entirely. `OLLAMA_MAX_GENERATION_SEC`, `OLLAMA_TIMEOUT`, and `ALLOW_LLM_TIMEOUT_FALLBACK` constants are gone. The heartbeat reporter (every 8 s) is kept so elapsed time still displays. On failure the backend raises a clear exception instead of silently returning nothing.
 
 ---
 
@@ -200,9 +214,9 @@ Defaults:
 
 ### ⚡ What's New
 
-- **Commander Bracket Rating** — every generated and saved deck is automatically scored on WotC's 2025 Bracket system (1 Exhibition → 5 Competitive/cEDH). Badge shown on the deck builder result an[...]
-- **Target Bracket** — optional power-level dropdown in the deck builder (No preference / 1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized / 5 Competitive). Injects a directive into the AI prompt. A[...]
-- **Collection color counter** — stat bar below the keyword filters shows how many unique non-land cards in your collection fit the selected commander's color identity. Updates instantly when comman[...]
+- **Commander Bracket Rating** — every generated and saved deck is automatically scored on WotC's 2025 Bracket system (1 Exhibition → 5 Competitive/cEDH). Badge shown on the deck builder result and every saved deck in My Decks.
+- **Target Bracket** — optional power-level dropdown in the deck builder (No preference / 1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized / 5 Competitive). Injects a directive into the AI prompt. Always a soft hint — the app only ever picks from cards you own.
+- **Collection color counter** — stat bar below the keyword filters shows how many unique non-land cards in your collection fit the selected commander's color identity. Updates instantly when commander changes.
 - **Splash screen logo** — app logo now renders correctly on all systems (fixes broken image caused by spaces in Windows paths).
 - **Nav bar cleanup** — removed emoji from the nav bar title.
 
@@ -223,7 +237,7 @@ Defaults:
 - **Correct health polling order** — startup wait logic now awaits adaptive llama initialization before beginning health polls.
 
 ### Why This Matters
-Laptop GPUs and systems with limited free VRAM could previously fail silently when `--n-gpu-layers` was too high, leaving the app unable to start. The app now steps down automatically until the model [...]
+Laptop GPUs and systems with limited free VRAM could previously fail silently when `--n-gpu-layers` was too high, leaving the app unable to start. The app now steps down automatically until the model loads — even falling back to CPU if needed.
 
 ### Validation
 Confirmed expected step-down behavior on constrained VRAM hardware:
@@ -239,9 +253,9 @@ Confirmed expected step-down behavior on constrained VRAM hardware:
 
 ### ⚡ What's New
 
-- **Commander Bracket Rating** — every generated and saved deck is automatically scored on WotC's 2025 Bracket system (1 Exhibition → 5 Competitive/cEDH). The badge appears on the deck builder res[...]
-- **Target Bracket** — optional power-level selector in the deck builder (No preference / 1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized / 5 Competitive). Injects a detailed directive into the AI [...]
-- **Collection color counter** — stat bar between the keyword filters and the Deck Constraints panel shows how many unique non-land cards in your collection fit the selected commander's color identi[...]
+- **Commander Bracket Rating** — every generated and saved deck is automatically scored on WotC's 2025 Bracket system (1 Exhibition → 5 Competitive/cEDH). The badge appears on the deck builder result and on every saved deck in My Decks. Scoring is based on Game Changers, strong tutors, combo enablers, extra turn spells, and mass land denial.
+- **Target Bracket** — optional power-level selector in the deck builder (No preference / 1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized / 5 Competitive). Injects a detailed directive into the AI prompt. This is a soft hint — the deck is always built from cards you own, so results reflect your actual collection.
+- **Collection color counter** — stat bar between the keyword filters and the Deck Constraints panel shows how many unique non-land cards in your collection fit the selected commander's color identity. Updates instantly when you change commander.
 - **Splash screen logo** — app logo now displays correctly on the loading splash screen.
 - **Nav bar cleanup** — removed emoji from nav bar title.
 
@@ -297,3 +311,5 @@ This folder persists across upgrades. If upgrading from v1.0.10 or earlier, copy
 ## Help Page
 
 A built-in **Help** page is available in the top navigation with quick how-to guidance for import, deck building, manual deck saving, and backup/restore.
+
+---

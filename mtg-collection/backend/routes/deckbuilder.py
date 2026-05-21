@@ -40,6 +40,7 @@ class DeckRequest(BaseModel):
     target_bracket: int = 0  # 0 = no preference
     max_compact_candidates: int = 200
     num_predict: int = 2048
+    max_model_candidates: int = 500  # upper bound on cards sent to the LLM (GPU load slider)
 
 
 class ImportDeckRequest(BaseModel):
@@ -489,6 +490,7 @@ async def build_deck(req: DeckRequest, db: AsyncSession = Depends(get_db)):
                 target_bracket=getattr(req, "target_bracket", 0),
                 max_compact_candidates=req.max_compact_candidates,
                 num_predict=req.num_predict,
+                max_model_candidates=getattr(req, 'max_model_candidates', 500),
                 progress_callback=_append_thought,
             ),
         )
@@ -540,6 +542,62 @@ async def commander_profile(commander_name: str, db: AsyncSession = Depends(get_
         "color_identity": commander.color_identity,
     }
     return _analyze_commander_profile(commander_dict)
+
+
+class ConstraintPreviewRequest(BaseModel):
+    commander_name: str
+    constraints: list[DeckConstraint] = []
+
+
+@router.post("/constraint-preview")
+async def constraint_preview(req: ConstraintPreviewRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Return the number of cards in the collection that match each constraint,
+    filtered to the commander's color identity. Used by the UI to set slider
+    maximums and warn when a requested minimum exceeds the available pool.
+    """
+    from services.deck_engine import (
+        rule_based_filter,
+        _card_matches_constraint,
+        is_land,
+    )
+
+    result = await db.execute(select(Card))
+    all_cards = result.scalars().all()
+
+    commander = next((c for c in all_cards if c.name.lower() == req.commander_name.lower()), None)
+    if not commander:
+        return [{"label": c.label, "available_count": 0} for c in req.constraints]
+
+    commander_identity = commander.color_identity or []
+    commander_id = commander.id or commander.name
+
+    # Build a plain-dict pool filtered to the commander's color identity
+    pool_dicts = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "type_line": c.type_line,
+            "oracle_text": c.oracle_text,
+            "keywords": c.keywords,
+            "color_identity": c.color_identity,
+            "cmc": c.cmc,
+            "legalities": c.legalities,
+            "power": c.power,
+            "toughness": c.toughness,
+        }
+        for c in all_cards
+    ]
+    candidates = rule_based_filter(pool_dicts, commander_identity, commander_id)
+    nonland_candidates = [c for c in candidates if not is_land(c)]
+
+    preview = []
+    for constraint in req.constraints:
+        constraint_dict = constraint.model_dump()
+        count = sum(1 for c in nonland_candidates if _card_matches_constraint(c, constraint_dict))
+        preview.append({"label": constraint.label, "available_count": count})
+
+    return preview
 
 
 @router.get("/commanders")

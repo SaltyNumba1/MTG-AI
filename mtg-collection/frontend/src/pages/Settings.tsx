@@ -13,6 +13,7 @@ export default function Settings() {
   // GPU Performance
   const [maxCompact, setMaxCompact] = useState(initial.maxCompactCandidates);
   const [numPredict, setNumPredict] = useState(initial.numPredict);
+  const [maxModelCandidates, setMaxModelCandidates] = useState(initial.maxModelCandidates);
 
   // Deck Building Defaults
   const [basicLand, setBasicLand] = useState(initial.defaultBasicLand);
@@ -29,6 +30,7 @@ export default function Settings() {
   const handleReset = () => {
     setMaxCompact(D.maxCompactCandidates); save("deepbrew_max_compact_candidates", D.maxCompactCandidates);
     setNumPredict(D.numPredict);           save("deepbrew_num_predict", D.numPredict);
+    setMaxModelCandidates(D.maxModelCandidates); save("deepbrew_max_model_candidates", D.maxModelCandidates);
     setBasicLand(D.defaultBasicLand);     save("deepbrew_default_basic_land", D.defaultBasicLand);
     setNonbasicLand(D.defaultNonbasicLand); save("deepbrew_default_nonbasic_land", D.defaultNonbasicLand);
     setDualLand(D.defaultDualLand);       save("deepbrew_default_dual_land", D.defaultDualLand);
@@ -93,6 +95,28 @@ export default function Settings() {
           />
           <div className="settings-slider-labels">
             <span>512 — Minimal (4 GB GPU)</span><span>4096 — Maximum</span>
+          </div>
+        </div>
+
+        <div className="settings-field">
+          <div className="settings-label-row">
+            <label className="settings-label">AI Candidate Pool Size</label>
+            <span className="settings-value">{maxModelCandidates} cards</span>
+          </div>
+          <p className="settings-desc">
+            Maximum number of cards sent to the AI model for selection. Higher values let the model
+            consider more options and improve deck quality, but increase VRAM usage and generation time.
+            <br />
+            <strong>Recommended:</strong> 500 for 4–8 GB · 700 for 10–12 GB · 1000 for 16 GB+
+          </p>
+          <input
+            type="range" min={500} max={1000} step={50} value={maxModelCandidates}
+            title="AI Candidate Pool Size"
+            onChange={(e) => { const v = parseInt(e.target.value); setMaxModelCandidates(v); save("deepbrew_max_model_candidates", v); }}
+            className="settings-slider"
+          />
+          <div className="settings-slider-labels">
+            <span>500 — Standard (4–8 GB)</span><span>1000 — Maximum (16 GB+)</span>
           </div>
         </div>
       </div>

@@ -1,3 +1,22 @@
+[Update: May 21, 2026]
+
+## Current State — v1.4.2
+
+### Version
+- **v1.4.2** — AI quality & reliability improvements on top of v1.4.1.
+
+### Changes in v1.4.2
+- **Functional-role tagging (`_TAG_PATTERNS`)**: 13 regex patterns tag each card with up to 3 roles (draw, ramp, removal, wipe, bounce, token, counter, tutor, recursion, copy, proliferate, anthem, protection) extracted from oracle text. Tags are embedded in the AI prompt.
+- **Two-tier card summaries**: `card_summary(card)` — compact `Name | Type | CMC:X | keywords | [tags]` for filler slots. `card_summary_full(card)` — appends the first oracle sentence (up to 120 chars) for synergy candidates. `_first_oracle_sentence()` strips reminder text and mana symbols before extracting.
+- **`mana_cost` in text blob**: `_card_text_blob` and `_card_matches_keywords` now include `mana_cost` so `{x}` keyword/constraint searches correctly match X-cost spells.
+- **`extract_json` robustness**: No longer raises on parse failure. Added a `{"description":"Card Name","quantity":N}` hallucination-format parser. Returns `{"_parse_failed": True}` sentinel as last resort. Deck generation always completes.
+- **`_build_deck_selection` returns `(selected, ai_matched)` tuple**: `ai_matched` tracks how many of the AI's choices mapped to real candidates (via index and name-match paths).
+- **Retry logic**: When `ai_matched < 10` after first LLM call, engine retries at temperature=0.1 with top-200 candidates and a simplified prompt. Adopts retry result only if it produces more matches.
+- **Anti-hallucination system prompt**: AI instructed to output a plain-text numbered list only (`1 Card Name` per line). No JSON, no markdown. Card names must be copied verbatim from the Available Cards list.
+- **Garbled deck description fix**: `_extract_numbered_card_indices` now discards any captured preamble that is longer than 120 chars or contains no 4-letter English words, preventing model garbage from being stored as the deck description.
+
+---
+
 [Update: May 18, 2026]
 
 ## Current State — v1.4.1

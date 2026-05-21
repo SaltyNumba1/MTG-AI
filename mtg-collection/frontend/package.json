@@ -1,6 +1,6 @@
 {
   "name": "mtg-collection-frontend",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "DeepBrew — Local GPU-accelerated MTG Commander deck builder",
   "author": "",
   "main": "electron-main.js",

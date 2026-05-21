@@ -21,7 +21,10 @@ const packagedBackendDir = path.join(process.resourcesPath || __dirname, "backen
 const _tierFile = path.join(process.resourcesPath || __dirname, "app-tier");
 const DEEPBREW_TIER = (() => {
   if (fs.existsSync(_tierFile)) return fs.readFileSync(_tierFile, "utf8").trim();
-  return process.env.DEEPBREW_TIER || "starter";
+  // Unpackaged (dev) builds default to "pro" so the existing DeepBrew-Pro
+  // license.json is found automatically — no re-activation needed.
+  // Override with DEEPBREW_TIER=starter to test the starter tier in dev.
+  return process.env.DEEPBREW_TIER || "pro";
 })();
 app.setName(DEEPBREW_TIER === "pro" ? "DeepBrew-Pro" : "DeepBrew-Starter");
 
@@ -33,7 +36,7 @@ let isQuitting = false;
 let mainWindow = null;
 
 const LLAMA_PORT = 8081;
-const LLAMA_CTX = 20480;
+const LLAMA_CTX = 32768;
 // Adaptive GPU layer steps: try most layers first, step down on VRAM OOM, reach 0 for CPU fallback.
 const LLAMA_GPU_LAYER_STEPS = [99, 60, 40, 20, 0];
 
@@ -62,9 +65,6 @@ function getLlamaServerDir() {
 const MODEL_SELECT_TEMPLATE = [
   "# DeepBrew — Model Selection",
   "# Uncomment ONE line below to select which model to load.",
-  "# Download models from:",
-  "#   7B  (recommended): https://huggingface.co/SaltyNumba1/MTG-Commander-Mistral-7B-Trained",
-  "#   12B:               https://huggingface.co/SaltyNumba1/Mistral-nemo-12B-MTG-Commander",
   "#",
   "# Place the downloaded .gguf file(s) in the same folder as this config file.",
   "#",

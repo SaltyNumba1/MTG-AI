@@ -17,6 +17,7 @@ const DEFAULTS = {
   // GPU Performance
   maxCompactCandidates: 200,
   numPredict: 2048,
+  maxModelCandidates: 500,
   // Deck Building
   defaultBasicLand: 15,
   defaultNonbasicLand: 12,
@@ -49,6 +50,7 @@ export interface AppSettings {
   // GPU Performance
   maxCompactCandidates: number;
   numPredict: number;
+  maxModelCandidates: number;
   // Deck Building Defaults
   defaultBasicLand: number;
   defaultNonbasicLand: number;
@@ -66,6 +68,7 @@ export function readSettings(): AppSettings {
   return {
     maxCompactCandidates: ri("deepbrew_max_compact_candidates", DEFAULTS.maxCompactCandidates),
     numPredict: ri("deepbrew_num_predict", DEFAULTS.numPredict),
+    maxModelCandidates: ri("deepbrew_max_model_candidates", DEFAULTS.maxModelCandidates),
     defaultBasicLand: ri("deepbrew_default_basic_land", DEFAULTS.defaultBasicLand),
     defaultNonbasicLand: ri("deepbrew_default_nonbasic_land", DEFAULTS.defaultNonbasicLand),
     defaultDualLand: ri("deepbrew_default_dual_land", DEFAULTS.defaultDualLand),
