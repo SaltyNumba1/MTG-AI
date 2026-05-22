@@ -1,9 +1,9 @@
 [Update: May 21, 2026]
 
-## Current State — v1.4.2
+## Current State — v1.4.3
 
 ### Version
-- **v1.4.2** — AI quality & reliability improvements on top of v1.4.1.
+- **v1.4.3** — AI quality & reliability improvements on top of v1.4.1.
 
 ### Changes in v1.4.2
 - **Functional-role tagging (`_TAG_PATTERNS`)**: 13 regex patterns tag each card with up to 3 roles (draw, ramp, removal, wipe, bounce, token, counter, tutor, recursion, copy, proliferate, anthem, protection) extracted from oracle text. Tags are embedded in the AI prompt.

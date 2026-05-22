@@ -1,7 +1,7 @@
 <img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/676307dc-9ec3-4626-9561-6cecaa6ed368" />
 # 🃏 DeepBrew — MTG Collection & Deck Builder
 
-**v1.4.2** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
+**v1.4.3** | [Download at deepbrewmtg.com](https://deepbrewmtg.com)
 
 Build Commander decks from your own collection using a **fully local AI model** — no cloud, no subscription, no Ollama. Your cards and your data stay on your machine.
 
@@ -95,7 +95,7 @@ Defaults:
 
 ---
 
-## v1.4.2 — AI Quality & Reliability
+## v1.4.3 — AI Quality & Reliability
 
 ### 🧠 Engine Improvements
 

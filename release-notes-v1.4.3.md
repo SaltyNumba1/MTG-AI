@@ -1,4 +1,4 @@
-# DeepBrew v1.4.2 — AI Quality & Reliability
+# DeepBrew v1.4.3 — AI Quality & Reliability
 
 ## 🧠 Engine Improvements
 
